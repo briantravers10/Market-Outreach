@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd ../.. && npm run build:demo",
+  "env": {
+    "DEMO_READ_ONLY": "1"
+  }
+}
