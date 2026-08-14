@@ -8,12 +8,12 @@
     "apps/*"
   ],
   "scripts": {
-    "seed": "tsx scripts/seed.ts",
-    "run-campaign": "tsx scripts/run-campaign.ts",
-    "reset-db": "tsx scripts/reset-db.ts",
+    "seed": "npx tsx scripts/seed.ts",
+    "run-campaign": "npx tsx scripts/run-campaign.ts",
+    "reset-db": "npx tsx scripts/reset-db.ts",
     "dashboard": "npm run dev --workspace apps/dashboard",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "build:demo": "SEED_DB_PATH=data/demo.db tsx scripts/reset-db.ts && SEED_DB_PATH=data/demo.db tsx scripts/seed.ts && SEED_DB_PATH=data/demo.db tsx scripts/run-campaign.ts && npm run build --workspace apps/dashboard"
+    "build:demo": "SEED_DB_PATH=data/demo.db npx tsx scripts/reset-db.ts && SEED_DB_PATH=data/demo.db npx tsx scripts/seed.ts && SEED_DB_PATH=data/demo.db npx tsx scripts/run-campaign.ts && npm run build --workspace apps/dashboard"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
