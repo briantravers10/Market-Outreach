@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "SEED_DB_PATH=data/demo.db npx tsx ../../scripts/reset-db.ts && SEED_DB_PATH=data/demo.db npx tsx ../../scripts/seed.ts && SEED_DB_PATH=data/demo.db npx tsx ../../scripts/run-campaign.ts",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit"
