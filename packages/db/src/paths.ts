@@ -21,17 +21,32 @@ export function findRepoRoot(): string {
 }
 
 /**
- * Public Vercel deployments of this skeleton run against a committed, pre-seeded,
- * read-only snapshot (data/demo.db) instead of the local read-write dev database —
- * Vercel's serverless functions don't have persistent writable disk. Set via the
- * DEMO_READ_ONLY=1 project env var; see packages/db/src/client.ts.
+ * Public Vercel deployments of this skeleton serve a pre-seeded, read-only
+ * snapshot (data/demo.db) instead of the local read-write dev database —
+ * Vercel's serverless functions don't have persistent writable disk at
+ * request time. Set via the DEMO_READ_ONLY=1 project env var; see
+ * packages/db/src/client.ts.
  */
 export function isDemoReadOnly(): boolean {
   return process.env.DEMO_READ_ONLY === "1";
 }
 
+/**
+ * Vercel's *build* step (unlike its request-time runtime) does have a
+ * writable filesystem, so demo.db is generated fresh on every deploy by
+ * running the normal seed/run-campaign scripts with SEED_DB_PATH pointing at
+ * it — see the root package.json "build:demo" script. When set, this takes
+ * priority over DEMO_READ_ONLY so those scripts get a normal read-write
+ * connection instead of the readonly one deployed requests get.
+ */
 export function defaultDbPath(): string {
   const root = findRepoRoot();
+
+  if (process.env.SEED_DB_PATH) {
+    const seedPath = path.join(root, process.env.SEED_DB_PATH);
+    fs.mkdirSync(path.dirname(seedPath), { recursive: true });
+    return seedPath;
+  }
 
   if (isDemoReadOnly()) {
     return path.join(root, "data", "demo.db");

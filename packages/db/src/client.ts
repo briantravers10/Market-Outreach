@@ -7,13 +7,15 @@ let sharedDb: Database.Database | null = null;
 
 /**
  * Opens (or reuses) the SQLite connection and ensures the schema exists.
- * In DEMO_READ_ONLY mode (public Vercel deploy), opens the committed demo.db
- * snapshot read-only instead — see paths.ts.
+ * In DEMO_READ_ONLY mode (public Vercel deploy), opens the demo.db snapshot
+ * read-only instead — unless SEED_DB_PATH is also set, which means this is
+ * the build-time seeding step generating that snapshot and needs a normal
+ * read-write connection. See paths.ts.
  */
 export function getDb(dbPath: string = defaultDbPath()): Database.Database {
   if (sharedDb) return sharedDb;
 
-  const readonly = isDemoReadOnly();
+  const readonly = isDemoReadOnly() && !process.env.SEED_DB_PATH;
   const db = new Database(dbPath, readonly ? { readonly: true, fileMustExist: true } : undefined);
 
   if (!readonly) {
