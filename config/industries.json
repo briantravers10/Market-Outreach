@@ -1,0 +1,15 @@
+{
+  "description": "Example target industries for the skeleton phase. Product is not industry-specific — this list is editable/extensible.",
+  "industries": [
+    { "id": "barbers", "label": "Barbers", "active": true },
+    { "id": "hair-salons", "label": "Hair Salons", "active": true },
+    { "id": "nail-salons", "label": "Nail Salons", "active": true },
+    { "id": "dog-groomers", "label": "Dog Groomers", "active": true },
+    { "id": "lash-brow-studios", "label": "Lash/Brow Studios", "active": true },
+    { "id": "estheticians", "label": "Estheticians", "active": true },
+    { "id": "massage-therapists", "label": "Massage Therapists", "active": true },
+    { "id": "personal-trainers", "label": "Personal Trainers", "active": true },
+    { "id": "tattoo-studios", "label": "Tattoo Studios", "active": true },
+    { "id": "car-detailers", "label": "Car Detailers", "active": true }
+  ]
+}

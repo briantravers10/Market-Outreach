@@ -1,0 +1,22 @@
+{
+  "name": "market-outreach",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI-powered prospecting system skeleton (fake-data phase). See README.md.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "seed": "tsx scripts/seed.ts",
+    "run-campaign": "tsx scripts/run-campaign.ts",
+    "reset-db": "tsx scripts/reset-db.ts",
+    "dashboard": "npm run dev --workspace apps/dashboard",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2",
+    "@types/node": "^22.10.2"
+  }
+}

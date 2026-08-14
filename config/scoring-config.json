@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "description": "Editable prospect-scoring configuration. The ScoringEngine (packages/core/src/scoring/scoringEngine.ts) reads this file at runtime — change points, thresholds, or enabled flags here without touching code. Each factor's evaluation logic lives in a small named function in the engine, keyed by `id`; params here tune that function's thresholds. Score estimates fit for WEBSITE + INTEGRATED BOOKING, not general business quality.",
+  "baseScore": 35,
+  "scoreRange": { "min": 0, "max": 100 },
+  "factors": [
+    {
+      "id": "no-website",
+      "label": "No website",
+      "category": "website",
+      "points": 18,
+      "enabled": true,
+      "appliesWhen": "website_status = NONE"
+    },
+    {
+      "id": "poor-website",
+      "label": "Poor / outdated website",
+      "category": "website",
+      "points": 10,
+      "enabled": true,
+      "appliesWhen": "website_status = EXISTS and website_quality = POOR"
+    },
+    {
+      "id": "excellent-website",
+      "label": "Excellent, modern website",
+      "category": "website",
+      "points": -12,
+      "enabled": true,
+      "appliesWhen": "website_status = EXISTS and website_quality = EXCELLENT"
+    },
+    {
+      "id": "no-online-booking",
+      "label": "No online booking",
+      "category": "booking",
+      "points": 16,
+      "enabled": true,
+      "appliesWhen": "online_booking_status = NONE"
+    },
+    {
+      "id": "phone-only-booking",
+      "label": "Phone-only booking",
+      "category": "booking",
+      "points": 12,
+      "enabled": true,
+      "appliesWhen": "booking_method = PHONE_ONLY"
+    },
+    {
+      "id": "social-dm-booking",
+      "label": "Social / DM booking",
+      "category": "booking",
+      "points": 10,
+      "enabled": true,
+      "appliesWhen": "booking_method = SOCIAL_DM"
+    },
+    {
+      "id": "sophisticated-booking-incumbent",
+      "label": "Sophisticated integrated booking already in place",
+      "category": "booking",
+      "points": -20,
+      "enabled": true,
+      "appliesWhen": "online_booking_status = INTEGRATED_BOOKING_SYSTEM"
+    },
+    {
+      "id": "third-party-booking-incumbent",
+      "label": "Established third-party booking provider (switchable)",
+      "category": "booking",
+      "points": -6,
+      "enabled": true,
+      "appliesWhen": "online_booking_status = THIRD_PARTY_BOOKING_SYSTEM"
+    },
+    {
+      "id": "multiple-staff",
+      "label": "Multiple staff (scheduling complexity = pain point)",
+      "category": "business-signals",
+      "points": 10,
+      "enabled": true,
+      "params": { "minStaff": 3 },
+      "appliesWhen": "staff_count >= params.minStaff"
+    },
+    {
+      "id": "strong-reviews",
+      "label": "Strong reviews (proven demand, worth digitizing)",
+      "category": "business-signals",
+      "points": 8,
+      "enabled": true,
+      "params": { "minRating": 4.4, "minReviewCount": 40 },
+      "appliesWhen": "rating >= params.minRating and review_count >= params.minReviewCount"
+    },
+    {
+      "id": "active-social-presence",
+      "label": "Active social presence (traffic exists, no way to convert it)",
+      "category": "business-signals",
+      "points": 8,
+      "enabled": true,
+      "appliesWhen": "social_activity = ACTIVE"
+    },
+    {
+      "id": "established-business",
+      "label": "Established, multi-location or long-running business",
+      "category": "business-signals",
+      "points": 6,
+      "enabled": true,
+      "params": { "minLocations": 2 },
+      "appliesWhen": "location_count >= params.minLocations"
+    },
+    {
+      "id": "inactive-business",
+      "label": "Business appears inactive",
+      "category": "business-signals",
+      "points": -25,
+      "enabled": true,
+      "appliesWhen": "social_activity = INACTIVE and website_status = NONE"
+    },
+    {
+      "id": "poor-fit-industry",
+      "label": "Poor fit for appointment-based booking",
+      "category": "business-signals",
+      "points": -15,
+      "enabled": true,
+      "appliesWhen": "manual flag: fit_for_appointments = false"
+    },
+    {
+      "id": "insufficient-data",
+      "label": "Insufficient reliable information to evaluate",
+      "category": "data-quality",
+      "points": -10,
+      "enabled": true,
+      "appliesWhen": "data_confidence = LOW"
+    }
+  ],
+  "confidence": {
+    "description": "Data confidence is computed separately from prospect score, based on how many key fields were reliably resolved during enrichment.",
+    "keyFields": [
+      "phone",
+      "email",
+      "website",
+      "online_booking_status",
+      "staff_count",
+      "rating",
+      "review_count"
+    ],
+    "thresholds": {
+      "high": 0.8,
+      "medium": 0.5
+    }
+  },
+  "qualification": {
+    "description": "Score thresholds that set qualification_status. Editable independently of the point weights above.",
+    "highPriorityMin": 80,
+    "qualifiedMin": 60,
+    "disqualifiedMax": 20
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "description": "Example territories for the skeleton phase. TEST VALUES ONLY — adding a real territory later is just adding a row here, no code changes required.",
+  "territories": [
+    { "id": "miami-fl", "city": "Miami", "state": "FL", "active": true },
+    { "id": "fort-lauderdale-fl", "city": "Fort Lauderdale", "state": "FL", "active": true },
+    { "id": "delray-beach-fl", "city": "Delray Beach", "state": "FL", "active": true }
+  ]
+}
