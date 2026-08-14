@@ -2,13 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { getManager, getRepos } from "./data";
+import { isDemoMode } from "./demo";
 
 /**
  * Campaign/job control server actions. These mutate ONLY local SQLite
  * test/mock data — no external systems, no outreach, no live research.
+ *
+ * On the public read-only demo deploy (DEMO_READ_ONLY=1), every action is a
+ * no-op: the underlying database is opened read-only there (see
+ * packages/db/src/client.ts), so writes would throw. The dashboard also
+ * hides/disables these controls in demo mode — see components/DemoGuard.tsx —
+ * this early return is the belt-and-braces backstop.
  */
 
 export async function startCampaignAction(campaignId: string) {
+  if (isDemoMode) return;
   getManager().startCampaign(campaignId);
   revalidatePath("/campaigns");
   revalidatePath("/queue");
@@ -16,24 +24,28 @@ export async function startCampaignAction(campaignId: string) {
 }
 
 export async function pauseCampaignAction(campaignId: string) {
+  if (isDemoMode) return;
   getManager().pauseCampaign(campaignId);
   revalidatePath("/campaigns");
   revalidatePath("/queue");
 }
 
 export async function resumeCampaignAction(campaignId: string) {
+  if (isDemoMode) return;
   getManager().resumeCampaign(campaignId);
   revalidatePath("/campaigns");
   revalidatePath("/queue");
 }
 
 export async function stopCampaignAction(campaignId: string) {
+  if (isDemoMode) return;
   getManager().stopCampaign(campaignId);
   revalidatePath("/campaigns");
   revalidatePath("/queue");
 }
 
 export async function runNextJobAction(campaignId: string) {
+  if (isDemoMode) return;
   const repos = getRepos();
   const manager = getManager();
   const nextPending = repos.jobs.list({ campaignId, status: "pending" })[0];
@@ -49,6 +61,7 @@ export async function runNextJobAction(campaignId: string) {
 }
 
 export async function requeueJobAction(jobId: string) {
+  if (isDemoMode) return;
   const repos = getRepos();
   const job = repos.jobs.getById(jobId);
   if (job) {
@@ -58,6 +71,7 @@ export async function requeueJobAction(jobId: string) {
 }
 
 export async function createCampaignAction(formData: FormData) {
+  if (isDemoMode) return;
   const city = String(formData.get("city"));
   const industry = String(formData.get("industry"));
   const name = String(formData.get("name") || `${city} — ${industry}`);

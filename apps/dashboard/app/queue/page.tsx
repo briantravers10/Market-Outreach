@@ -1,6 +1,7 @@
 import { getIndustries, getTerritories, type JobStatus } from "@market-outreach/core";
 import { getRepos } from "../../lib/data";
 import { StatusBadge } from "../../components/Badges";
+import { ActionButton } from "../../components/ActionButton";
 import { requeueJobAction } from "../../lib/actions";
 
 const STATUSES: JobStatus[] = ["pending", "running", "complete", "failed", "retry", "human_review", "paused"];
@@ -103,9 +104,7 @@ export default async function QueuePage({
                 <td className="muted">{job.error ?? "—"}</td>
                 <td>
                   {(job.status === "failed" || job.status === "retry") && (
-                    <form action={requeueJobAction.bind(null, job.id)}>
-                      <button className="btn-ghost" type="submit">Requeue</button>
-                    </form>
+                    <ActionButton action={requeueJobAction.bind(null, job.id)} label="Requeue" />
                   )}
                 </td>
               </tr>

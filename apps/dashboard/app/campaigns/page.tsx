@@ -1,6 +1,8 @@
 import { buildCampaignProgress, getIndustries, getTerritories } from "@market-outreach/core";
 import { getRepos } from "../../lib/data";
 import { StatusBadge } from "../../components/Badges";
+import { ActionButton } from "../../components/ActionButton";
+import { isDemoMode } from "../../lib/demo";
 import {
   createCampaignAction,
   pauseCampaignAction,
@@ -31,37 +33,41 @@ export default async function CampaignsPage() {
 
       <div className="panel">
         <h2>New Campaign</h2>
-        <form action={createCampaignAction} className="filter-bar">
-          <div className="filter-field">
-            <label>City</label>
-            <select name="city" required>
-              {territories.map((t) => (
-                <option key={t.id} value={t.city}>{t.city}</option>
-              ))}
-            </select>
-          </div>
-          <div className="filter-field">
-            <label>Industry</label>
-            <select name="industry" required>
-              {industries.map((i) => (
-                <option key={i.id} value={i.id}>{i.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="filter-field">
-            <label>Batch Size</label>
-            <input type="number" name="batchSize" defaultValue={5} min={1} max={50} />
-          </div>
-          <div className="filter-field">
-            <label>Target Leads</label>
-            <input type="number" name="targetLeadCount" defaultValue={15} min={1} max={500} />
-          </div>
-          <div className="filter-field">
-            <label>Priority (1-5)</label>
-            <input type="number" name="priority" defaultValue={3} min={1} max={5} />
-          </div>
-          <button className="btn" type="submit">Create Campaign</button>
-        </form>
+        {isDemoMode ? (
+          <p className="disabled-banner">Campaign creation is disabled in the public read-only demo.</p>
+        ) : (
+          <form action={createCampaignAction} className="filter-bar">
+            <div className="filter-field">
+              <label>City</label>
+              <select name="city" required>
+                {territories.map((t) => (
+                  <option key={t.id} value={t.city}>{t.city}</option>
+                ))}
+              </select>
+            </div>
+            <div className="filter-field">
+              <label>Industry</label>
+              <select name="industry" required>
+                {industries.map((i) => (
+                  <option key={i.id} value={i.id}>{i.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="filter-field">
+              <label>Batch Size</label>
+              <input type="number" name="batchSize" defaultValue={5} min={1} max={50} />
+            </div>
+            <div className="filter-field">
+              <label>Target Leads</label>
+              <input type="number" name="targetLeadCount" defaultValue={15} min={1} max={500} />
+            </div>
+            <div className="filter-field">
+              <label>Priority (1-5)</label>
+              <input type="number" name="priority" defaultValue={3} min={1} max={5} />
+            </div>
+            <button className="btn" type="submit">Create Campaign</button>
+          </form>
+        )}
       </div>
 
       <div className="panel">
@@ -103,37 +109,23 @@ export default async function CampaignsPage() {
                   <td>
                     <div className="btn-row">
                       {c.status === "draft" && (
-                        <form action={startCampaignAction.bind(null, c.id)}>
-                          <button className="btn-ghost" type="submit">Start</button>
-                        </form>
+                        <ActionButton action={startCampaignAction.bind(null, c.id)} label="Start" />
                       )}
                       {c.status === "running" && (
                         <>
-                          <form action={runNextJobAction.bind(null, c.id)}>
-                            <button className="btn-ghost" type="submit">Run Next Job</button>
-                          </form>
-                          <form action={pauseCampaignAction.bind(null, c.id)}>
-                            <button className="btn-ghost" type="submit">Pause</button>
-                          </form>
-                          <form action={stopCampaignAction.bind(null, c.id)}>
-                            <button className="btn-ghost" type="submit">Stop</button>
-                          </form>
+                          <ActionButton action={runNextJobAction.bind(null, c.id)} label="Run Next Job" />
+                          <ActionButton action={pauseCampaignAction.bind(null, c.id)} label="Pause" />
+                          <ActionButton action={stopCampaignAction.bind(null, c.id)} label="Stop" />
                         </>
                       )}
                       {c.status === "paused" && (
                         <>
-                          <form action={resumeCampaignAction.bind(null, c.id)}>
-                            <button className="btn-ghost" type="submit">Resume</button>
-                          </form>
-                          <form action={stopCampaignAction.bind(null, c.id)}>
-                            <button className="btn-ghost" type="submit">Stop</button>
-                          </form>
+                          <ActionButton action={resumeCampaignAction.bind(null, c.id)} label="Resume" />
+                          <ActionButton action={stopCampaignAction.bind(null, c.id)} label="Stop" />
                         </>
                       )}
                       {c.status === "stopped" && (
-                        <form action={startCampaignAction.bind(null, c.id)}>
-                          <button className="btn-ghost" type="submit">Restart</button>
-                        </form>
+                        <ActionButton action={startCampaignAction.bind(null, c.id)} label="Restart" />
                       )}
                     </div>
                   </td>
