@@ -1,4 +1,4 @@
-import type { Campaign, Job, Lead } from "../types";
+import type { AgentActivity, AgentId, Campaign, Job, Lead } from "../types";
 
 export interface OverallSummary {
   businessesDiscovered: number;
@@ -71,6 +71,63 @@ function bucketBy(leads: Lead[], keyFn: (lead: Lead) => string): ProgressBucket[
       averageScore: average(group.filter((l) => l.prospectScore !== null).map((l) => l.prospectScore as number)),
     }))
     .sort((a, b) => b.totalLeads - a.totalLeads);
+}
+
+export interface CountBreakdown {
+  key: string;
+  count: number;
+  pct: number;
+}
+
+/** Generic "how many leads fall into each bucket" breakdown, sorted largest first. */
+export function buildBreakdown(items: Lead[], keyFn: (lead: Lead) => string): CountBreakdown[] {
+  const map = new Map<string, number>();
+  for (const item of items) {
+    const key = keyFn(item);
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  const total = items.length || 1;
+  return Array.from(map.entries())
+    .map(([key, count]) => ({ key, count, pct: Math.round((count / total) * 100) }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function buildWebsiteStatusBreakdown(leads: Lead[]): CountBreakdown[] {
+  return buildBreakdown(leads, (l) => (l.websiteStatus === "NONE" ? "No website" : l.websiteQuality));
+}
+
+export function buildBookingStatusBreakdown(leads: Lead[]): CountBreakdown[] {
+  return buildBreakdown(leads, (l) => l.bookingMethod.replace(/_/g, " "));
+}
+
+export function buildBookingProviderBreakdown(leads: Lead[]): CountBreakdown[] {
+  return buildBreakdown(
+    leads.filter((l) => l.bookingProvider),
+    (l) => l.bookingProvider as string
+  );
+}
+
+export function buildConfidenceBreakdown(leads: Lead[]): CountBreakdown[] {
+  return buildBreakdown(leads, (l) => l.dataConfidence);
+}
+
+export interface AgentThroughput {
+  agentId: AgentId;
+  actionCount: number;
+  errorCount: number;
+  humanReviewCount: number;
+}
+
+export function buildAgentThroughput(activity: AgentActivity[]): AgentThroughput[] {
+  const map = new Map<AgentId, AgentThroughput>();
+  for (const a of activity) {
+    if (!map.has(a.agentId)) map.set(a.agentId, { agentId: a.agentId, actionCount: 0, errorCount: 0, humanReviewCount: 0 });
+    const entry = map.get(a.agentId)!;
+    entry.actionCount += 1;
+    if (a.level === "error") entry.errorCount += 1;
+    if (a.level === "human_review") entry.humanReviewCount += 1;
+  }
+  return Array.from(map.values()).sort((a, b) => b.actionCount - a.actionCount);
 }
 
 export function buildCampaignProgress(campaign: Campaign, jobs: Job[], leads: Lead[]) {

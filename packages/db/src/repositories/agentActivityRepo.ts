@@ -40,11 +40,12 @@ export class SqliteAgentActivityRepository implements AgentActivityRepository {
     return activity;
   }
 
-  list(filter: { agentId?: AgentId; campaignId?: string; limit?: number } = {}): AgentActivity[] {
+  list(filter: { agentId?: AgentId; campaignId?: string; leadId?: string; limit?: number } = {}): AgentActivity[] {
     const clauses: string[] = [];
     const params: Record<string, unknown> = {};
     if (filter.agentId) { clauses.push("agent_id = @agentId"); params.agentId = filter.agentId; }
     if (filter.campaignId) { clauses.push("campaign_id = @campaignId"); params.campaignId = filter.campaignId; }
+    if (filter.leadId) { clauses.push("lead_id = @leadId"); params.leadId = filter.leadId; }
 
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     params.limit = filter.limit ?? 100;

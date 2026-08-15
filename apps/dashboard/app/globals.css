@@ -342,3 +342,237 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   padding: 10px 12px;
   border-radius: 8px;
 }
+
+.sidebar-divider {
+  height: 1px;
+  background: var(--panel-border);
+  margin: 10px 8px;
+}
+
+.sidebar-link-disabled {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #6b7280;
+}
+
+.sidebar-disabled-tag {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(148,163,184,0.12);
+  color: #9ca3af;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+/* Manager Command Box */
+.command-box {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.command-box textarea {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 54px;
+}
+
+.command-box textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.notice-banner {
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.notice-success {
+  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.3);
+  color: #86efac;
+}
+
+.notice-clarify {
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.3);
+  color: #fcd34d;
+}
+
+/* Team */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.agent-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: block;
+}
+
+.agent-card:hover {
+  border-color: var(--accent);
+}
+
+.agent-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.agent-card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.agent-card-role {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.agent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.agent-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.agent-status-working .agent-status-dot { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+.agent-status-working { color: #86efac; }
+.agent-status-idle .agent-status-dot { background: #64748b; }
+.agent-status-idle { color: #94a3b8; }
+.agent-status-disabled .agent-status-dot { background: #475569; }
+.agent-status-disabled { color: #64748b; }
+
+.agent-card-task {
+  font-size: 13px;
+  color: var(--text);
+  margin: 10px 0;
+  min-height: 34px;
+}
+
+.agent-card-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--panel-border);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.agent-card-stats strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* Pipeline checklist */
+.pipeline-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pipeline-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(148,163,184,0.1);
+  color: var(--text-dim);
+}
+
+.pipeline-step.done {
+  background: rgba(34,197,94,0.12);
+  color: #86efac;
+}
+
+/* Breakdown bars (Analytics) */
+.breakdown-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 40px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  padding: 5px 0;
+}
+
+.breakdown-label {
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breakdown-bar-track {
+  height: 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.breakdown-bar-fill {
+  height: 100%;
+  background: var(--blue);
+}
+
+.breakdown-count {
+  text-align: right;
+  color: var(--text);
+}
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.activity-row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 13px;
+}
+
+.activity-row:last-child { border-bottom: none; }
+
+.activity-time {
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+  min-width: 70px;
+}
+
+.activity-summary.level-error { color: #fca5a5; }
+.activity-summary.level-human_review { color: #d8b4fe; }

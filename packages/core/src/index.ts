@@ -37,8 +37,14 @@ export {
   buildProgressByCity,
   buildProgressByIndustry,
   buildCampaignProgress,
+  buildBreakdown,
+  buildWebsiteStatusBreakdown,
+  buildBookingStatusBreakdown,
+  buildBookingProviderBreakdown,
+  buildConfidenceBreakdown,
+  buildAgentThroughput,
 } from "./workers/reportingWorker";
-export type { OverallSummary, ProgressBucket } from "./workers/reportingWorker";
+export type { OverallSummary, ProgressBucket, CountBreakdown, AgentThroughput } from "./workers/reportingWorker";
 
 export { logActivity } from "./agents/agentActivity";
 export type { LogActivityInput } from "./agents/agentActivity";

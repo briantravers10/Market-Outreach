@@ -5,9 +5,11 @@ import {
   MockEnrichmentProvider,
   MockReasoningProvider,
   MockCrmAdapter,
+  DeterministicCommandParser,
   getScoringConfig,
   getTerritories,
   getIndustries,
+  getAgentConfigs,
 } from "@market-outreach/core";
 import { createRepositories } from "@market-outreach/db";
 
@@ -34,4 +36,8 @@ export function getManager() {
   });
 }
 
-export { getScoringConfig, getTerritories, getIndustries };
+export function getCommandParser() {
+  return new DeterministicCommandParser();
+}
+
+export { getScoringConfig, getTerritories, getIndustries, getAgentConfigs };

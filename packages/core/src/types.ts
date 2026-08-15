@@ -318,7 +318,7 @@ export interface OutreachRepository {
 
 export interface AgentActivityRepository {
   log(activity: AgentActivity): AgentActivity;
-  list(filter?: { agentId?: AgentId; campaignId?: string; limit?: number }): AgentActivity[];
+  list(filter?: { agentId?: AgentId; campaignId?: string; leadId?: string; limit?: number }): AgentActivity[];
 }
 
 export interface HumanReviewRepository {

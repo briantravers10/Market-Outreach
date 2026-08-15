@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getIndustries, getTerritories, type JobStatus } from "@market-outreach/core";
 import { getRepos } from "../../lib/data";
 import { StatusBadge } from "../../components/Badges";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function QueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ city?: string; industry?: string; status?: string }>;
+  searchParams: Promise<{ city?: string; industry?: string; status?: string; campaignId?: string }>;
 }) {
   const params = await searchParams;
   const repos = getRepos();
@@ -23,8 +24,10 @@ export default async function QueuePage({
     city: params.city || undefined,
     industry: params.industry || undefined,
     status: (params.status as JobStatus) || undefined,
+    campaignId: params.campaignId || undefined,
   });
   const campaigns = new Map(repos.campaigns.list().map((c) => [c.id, c]));
+  const filteredCampaign = params.campaignId ? campaigns.get(params.campaignId) : null;
 
   const statusCounts = STATUSES.reduce<Record<string, number>>((acc, s) => {
     acc[s] = repos.jobs.list({ status: s }).length;
@@ -37,6 +40,13 @@ export default async function QueuePage({
         <h1>Work Queue</h1>
         <p>City + Industry + Batch jobs. Resumable — a job's status and checkpoint payload survive restarts.</p>
       </div>
+
+      {filteredCampaign && (
+        <div className="notice-banner notice-success">
+          Showing jobs for <strong>{filteredCampaign.city} — {industryLabels.get(filteredCampaign.industry) ?? filteredCampaign.industry}</strong>.{" "}
+          <Link href="/queue" className="muted">Clear filter</Link>
+        </div>
+      )}
 
       <div className="kpi-grid">
         {STATUSES.map((s) => (

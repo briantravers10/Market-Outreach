@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { buildCampaignProgress, getIndustries, getTerritories } from "@market-outreach/core";
 import { getRepos } from "../../lib/data";
 import { StatusBadge } from "../../components/Badges";
 import { ActionButton } from "../../components/ActionButton";
+import { CommandBox } from "../../components/CommandBox";
 import { isDemoMode } from "../../lib/demo";
 import {
+  assignTaskAction,
   createCampaignAction,
   pauseCampaignAction,
   resumeCampaignAction,
@@ -14,7 +17,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function CampaignsPage() {
+export default async function CampaignsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ assigned?: string; clarify?: string }>;
+}) {
+  const params = await searchParams;
   const repos = getRepos();
   const territories = getTerritories();
   const industries = getIndustries();
@@ -27,12 +35,30 @@ export default async function CampaignsPage() {
   return (
     <div>
       <div className="page-header">
-        <h1>Campaign Control</h1>
-        <p>Start, pause, resume, and stop campaigns. All controls act only on local test/mock jobs.</p>
+        <h1>Campaigns</h1>
+        <p>Tell the Manager what to find, or create a campaign directly. All controls act only on local test/mock jobs.</p>
       </div>
 
       <div className="panel">
-        <h2>New Campaign</h2>
+        <h2>Manager Command Box</h2>
+        <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
+          Try: "Find 50 dog groomers in Miami with no online booking." Cities: {territories.map((t) => t.city).join(", ")}.
+        </p>
+        <CommandBox action={assignTaskAction} placeholder="Find 50 dog groomers in Miami with no online booking…" />
+        {params.assigned && (
+          <div className="notice-banner notice-success" style={{ marginTop: 14, marginBottom: 0 }}>
+            Assigned: <strong>{params.assigned}</strong>. Start it below when you're ready.
+          </div>
+        )}
+        {params.clarify && (
+          <div className="notice-banner notice-clarify" style={{ marginTop: 14, marginBottom: 0 }}>
+            {params.clarify}
+          </div>
+        )}
+      </div>
+
+      <div className="panel">
+        <h2>New Campaign <small>manual form</small></h2>
         {isDemoMode ? (
           <p className="disabled-banner">Campaign creation is disabled in the public read-only demo.</p>
         ) : (
@@ -77,7 +103,7 @@ export default async function CampaignsPage() {
             <tr>
               <th>Campaign</th>
               <th>Status</th>
-              <th>Batch Size</th>
+              <th>Filters</th>
               <th>Priority</th>
               <th>Progress</th>
               <th>Leads</th>
@@ -91,17 +117,19 @@ export default async function CampaignsPage() {
               return (
                 <tr key={c.id}>
                   <td>
-                    {c.city} — {industryLabels.get(c.industry) ?? c.industry}
+                    <div>{c.city} — {industryLabels.get(c.industry) ?? c.industry}</div>
+                    {c.sourceCommand && <div className="muted" style={{ fontSize: 11 }}>via Manager command</div>}
                   </td>
                   <td><StatusBadge status={c.status} /></td>
-                  <td>{c.batchSize}</td>
+                  <td className="muted" style={{ fontSize: 11, maxWidth: 180 }}>{c.filters.join(", ") || "—"}</td>
                   <td>{c.priority}</td>
                   <td style={{ minWidth: 160 }}>
                     <div className="progress-bar">
                       <div className="progress-bar-fill" style={{ width: `${progress.completionPct}%` }} />
                     </div>
                     <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                      {progress.completeJobs}/{progress.totalJobs} jobs ({progress.completionPct}%)
+                      {progress.completeJobs}/{progress.totalJobs} jobs ({progress.completionPct}%) ·{" "}
+                      <Link href={`/queue?campaignId=${c.id}`}>view jobs</Link>
                     </div>
                   </td>
                   <td>{progress.leadsDiscovered}</td>
@@ -127,13 +155,14 @@ export default async function CampaignsPage() {
                       {c.status === "stopped" && (
                         <ActionButton action={startCampaignAction.bind(null, c.id)} label="Restart" />
                       )}
+                      {c.status === "complete" && <span className="muted" style={{ fontSize: 12 }}>Done</span>}
                     </div>
                   </td>
                 </tr>
               );
             })}
             {campaigns.length === 0 && (
-              <tr><td colSpan={8} className="empty-state">No campaigns yet — create one above or run `npm run seed`.</td></tr>
+              <tr><td colSpan={8} className="empty-state">No campaigns yet — assign one above or run `npm run seed`.</td></tr>
             )}
           </tbody>
         </table>
