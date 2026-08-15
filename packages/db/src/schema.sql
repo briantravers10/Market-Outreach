@@ -11,8 +11,12 @@ CREATE TABLE IF NOT EXISTS campaigns (
   batch_size INTEGER NOT NULL,
   priority INTEGER NOT NULL,
   target_lead_count INTEGER NOT NULL,
+  filters TEXT NOT NULL DEFAULT '[]',
+  source_command TEXT,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  started_at TEXT,
+  completed_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS jobs (
@@ -70,6 +74,7 @@ CREATE TABLE IF NOT EXISTS leads (
   campaign_id TEXT NOT NULL REFERENCES campaigns(id),
   job_id TEXT NOT NULL REFERENCES jobs(id),
   is_duplicate_of TEXT,
+  stages_completed TEXT NOT NULL DEFAULT '[]',
   notes TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_leads_campaign ON leads(campaign_id);
@@ -94,3 +99,52 @@ CREATE TABLE IF NOT EXISTS outreach_log (
   requested_at TEXT NOT NULL,
   note TEXT NOT NULL
 );
+
+-- Phase 2: hybrid AI prospecting team. Agent *identity* is config-driven
+-- (config/agents.json), not stored here — this is only the append-only
+-- record of what each agent persona actually did, which is also how each
+-- agent's live "status" / "current task" get derived (no separate mutable
+-- agent-state to fall out of sync).
+CREATE TABLE IF NOT EXISTS agent_activity (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  campaign_id TEXT REFERENCES campaigns(id),
+  job_id TEXT REFERENCES jobs(id),
+  lead_id TEXT REFERENCES leads(id),
+  action TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  level TEXT NOT NULL DEFAULT 'info',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_activity_agent ON agent_activity(agent_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_agent_activity_campaign ON agent_activity(campaign_id);
+
+-- Formalizes what was previously only job.status = 'human_review'.
+CREATE TABLE IF NOT EXISTS human_review_items (
+  id TEXT PRIMARY KEY,
+  job_id TEXT REFERENCES jobs(id),
+  lead_id TEXT REFERENCES leads(id),
+  agent_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL,
+  resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_human_review_status ON human_review_items(status);
+
+-- One row per scoring pass (the Qualifier scores a lead once per job run).
+-- leads.prospect_score/score_breakdown/etc. stay the fast-access current
+-- value; this is the history/audit trail, and the seam for re-scoring
+-- history once scoring-config weights change.
+CREATE TABLE IF NOT EXISTS score_results (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT NOT NULL REFERENCES leads(id),
+  score INTEGER NOT NULL,
+  breakdown TEXT NOT NULL DEFAULT '[]',
+  confidence TEXT NOT NULL,
+  confidence_reason TEXT NOT NULL,
+  score_reason TEXT NOT NULL,
+  scoring_config_version INTEGER NOT NULL,
+  scored_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_score_results_lead ON score_results(lead_id);

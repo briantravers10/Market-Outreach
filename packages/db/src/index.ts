@@ -6,6 +6,9 @@ import { SqliteJobsRepository } from "./repositories/jobsRepo";
 import { SqliteCampaignsRepository } from "./repositories/campaignsRepo";
 import { SqliteCrmRepository } from "./repositories/crmRepo";
 import { SqliteOutreachRepository } from "./repositories/outreachRepo";
+import { SqliteAgentActivityRepository } from "./repositories/agentActivityRepo";
+import { SqliteHumanReviewRepository } from "./repositories/humanReviewRepo";
+import { SqliteScoreResultsRepository } from "./repositories/scoreResultsRepo";
 
 export { getDb, closeDb, defaultDbPath };
 
@@ -18,5 +21,8 @@ export function createRepositories(dbPath?: string): Repositories {
     campaigns: new SqliteCampaignsRepository(db),
     crm: new SqliteCrmRepository(db),
     outreach: new SqliteOutreachRepository(db),
+    agentActivity: new SqliteAgentActivityRepository(db),
+    humanReview: new SqliteHumanReviewRepository(db),
+    scoreResults: new SqliteScoreResultsRepository(db),
   };
 }

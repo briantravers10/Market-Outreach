@@ -41,6 +41,26 @@ export type JobStatus = "pending" | "running" | "complete" | "failed" | "retry" 
 
 export type CampaignStatus = "draft" | "running" | "paused" | "complete" | "stopped";
 
+/**
+ * The hybrid AI prospecting team's persona roster. Identity (name, role,
+ * description, permitted/prohibited actions) lives in config/agents.json —
+ * this id is what ties activity/status back to that config entry. "crm" and
+ * "outreach" are permanently-disabled placeholder personas for future phases.
+ */
+export type AgentId =
+  | "manager"
+  | "scout"
+  | "researcher"
+  | "website-analyst"
+  | "qualifier"
+  | "deduplication"
+  | "reporting"
+  | "crm"
+  | "outreach";
+
+/** One pipeline stage a lead has passed through — rendered as the ✓ checklist on Lead Detail. */
+export type PipelineStageName = "discovery" | "enrichment" | "website_analysis" | "qualification" | "deduplication";
+
 // ---------------------------------------------------------------------------
 // Score breakdown
 // ---------------------------------------------------------------------------
@@ -106,6 +126,8 @@ export interface Lead {
   campaignId: string;
   jobId: string;
   isDuplicateOf: string | null;
+  /** Which pipeline stages have actually run for this lead — powers the Lead Detail checklist. */
+  stagesCompleted: PipelineStageName[];
 
   notes: string;
 }
@@ -148,8 +170,14 @@ export interface Campaign {
   batchSize: number;
   priority: number; // 1 (low) - 5 (high)
   targetLeadCount: number;
+  /** Human-readable filter phrases parsed from the Manager command, e.g. "No online booking preferred". Display-only this phase. */
+  filters: string[];
+  /** The raw natural-language instruction that created this campaign, if any (vs. created via the New Campaign form). */
+  sourceCommand: string | null;
   createdAt: string;
   updatedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
 }
 
 export interface CampaignProgress {
@@ -189,6 +217,50 @@ export interface OutreachAttempt {
   status: "DISABLED";
   requestedAt: string;
   note: string;
+}
+
+// ---------------------------------------------------------------------------
+// Agent activity (Phase 2: hybrid AI prospecting team)
+// ---------------------------------------------------------------------------
+
+export type AgentActivityLevel = "info" | "error" | "human_review";
+
+export interface AgentActivity {
+  id: string;
+  agentId: AgentId;
+  campaignId: string | null;
+  jobId: string | null;
+  leadId: string | null;
+  action: string;
+  summary: string;
+  level: AgentActivityLevel;
+  createdAt: string;
+}
+
+export type HumanReviewStatus = "open" | "resolved";
+
+export interface HumanReviewItem {
+  id: string;
+  jobId: string | null;
+  leadId: string | null;
+  agentId: AgentId;
+  reason: string;
+  status: HumanReviewStatus;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+/** One row per scoring pass — the audit trail behind a lead's current (denormalized) score fields. */
+export interface ScoreResultRecord {
+  id: string;
+  leadId: string;
+  score: number;
+  breakdown: ScoreFactorResult[];
+  confidence: ConfidenceLevel;
+  confidenceReason: string;
+  scoreReason: string;
+  scoringConfigVersion: number;
+  scoredAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,10 +316,28 @@ export interface OutreachRepository {
   list(): OutreachAttempt[];
 }
 
+export interface AgentActivityRepository {
+  log(activity: AgentActivity): AgentActivity;
+  list(filter?: { agentId?: AgentId; campaignId?: string; limit?: number }): AgentActivity[];
+}
+
+export interface HumanReviewRepository {
+  create(item: HumanReviewItem): HumanReviewItem;
+  list(filter?: { status?: HumanReviewStatus; agentId?: AgentId }): HumanReviewItem[];
+}
+
+export interface ScoreResultsRepository {
+  create(record: ScoreResultRecord): ScoreResultRecord;
+  listByLead(leadId: string): ScoreResultRecord[];
+}
+
 export interface Repositories {
   leads: LeadsRepository;
   jobs: JobsRepository;
   campaigns: CampaignsRepository;
   crm: CrmRepository;
   outreach: OutreachRepository;
+  agentActivity: AgentActivityRepository;
+  humanReview: HumanReviewRepository;
+  scoreResults: ScoreResultsRepository;
 }

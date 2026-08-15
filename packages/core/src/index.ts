@@ -2,7 +2,11 @@ export * from "./types";
 export * from "./config";
 
 export { ProspectingManager } from "./prospectingManager";
-export type { ProspectingManagerDeps, CreateCampaignInput, JobRunResult } from "./prospectingManager";
+export type { ProspectingManagerDeps, CreateCampaignInput, JobRunResult, AssignTaskResult } from "./prospectingManager";
+
+export { DeterministicCommandParser } from "./nlp/commandParser";
+export type { CommandParser } from "./nlp/commandParser";
+export type { ParsedCommand } from "./nlp/intentTypes";
 
 export { JobQueueManager } from "./queue/jobQueueManager";
 
@@ -35,3 +39,8 @@ export {
   buildCampaignProgress,
 } from "./workers/reportingWorker";
 export type { OverallSummary, ProgressBucket } from "./workers/reportingWorker";
+
+export { logActivity } from "./agents/agentActivity";
+export type { LogActivityInput } from "./agents/agentActivity";
+export { summarizeAgent, summarizeAllAgents } from "./agents/agentRegistry";
+export type { AgentSummary, AgentLiveStatus } from "./agents/agentRegistry";

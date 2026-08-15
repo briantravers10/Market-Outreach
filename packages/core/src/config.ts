@@ -74,9 +74,20 @@ export interface ScoringConfig {
   };
 }
 
+export interface AgentConfig {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  permittedActions: string[];
+  prohibitedActions: string[];
+  disabled: boolean;
+}
+
 let territoriesCache: Territory[] | null = null;
 let industriesCache: Industry[] | null = null;
 let scoringConfigCache: ScoringConfig | null = null;
+let agentsCache: AgentConfig[] | null = null;
 
 export function getTerritories(): Territory[] {
   if (!territoriesCache) {
@@ -99,9 +110,17 @@ export function getScoringConfig(): ScoringConfig {
   return scoringConfigCache;
 }
 
+export function getAgentConfigs(): AgentConfig[] {
+  if (!agentsCache) {
+    agentsCache = readJson<{ agents: AgentConfig[] }>("config/agents.json").agents;
+  }
+  return agentsCache;
+}
+
 /** Clears in-memory config caches — mainly useful for tests or hot-reload tooling. */
 export function clearConfigCache(): void {
   territoriesCache = null;
   industriesCache = null;
   scoringConfigCache = null;
+  agentsCache = null;
 }

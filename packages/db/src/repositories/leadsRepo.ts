@@ -39,6 +39,7 @@ interface LeadRow {
   campaign_id: string;
   job_id: string;
   is_duplicate_of: string | null;
+  stages_completed: string;
   notes: string;
 }
 
@@ -81,6 +82,7 @@ function rowToLead(row: LeadRow): Lead {
     campaignId: row.campaign_id,
     jobId: row.job_id,
     isDuplicateOf: row.is_duplicate_of,
+    stagesCompleted: JSON.parse(row.stages_completed) as Lead["stagesCompleted"],
     notes: row.notes,
   };
 }
@@ -97,14 +99,14 @@ export class SqliteLeadsRepository implements LeadsRepository {
           staff_count, staff_count_confidence, rating, review_count, instagram, facebook,
           social_activity, location_count, services, prospect_score, score_breakdown, score_reason,
           data_confidence, discovery_source, date_discovered, date_last_researched, research_status,
-          qualification_status, pipeline_stage, campaign_id, job_id, is_duplicate_of, notes
+          qualification_status, pipeline_stage, campaign_id, job_id, is_duplicate_of, stages_completed, notes
         ) VALUES (
           @id, @businessName, @industry, @address, @city, @state, @zip, @phone, @email, @website,
           @websiteStatus, @websiteQuality, @onlineBookingStatus, @bookingProvider, @bookingMethod,
           @staffCount, @staffCountConfidence, @rating, @reviewCount, @instagram, @facebook,
           @socialActivity, @locationCount, @services, @prospectScore, @scoreBreakdown, @scoreReason,
           @dataConfidence, @discoverySource, @dateDiscovered, @dateLastResearched, @researchStatus,
-          @qualificationStatus, @pipelineStage, @campaignId, @jobId, @isDuplicateOf, @notes
+          @qualificationStatus, @pipelineStage, @campaignId, @jobId, @isDuplicateOf, @stagesCompleted, @notes
         )
         ON CONFLICT(id) DO UPDATE SET
           phone=excluded.phone, email=excluded.email, website=excluded.website,
@@ -118,12 +120,14 @@ export class SqliteLeadsRepository implements LeadsRepository {
           score_breakdown=excluded.score_breakdown, score_reason=excluded.score_reason,
           data_confidence=excluded.data_confidence, date_last_researched=excluded.date_last_researched,
           research_status=excluded.research_status, qualification_status=excluded.qualification_status,
-          pipeline_stage=excluded.pipeline_stage, is_duplicate_of=excluded.is_duplicate_of, notes=excluded.notes`
+          pipeline_stage=excluded.pipeline_stage, is_duplicate_of=excluded.is_duplicate_of,
+          stages_completed=excluded.stages_completed, notes=excluded.notes`
       )
       .run({
         ...lead,
         services: JSON.stringify(lead.services),
         scoreBreakdown: JSON.stringify(lead.scoreBreakdown),
+        stagesCompleted: JSON.stringify(lead.stagesCompleted),
       });
     return lead;
   }
