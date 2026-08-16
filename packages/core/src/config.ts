@@ -84,10 +84,61 @@ export interface AgentConfig {
   disabled: boolean;
 }
 
+/** One Lead field mapped onto a Pipedrive custom field. */
+export interface PipedriveCustomFieldMap {
+  leadField: string;
+  label: string;
+  type: string;
+  /** Pipedrive's 40-char hash key. Null until the field exists in a real account. */
+  customFieldKey: string | null;
+}
+
+export interface PipedriveStandardFieldMap {
+  leadField: string;
+  pipedriveField: string;
+  required: boolean;
+}
+
+export interface PipedriveConfig {
+  description: string;
+  connection: {
+    apiBaseUrl: string;
+    companyDomain: string | null;
+    apiTokenEnvVar: string;
+    liveSyncEnvVar: string;
+    notes: string;
+  };
+  organization: {
+    objectLabel: string;
+    nameFrom: string;
+    addressFrom: string;
+    standardFields: PipedriveStandardFieldMap[];
+    customFields: PipedriveCustomFieldMap[];
+  };
+  person: {
+    objectLabel: string;
+    createWhen: string;
+    nameTemplate: string;
+    standardFields: PipedriveStandardFieldMap[];
+  };
+  deal: {
+    objectLabel: string;
+    createWhen: string;
+    titleTemplate: string;
+    pipelineId: number | null;
+    currency: string;
+    valueFrom: string | null;
+    valueNote: string;
+    stageMap: Record<string, number | null>;
+    stageMapNote: string;
+  };
+}
+
 let territoriesCache: Territory[] | null = null;
 let industriesCache: Industry[] | null = null;
 let scoringConfigCache: ScoringConfig | null = null;
 let agentsCache: AgentConfig[] | null = null;
+let pipedriveConfigCache: PipedriveConfig | null = null;
 
 export function getTerritories(): Territory[] {
   if (!territoriesCache) {
@@ -117,10 +168,18 @@ export function getAgentConfigs(): AgentConfig[] {
   return agentsCache;
 }
 
+export function getPipedriveConfig(): PipedriveConfig {
+  if (!pipedriveConfigCache) {
+    pipedriveConfigCache = readJson<PipedriveConfig>("config/crm-pipedrive.json");
+  }
+  return pipedriveConfigCache;
+}
+
 /** Clears in-memory config caches — mainly useful for tests or hot-reload tooling. */
 export function clearConfigCache(): void {
   territoriesCache = null;
   industriesCache = null;
   scoringConfigCache = null;
   agentsCache = null;
+  pipedriveConfigCache = null;
 }

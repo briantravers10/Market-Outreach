@@ -3,7 +3,7 @@ import {
   MockDiscoveryProvider,
   MockEnrichmentProvider,
   MockReasoningProvider,
-  MockCrmAdapter,
+  PipedriveCrmAdapter,
   getScoringConfig,
   getTerritories,
 } from "@market-outreach/core";
@@ -17,7 +17,7 @@ export function buildManager() {
     discovery: new MockDiscoveryProvider(),
     enrichment: new MockEnrichmentProvider(),
     reasoning: new MockReasoningProvider(),
-    crm: new MockCrmAdapter(repos.crm),
+    crm: new PipedriveCrmAdapter(repos.crm),
     scoringConfig: getScoringConfig(),
     territories: getTerritories(),
   });

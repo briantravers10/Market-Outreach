@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { getAgentConfigs, getIndustries, getScoringConfig, getTerritories } from "@market-outreach/core";
+import { getCrmMode } from "../../lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +9,7 @@ export default async function SettingsPage() {
   const territories = getTerritories();
   const industries = getIndustries();
   const agents = getAgentConfigs();
+  const crmMode = getCrmMode();
 
   return (
     <div>
@@ -118,8 +121,12 @@ export default async function SettingsPage() {
 
       <div className="grid-2">
         <div className="panel">
-          <h2>CRM <small>status: DISABLED</small></h2>
-          <p className="disabled-banner">No third-party CRM is connected. Qualified leads preview a future hand-off (see any Lead Detail page) but nothing syncs live.</p>
+          <h2>CRM <small>Pipedrive · {crmMode.live ? "LIVE" : "dry run"}</small></h2>
+          <p className={crmMode.live ? "muted" : "disabled-banner"}>{crmMode.explanation}</p>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+            Field mapping and the exact payloads live on the <Link href="/crm">CRM page</Link>; edit{" "}
+            <code>config/crm-pipedrive.json</code> to change what syncs.
+          </p>
         </div>
         <div className="panel">
           <h2>Outreach <small>status: DISABLED</small></h2>

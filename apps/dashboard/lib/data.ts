@@ -4,12 +4,15 @@ import {
   MockDiscoveryProvider,
   MockEnrichmentProvider,
   MockReasoningProvider,
-  MockCrmAdapter,
+  PipedriveCrmAdapter,
   DeterministicCommandParser,
   getScoringConfig,
   getTerritories,
   getIndustries,
   getAgentConfigs,
+  getPipedriveConfig,
+  describePipedriveMode,
+  buildHandoff,
 } from "@market-outreach/core";
 import { createRepositories } from "@market-outreach/db";
 
@@ -30,7 +33,7 @@ export function getManager() {
     discovery: new MockDiscoveryProvider(),
     enrichment: new MockEnrichmentProvider(),
     reasoning: new MockReasoningProvider(),
-    crm: new MockCrmAdapter(repos.crm),
+    crm: new PipedriveCrmAdapter(repos.crm),
     scoringConfig: getScoringConfig(),
     territories: getTerritories(),
   });
@@ -40,4 +43,24 @@ export function getCommandParser() {
   return new DeterministicCommandParser();
 }
 
-export { getScoringConfig, getTerritories, getIndustries, getAgentConfigs };
+/**
+ * Whether live Pipedrive sync is on, and why. Computed from the environment
+ * on every read so the dashboard can never show a stale connection state.
+ */
+export function getCrmMode() {
+  return describePipedriveMode();
+}
+
+/** The exact Pipedrive payloads that would be sent for a given lead. Pure — no credentials needed. */
+export function getCrmHandoff(lead: Parameters<typeof buildHandoff>[0]) {
+  return buildHandoff(lead);
+}
+
+export {
+  getScoringConfig,
+  getTerritories,
+  getIndustries,
+  getAgentConfigs,
+  getPipedriveConfig,
+  buildHandoff,
+};

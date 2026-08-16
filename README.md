@@ -159,14 +159,47 @@ Three interfaces isolate "how we get information" from "what we do with it":
 Swapping any of these in `scripts/lib.ts` / `apps/dashboard/lib/data.ts` is the only
 change needed — workers, scoring, the queue, and the dashboard are untouched.
 
-## Where a real CRM plugs in later
+## CRM — Pipedrive (built, dry-run)
 
-`CrmAdapter` (`packages/core/src/crm/crmAdapter.ts`) models `pushLead` /
-`updateStage` / `getRecords`. `MockCrmAdapter` writes to a local `mock_crm_records`
-table today (visible on each lead's detail page as a "Future CRM Preview"). A real
-HubSpot/GoHighLevel/Salesforce adapter implements the same interface later. This system
-is explicitly **not** meant to replace a CRM — it's the research/scoring layer that feeds
-one, via `lead.pipelineStage` (`RESEARCH -> QUALIFICATION -> CRM -> OUTREACH -> FOLLOW_UP -> SALE`).
+`CrmAdapter` (`packages/core/src/crm/crmAdapter.ts`) models `pushLead` / `updateStage` /
+`getRecords`. Two implementations exist: `MockCrmAdapter` (local table only) and
+**`PipedriveCrmAdapter`** (`packages/core/src/crm/pipedriveAdapter.ts`), which is what the
+pipeline is wired to today.
+
+**It is safe by default.** The adapter has two modes and starts in the safe one:
+
+| Mode | When | Behavior |
+|---|---|---|
+| `dry-run` | default | Builds the exact Pipedrive request payloads and records the hand-off locally. **Zero network calls.** |
+| `live` | opt-in | Actually writes to the Pipedrive REST API. |
+
+Live mode requires **two independent switches**: `PIPEDRIVE_API_TOKEN` must be set *and*
+`PIPEDRIVE_LIVE_SYNC` must equal `1`. A token leaking into an environment is deliberately
+not sufficient on its own to start writing to a real CRM, and `DEMO_READ_ONLY=1`
+hard-disables live sync regardless of both. `describePipedriveMode()` reports which mode
+is active and precisely why, so the dashboard can never misrepresent the connection state.
+
+The payload builders (`buildOrganizationPayload` / `buildPersonPayload` /
+`buildDealPayload` / `buildHandoff`) are **pure functions** exported independently of the
+adapter — that's what lets the `/crm` page and every Lead Detail page show the real
+outbound JSON with no credentials, no network stack, and no adapter instance.
+
+**Mapping is config, not code** — `config/crm-pipedrive.json` holds the Lead→Pipedrive
+field mapping, the custom-field keys, the deal pipeline, and the stage map. Anything left
+`null` (a custom-field key, a stage id) is **skipped and reported**, never guessed, so a
+half-configured account can't silently write records to the wrong stage. Connecting a real
+account is a config-and-env change with no code edits: create the fields in Pipedrive, paste
+their keys into that file, set the two env vars.
+
+Sync rules: an Organization for every pushed lead; a Person only when a phone or email
+exists (many of the best-scoring leads are exactly the businesses with no contact details,
+and those still get an Organization rather than being dropped); a Deal only for
+`QUALIFIED`/`HIGH_PRIORITY`. No deal value is ever sent — this system does not model
+revenue and will not invent a number.
+
+This system is explicitly **not** meant to replace a CRM — it's the research/scoring layer
+that feeds one, via `lead.pipelineStage`
+(`RESEARCH -> QUALIFICATION -> CRM -> OUTREACH -> FOLLOW_UP -> SALE`).
 
 ## Work queue
 

@@ -21,6 +21,21 @@ export type { ReasoningProvider } from "./reasoning/reasoningProvider";
 
 export { MockCrmAdapter } from "./crm/crmAdapter";
 export type { CrmAdapter } from "./crm/crmAdapter";
+export {
+  PipedriveCrmAdapter,
+  buildHandoff,
+  buildOrganizationPayload,
+  buildPersonPayload,
+  buildDealPayload,
+  describePipedriveMode,
+} from "./crm/pipedriveAdapter";
+export type {
+  PipedriveHandoff,
+  PipedrivePayload,
+  PipedriveSkippedField,
+  PipedriveMode,
+  PipedriveModeReason,
+} from "./crm/pipedriveAdapter";
 
 export { DisabledOutreachService } from "./outreach/outreachService";
 export type { OutreachService } from "./outreach/outreachService";

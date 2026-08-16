@@ -12,9 +12,11 @@ const LINKS = [
   { href: "/settings", label: "Settings" },
 ];
 
-const DISABLED_LINKS = [
-  { href: "/crm", label: "CRM" },
-  { href: "/outreach", label: "Outreach" },
+// Not-yet-live destinations. CRM is built but runs in dry-run until an account
+// is connected, so it gets a different tag than the genuinely unbuilt Outreach.
+const PENDING_LINKS = [
+  { href: "/crm", label: "CRM", tag: "Dry run" },
+  { href: "/outreach", label: "Outreach", tag: "Disabled" },
 ];
 
 export function Sidebar() {
@@ -35,14 +37,14 @@ export function Sidebar() {
         </Link>
       ))}
       <div className="sidebar-divider" />
-      {DISABLED_LINKS.map((link) => (
+      {PENDING_LINKS.map((link) => (
         <Link
           key={link.href}
           href={link.href}
           className={`sidebar-link sidebar-link-disabled ${pathname?.startsWith(link.href) ? "active" : ""}`}
         >
           {link.label}
-          <span className="sidebar-disabled-tag">Disabled</span>
+          <span className="sidebar-disabled-tag">{link.tag}</span>
         </Link>
       ))}
     </nav>

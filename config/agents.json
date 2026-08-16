@@ -1,5 +1,5 @@
 {
-  "description": "The hybrid AI prospecting team's persona roster. Identity only — status, current task, and counts are all computed live from agent_activity/jobs/human_review_items, never stored here. See packages/core/src/agents/agentRegistry.ts.",
+  "description": "The hybrid AI prospecting team's persona roster. Identity only \u2014 status, current task, and counts are all computed live from agent_activity/jobs/human_review_items, never stored here. See packages/core/src/agents/agentRegistry.ts.",
   "agents": [
     {
       "id": "manager",
@@ -14,7 +14,7 @@
         "Monitor progress and surface failures or human-review items"
       ],
       "prohibitedActions": [
-        "Performing discovery, research, analysis, or scoring itself — delegates to specialists",
+        "Performing discovery, research, analysis, or scoring itself \u2014 delegates to specialists",
         "Contacting any business",
         "Sending email or SMS"
       ],
@@ -47,7 +47,7 @@
         "Mark fields UNKNOWN/UNCERTAIN when information can't be confirmed"
       ],
       "prohibitedActions": [
-        "Fabricating data once live research is enabled — unknown stays unknown",
+        "Fabricating data once live research is enabled \u2014 unknown stays unknown",
         "Contacting any business",
         "Scoring or qualifying leads"
       ],
@@ -57,7 +57,7 @@
       "id": "website-analyst",
       "name": "Website Analyst",
       "role": "Digital Infrastructure Agent",
-      "description": "Evaluates a business's website and booking setup — quality, booking method, obvious digital weaknesses.",
+      "description": "Evaluates a business's website and booking setup \u2014 quality, booking method, obvious digital weaknesses.",
       "permittedActions": [
         "Classify website existence/quality for a researched business",
         "Classify booking method and provider",
@@ -103,14 +103,14 @@
       "id": "reporting",
       "name": "Reporting",
       "role": "Reporting Agent",
-      "description": "Summarizes what the team found — by campaign, city, industry, and booking/website status.",
+      "description": "Summarizes what the team found \u2014 by campaign, city, industry, and booking/website status.",
       "permittedActions": [
         "Aggregate campaign, lead, and job data into reports",
         "Answer questions about pipeline throughput and failures"
       ],
       "prohibitedActions": [
         "Contacting any business",
-        "Fabricating sales/conversion data — outreach has not begun"
+        "Fabricating sales/conversion data \u2014 outreach has not begun"
       ],
       "disabled": false
     },
@@ -118,10 +118,19 @@
       "id": "crm",
       "name": "CRM",
       "role": "CRM Sync Agent",
-      "description": "Future: automatically updates a connected third-party CRM as leads qualify.",
-      "permittedActions": [],
-      "prohibitedActions": ["Any action — not built yet"],
-      "disabled": true
+      "description": "Hands qualified leads to Pipedrive. Adapter is built and wired in; runs in dry-run until an API token and the live-sync flag are both set.",
+      "permittedActions": [
+        "Build the exact Pipedrive payloads for a lead (organization, person, deal)",
+        "Record a dry-run hand-off locally so it can be reviewed before going live",
+        "Write to Pipedrive only when a token AND the live-sync flag are both present"
+      ],
+      "prohibitedActions": [
+        "Calling Pipedrive without both the API token and the live-sync flag set",
+        "Guessing a custom-field key or deal stage that has not been mapped",
+        "Inventing a deal value",
+        "Any form of outreach \u2014 it hands off records, it never contacts anyone"
+      ],
+      "disabled": false
     },
     {
       "id": "outreach",
@@ -129,7 +138,9 @@
       "role": "Outreach Agent",
       "description": "Future: sends and tracks outreach once explicitly authorized.",
       "permittedActions": [],
-      "prohibitedActions": ["Sending email, SMS, or any live communication — not authorized"],
+      "prohibitedActions": [
+        "Sending email, SMS, or any live communication \u2014 not authorized"
+      ],
       "disabled": true
     }
   ]

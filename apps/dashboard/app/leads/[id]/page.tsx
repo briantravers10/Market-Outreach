@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getIndustries } from "@market-outreach/core";
-import { getRepos } from "../../../lib/data";
+import { getCrmHandoff, getCrmMode, getPipedriveConfig, getRepos } from "../../../lib/data";
 import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../components/Badges";
 import { PipelineChecklist } from "../../../components/PipelineChecklist";
+import { PayloadPreview } from "../../../components/PayloadPreview";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const scoreHistory = repos.scoreResults.listByLead(lead.id);
   const latestScore = scoreHistory[0] ?? null;
   const activity = repos.agentActivity.list({ leadId: lead.id, limit: 20 });
+  const crmMode = getCrmMode();
+  const crmHandoff = getCrmHandoff(lead);
+  const pipedriveConfig = getPipedriveConfig();
 
   return (
     <div>
@@ -155,11 +159,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div className="panel">
-          <h2>Future CRM <small>status: DISABLED</small></h2>
-          <p className="disabled-banner">
-            No CRM Agent is active this phase — qualified leads aren't synced anywhere live.
-            {crmRecords.length > 0 ? " The preview below shows what a future hand-off would look like." : ""}
-          </p>
+          <h2>
+            CRM Hand-off <small>Pipedrive · {crmMode.live ? "LIVE" : "dry run"}</small>
+          </h2>
+          <p className={crmMode.live ? "muted" : "disabled-banner"}>{crmMode.explanation}</p>
+
           {crmRecords.length > 0 && (
             <table style={{ marginTop: 10 }}>
               <thead><tr><th>Stage</th><th>Synced</th><th>CRM</th></tr></thead>
@@ -174,6 +178,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               </tbody>
             </table>
           )}
+
+          <p className="muted" style={{ fontSize: 12, marginTop: 12 }}>
+            Exactly what would be sent to Pipedrive for this lead — see <Link href="/crm">CRM settings</Link> for the
+            full field mapping.
+          </p>
+          <PayloadPreview handoff={crmHandoff} baseUrl={pipedriveConfig.connection.apiBaseUrl} />
 
           <h2 style={{ marginTop: 18 }}>Future Outreach <small>status: DISABLED</small></h2>
           <p className="disabled-banner">No Outreach Agent is active this phase — this system never sends email or SMS.</p>
