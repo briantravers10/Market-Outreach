@@ -67,6 +67,27 @@ async function main() {
     }
   }
 
+  // Makeup Artists is the only social-first industry, and it's where the
+  // link-in-bio analysis actually does its work. The i % 5 rotation above only
+  // gives it ~13 leads across all cities, which is too small a sample to show
+  // the distribution that matters (roughly 40% already have a booking
+  // incumbent; the rest are the targets). One dedicated fully-run campaign
+  // gives that signal enough volume to be legible on the dashboard.
+  const showcase = manager.createCampaign({
+    name: "Miami — Makeup Artists (link-in-bio showcase)",
+    city: "Miami",
+    industry: "makeup-artists",
+    batchSize: 6,
+    priority: 5,
+    targetLeadCount: 36,
+  });
+  manager.startCampaign(showcase.campaign.id);
+  for (const job of showcase.jobs) {
+    const result = await manager.runJob(job);
+    jobsRun += 1;
+    leadsCreated += result.leadsCreated;
+  }
+
   // Leave one job visibly mid-flight ("Running") for the work-queue demo, matching the
   // "Miami | Dog Groomers | Batch 001 | Running" example in the architecture spec.
   const runningDemoCampaign = campaigns.find((c) => c.campaign.city === "Miami" && c.campaign.industry === "dog-groomers");

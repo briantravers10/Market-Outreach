@@ -29,6 +29,10 @@ export function runWebsiteBookingAnalysisWorker(
 ): Pick<WebsiteBookingAnalysis, "websiteStatus" | "websiteQuality" | "onlineBookingStatus" | "bookingMethod" | "bookingProvider"> {
   const rng = makeSeededRandom(`${jobSeed}|${businessName}|analysis`);
 
+  // Set when a booking link was actually found on a link-in-bio page.
+  const observedBookingProvider =
+    enrichment.detectedLinks.find((l) => l.purpose === "booking")?.provider ?? null;
+
   let websiteStatus: WebsiteStatus = "NONE";
   let websiteQuality: WebsiteQuality = "UNKNOWN";
   switch (enrichment.rawWebsiteSignal) {
@@ -69,12 +73,16 @@ export function runWebsiteBookingAnalysisWorker(
     case "third_party":
       onlineBookingStatus = "THIRD_PARTY_BOOKING_SYSTEM";
       bookingMethod = "ONLINE_THIRD_PARTY";
-      bookingProvider = pick(rng, THIRD_PARTY_PROVIDERS);
+      // A provider named by an actual booking link on the prospect's
+      // link-in-bio page is evidence, not a guess — always prefer it over the
+      // generic label. Guessing here would overwrite a known fact ("Calendly")
+      // with a plausible-sounding invention.
+      bookingProvider = observedBookingProvider ?? pick(rng, THIRD_PARTY_PROVIDERS);
       break;
     case "integrated":
       onlineBookingStatus = "INTEGRATED_BOOKING_SYSTEM";
       bookingMethod = "ONLINE_INTEGRATED";
-      bookingProvider = pick(rng, INTEGRATED_PROVIDER_LABELS);
+      bookingProvider = observedBookingProvider ?? pick(rng, INTEGRATED_PROVIDER_LABELS);
       break;
   }
 

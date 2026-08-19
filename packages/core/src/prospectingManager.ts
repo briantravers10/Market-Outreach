@@ -317,6 +317,8 @@ export class ProspectingManager {
           bookingMethod: analysis.bookingMethod,
           staffCount: enrichment.staffCount,
           staffCountConfidence: enrichment.staffCountConfidence,
+          linkInBioUrl: enrichment.linkInBioUrl,
+          detectedLinks: enrichment.detectedLinks,
           serviceArea: enrichment.serviceArea,
           locationConfidence: enrichment.locationConfidence,
           locationEvidence: enrichment.locationEvidence,

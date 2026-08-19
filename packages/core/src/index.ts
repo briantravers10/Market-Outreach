@@ -19,6 +19,11 @@ export type { EnrichmentProvider, EnrichmentResult } from "./providers/enrichmen
 export { MockReasoningProvider } from "./reasoning/reasoningProvider";
 export type { ReasoningProvider } from "./reasoning/reasoningProvider";
 
+export { classifyLink, analyzeLinks } from "./enrichment/linkClassifier";
+export type { DetectedLink, LinkPurpose, LinkAnalysis } from "./enrichment/linkClassifier";
+export { MockLinkInBioProvider, buildProfile, mockBioUrl } from "./providers/linkInBioProvider";
+export type { LinkInBioProvider, LinkInBioProfile, RawBioLink } from "./providers/linkInBioProvider";
+
 export { MockCrmAdapter } from "./crm/crmAdapter";
 export type { CrmAdapter } from "./crm/crmAdapter";
 export {

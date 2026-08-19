@@ -137,6 +137,24 @@ npm run typecheck                             # typecheck all workspaces
 Editing these files changes campaign options and scoring behavior on the next
 seed/run — no code changes required.
 
+## Link-in-bio analysis
+
+For social-first industries, `packages/core/src/enrichment/linkClassifier.ts`
+classifies every link on a prospect's Linktree/Beacons/Stan Store page into a
+purpose (booking / payment / contact / social / review / menu / website) and,
+where recognised, a named provider. This is **real logic, not a mock** — it works
+against genuine URLs today; only the page *fetch* is mocked this phase
+(`LinkInBioProvider`, whose real implementation reads Linktree's `__NEXT_DATA__`
+JSON over plain HTTP).
+
+It matters because it answers the qualification question directly: a GlossGenius
+link means an incumbent is already in place, while payment links with **no**
+booking link means the business is collecting deposits by hand and coordinating
+in the DMs — the exact workflow an integrated booking product replaces. A
+provider identified from a real link always overrides the pipeline's generic
+guess. The platform registry is `config/link-signals.json`; adding a booking
+platform is a config edit, not a code change.
+
 ## Prospect scoring
 
 `packages/core/src/scoring/scoringEngine.ts` computes a 0–100 score per lead from the

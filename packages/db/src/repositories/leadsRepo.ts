@@ -40,6 +40,8 @@ interface LeadRow {
   job_id: string;
   is_duplicate_of: string | null;
   stages_completed: string;
+  link_in_bio_url: string | null;
+  detected_links: string;
   service_area: string | null;
   location_confidence: string;
   location_evidence: string;
@@ -86,6 +88,8 @@ function rowToLead(row: LeadRow): Lead {
     jobId: row.job_id,
     isDuplicateOf: row.is_duplicate_of,
     stagesCompleted: JSON.parse(row.stages_completed) as Lead["stagesCompleted"],
+    linkInBioUrl: row.link_in_bio_url,
+    detectedLinks: JSON.parse(row.detected_links) as Lead["detectedLinks"],
     serviceArea: row.service_area,
     locationConfidence: row.location_confidence as Lead["locationConfidence"],
     locationEvidence: JSON.parse(row.location_evidence) as string[],
@@ -106,7 +110,7 @@ export class SqliteLeadsRepository implements LeadsRepository {
           social_activity, location_count, services, prospect_score, score_breakdown, score_reason,
           data_confidence, discovery_source, date_discovered, date_last_researched, research_status,
           qualification_status, pipeline_stage, campaign_id, job_id, is_duplicate_of, stages_completed,
-          service_area, location_confidence, location_evidence, notes
+          link_in_bio_url, detected_links, service_area, location_confidence, location_evidence, notes
         ) VALUES (
           @id, @businessName, @industry, @address, @city, @state, @zip, @phone, @email, @website,
           @websiteStatus, @websiteQuality, @onlineBookingStatus, @bookingProvider, @bookingMethod,
@@ -114,7 +118,7 @@ export class SqliteLeadsRepository implements LeadsRepository {
           @socialActivity, @locationCount, @services, @prospectScore, @scoreBreakdown, @scoreReason,
           @dataConfidence, @discoverySource, @dateDiscovered, @dateLastResearched, @researchStatus,
           @qualificationStatus, @pipelineStage, @campaignId, @jobId, @isDuplicateOf, @stagesCompleted,
-          @serviceArea, @locationConfidence, @locationEvidence, @notes
+          @linkInBioUrl, @detectedLinks, @serviceArea, @locationConfidence, @locationEvidence, @notes
         )
         ON CONFLICT(id) DO UPDATE SET
           phone=excluded.phone, email=excluded.email, website=excluded.website,
@@ -129,7 +133,8 @@ export class SqliteLeadsRepository implements LeadsRepository {
           data_confidence=excluded.data_confidence, date_last_researched=excluded.date_last_researched,
           research_status=excluded.research_status, qualification_status=excluded.qualification_status,
           pipeline_stage=excluded.pipeline_stage, is_duplicate_of=excluded.is_duplicate_of,
-          stages_completed=excluded.stages_completed, service_area=excluded.service_area,
+          stages_completed=excluded.stages_completed, link_in_bio_url=excluded.link_in_bio_url,
+          detected_links=excluded.detected_links, service_area=excluded.service_area,
           location_confidence=excluded.location_confidence, location_evidence=excluded.location_evidence,
           notes=excluded.notes`
       )
@@ -138,6 +143,8 @@ export class SqliteLeadsRepository implements LeadsRepository {
         services: JSON.stringify(lead.services),
         scoreBreakdown: JSON.stringify(lead.scoreBreakdown),
         stagesCompleted: JSON.stringify(lead.stagesCompleted),
+        linkInBioUrl: lead.linkInBioUrl,
+        detectedLinks: JSON.stringify(lead.detectedLinks),
         serviceArea: lead.serviceArea,
         locationConfidence: lead.locationConfidence,
         locationEvidence: JSON.stringify(lead.locationEvidence),

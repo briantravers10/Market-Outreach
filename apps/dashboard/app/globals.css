@@ -674,3 +674,18 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   color: var(--muted);
   line-height: 1.7;
 }
+
+.link-purpose {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.link-purpose.purpose-booking { color: #f8b4b4; border-color: #7f3b3b; }
+.link-purpose.purpose-payment { color: #f5d98b; border-color: #7d6626; }
+.link-purpose.purpose-contact { color: #9fd8a8; border-color: #38663f; }
+.link-purpose.purpose-menu { color: #b7c6f5; border-color: #3d4a7a; }

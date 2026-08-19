@@ -1,5 +1,7 @@
 import type { ConfidenceLevel, DiscoveredLeadSeed, SocialActivity } from "../types";
 import { getDiscoveryChannel } from "../config";
+import type { DetectedLink } from "../enrichment/linkClassifier";
+import { MockLinkInBioProvider, mockBioUrl, type LinkInBioProvider } from "./linkInBioProvider";
 import { makeSeededRandom, pick, pickWeighted, intBetween, chance, type Rng } from "../mockData/random";
 import { generatePhone, generateServices, slugify } from "../mockData/fakeBusinessNames";
 
@@ -27,6 +29,10 @@ export interface EnrichmentResult {
   socialActivity: SocialActivity;
   locationCount: number;
   services: string[];
+  /** The link-in-bio page found in the profile, if any. */
+  linkInBioUrl: string | null;
+  /** Links found on that page, already classified. Empty when there is no page. */
+  detectedLinks: DetectedLink[];
   /** Inferred operating area for a business with no fixed premises. Null when a street address is known. */
   serviceArea: string | null;
   /** How trustworthy serviceArea/city placement is — see Lead.locationConfidence. */
@@ -104,6 +110,8 @@ export interface EnrichmentProvider {
 export class MockEnrichmentProvider implements EnrichmentProvider {
   readonly sourceName = "mock-enrichment-v1";
 
+  constructor(private readonly linkInBio: LinkInBioProvider = new MockLinkInBioProvider()) {}
+
   async enrich(seed: DiscoveredLeadSeed, jobSeed: string): Promise<EnrichmentResult> {
     const rng = makeSeededRandom(`${jobSeed}|${seed.businessName}|enrich`);
 
@@ -145,7 +153,24 @@ export class MockEnrichmentProvider implements EnrichmentProvider {
         ] as const)
       : "none";
 
-    const rawBookingSignal: RawBookingSignal = socialFirst
+    const linkInBioUrl = socialFirst && hasInstagram ? mockBioUrl(identityRng, handle) : null;
+    const bioProfile = await this.linkInBio.fetchProfile(linkInBioUrl);
+
+    // For social-first businesses the link-in-bio page is the most direct
+    // evidence available, so when one exists it OVERRIDES the generic guess:
+    // a GlossGenius link is proof of an incumbent, and a page with payment
+    // links but no booking link is proof they're doing it by hand.
+    const bookingSignalFromLinks: RawBookingSignal | null = bioProfile
+      ? bioProfile.analysis.hasBookingLink
+        ? bioProfile.analysis.bookingTier === "integrated"
+          ? "integrated"
+          : "third_party"
+        : bioProfile.analysis.hasPaymentLink
+          ? "social"
+          : null
+      : null;
+
+    const rawBookingSignal: RawBookingSignal = bookingSignalFromLinks ?? (socialFirst
       ? pickWeighted(rng, [
           ["none", 2],
           ["phone", 2],
@@ -159,7 +184,7 @@ export class MockEnrichmentProvider implements EnrichmentProvider {
           ["social", 2],
           ["third_party", 3],
           ["integrated", 2],
-        ] as const);
+        ] as const));
 
     // Overwhelmingly solo operators, so a 1-12 staff range would misrepresent them.
     const staffCount = socialFirst
@@ -178,6 +203,7 @@ export class MockEnrichmentProvider implements EnrichmentProvider {
     if (hasEmail) fieldsResolved.push("email");
     if (hasWebsite) fieldsResolved.push("website");
     if (rawBookingSignal !== "none") fieldsResolved.push("online_booking_status");
+    if (bioProfile) fieldsResolved.push("link_in_bio");
     if (staffCount !== null) fieldsResolved.push("staff_count");
     if (rating !== null) fieldsResolved.push("rating");
     if (reviewCount !== null) fieldsResolved.push("review_count");
@@ -203,6 +229,8 @@ export class MockEnrichmentProvider implements EnrichmentProvider {
       socialActivity,
       locationCount: !socialFirst && chance(rng, 0.12) ? intBetween(rng, 2, 4) : 1,
       services: generateServices(rng, seed.industry, intBetween(rng, 2, 5)),
+      linkInBioUrl,
+      detectedLinks: bioProfile?.links ?? [],
       ...location,
       fieldsResolved,
     };

@@ -5,6 +5,7 @@ import { getCrmHandoff, getCrmMode, getPipedriveConfig, getRepos } from "../../.
 import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../components/Badges";
 import { PipelineChecklist } from "../../../components/PipelineChecklist";
 import { PayloadPreview } from "../../../components/PayloadPreview";
+import { LinkInBio } from "../../../components/LinkInBio";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="grid-2">
+        <div className="panel">
+          <h2>Link in Bio <small>what they actually link to</small></h2>
+          <LinkInBio url={lead.linkInBioUrl} links={lead.detectedLinks} />
+        </div>
+
         <div className="panel">
           <h2>Social Information</h2>
           <div className="field-grid">

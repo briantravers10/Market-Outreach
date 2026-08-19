@@ -34,6 +34,8 @@ function materializeDemoDb(): string {
  * Additive only: never drop, rename, or retype a column here.
  */
 const ADDITIVE_COLUMNS: Array<{ table: string; column: string; definition: string }> = [
+  { table: "leads", column: "link_in_bio_url", definition: "TEXT" },
+  { table: "leads", column: "detected_links", definition: "TEXT NOT NULL DEFAULT '[]'" },
   { table: "leads", column: "service_area", definition: "TEXT" },
   { table: "leads", column: "location_confidence", definition: "TEXT NOT NULL DEFAULT 'UNKNOWN'" },
   { table: "leads", column: "location_evidence", definition: "TEXT NOT NULL DEFAULT '[]'" },

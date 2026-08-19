@@ -11,6 +11,8 @@
 // Enums (string unions so they read cleanly in JSON/SQLite and in the UI)
 // ---------------------------------------------------------------------------
 
+import type { DetectedLink } from "./enrichment/linkClassifier";
+
 export type WebsiteStatus = "NONE" | "EXISTS";
 export type WebsiteQuality = "POOR" | "AVERAGE" | "GOOD" | "EXCELLENT" | "UNKNOWN";
 
@@ -122,6 +124,15 @@ export interface Lead {
   researchStatus: ResearchStatus;
   qualificationStatus: QualificationStatus;
   pipelineStage: PipelineStage;
+
+  /** The link-in-bio page (Linktree etc.) found for this business, if any. */
+  linkInBioUrl: string | null;
+  /**
+   * Every link found on that page, classified by purpose. For social-first
+   * businesses this is the strongest qualification evidence available: it
+   * shows whether they already book online and how they take money.
+   */
+  detectedLinks: DetectedLink[];
 
   /**
    * Where this business actually operates, for businesses that have no fixed

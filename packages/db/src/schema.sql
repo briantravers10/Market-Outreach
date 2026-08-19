@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS leads (
   job_id TEXT NOT NULL REFERENCES jobs(id),
   is_duplicate_of TEXT,
   stages_completed TEXT NOT NULL DEFAULT '[]',
+  link_in_bio_url TEXT,
+  detected_links TEXT NOT NULL DEFAULT '[]',
   service_area TEXT,
   location_confidence TEXT NOT NULL DEFAULT 'UNKNOWN',
   location_evidence TEXT NOT NULL DEFAULT '[]',

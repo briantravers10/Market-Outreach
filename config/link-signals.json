@@ -1,0 +1,90 @@
+{
+  "description": "Registry used to classify the links found on a prospect's link-in-bio page (Linktree, Beacons, Stan Store...). This is the highest-signal artifact available for social-first industries: what a business links to reveals how it takes bookings, how it takes money, and where its pain is. Domains are matched against the URL hostname (suffix match, so subdomains count). Edit this file — not code — to add platforms.",
+  "linkInBioHosts": [
+    { "domain": "linktr.ee", "name": "Linktree" },
+    { "domain": "beacons.ai", "name": "Beacons" },
+    { "domain": "stan.store", "name": "Stan Store" },
+    { "domain": "milkshake.app", "name": "Milkshake" },
+    { "domain": "campsite.bio", "name": "Campsite" },
+    { "domain": "taplink.cc", "name": "Taplink" },
+    { "domain": "bio.link", "name": "Bio.link" },
+    { "domain": "solo.to", "name": "Solo.to" },
+    { "domain": "lnk.bio", "name": "Lnk.bio" },
+    { "domain": "allmylinks.com", "name": "AllMyLinks" },
+    { "domain": "linkin.bio", "name": "Later Linkin.bio" },
+    { "domain": "linkpop.com", "name": "Linkpop" },
+    { "domain": "komi.io", "name": "Komi" },
+    { "domain": "snipfeed.co", "name": "Snipfeed" },
+    { "domain": "carrd.co", "name": "Carrd" },
+    { "domain": "flowcode.com", "name": "Flowcode" }
+  ],
+  "booking": {
+    "note": "A link to any of these means the business already has online booking — which is a strong NEGATIVE for this product (they have an incumbent). `tier` distinguishes a full industry booking platform from a generic scheduler.",
+    "platforms": [
+      { "domain": "glossgenius.com", "name": "GlossGenius", "tier": "integrated" },
+      { "domain": "styleseat.com", "name": "StyleSeat", "tier": "integrated" },
+      { "domain": "booksy.com", "name": "Booksy", "tier": "integrated" },
+      { "domain": "vagaro.com", "name": "Vagaro", "tier": "integrated" },
+      { "domain": "fresha.com", "name": "Fresha", "tier": "integrated" },
+      { "domain": "mindbodyonline.com", "name": "Mindbody", "tier": "integrated" },
+      { "domain": "boulevard.io", "name": "Boulevard", "tier": "integrated" },
+      { "domain": "schedulicity.com", "name": "Schedulicity", "tier": "integrated" },
+      { "domain": "squareup.com", "name": "Square Appointments", "tier": "integrated" },
+      { "domain": "square.site", "name": "Square Appointments", "tier": "integrated" },
+      { "domain": "setmore.com", "name": "Setmore", "tier": "third_party" },
+      { "domain": "acuityscheduling.com", "name": "Acuity Scheduling", "tier": "third_party" },
+      { "domain": "app.acuityscheduling.com", "name": "Acuity Scheduling", "tier": "third_party" },
+      { "domain": "calendly.com", "name": "Calendly", "tier": "third_party" },
+      { "domain": "cal.com", "name": "Cal.com", "tier": "third_party" },
+      { "domain": "tidycal.com", "name": "TidyCal", "tier": "third_party" },
+      { "domain": "zcal.co", "name": "Zcal", "tier": "third_party" },
+      { "domain": "picktime.com", "name": "Picktime", "tier": "third_party" },
+      { "domain": "simplybook.me", "name": "SimplyBook.me", "tier": "third_party" },
+      { "domain": "honeybook.com", "name": "HoneyBook", "tier": "third_party" },
+      { "domain": "dubsado.com", "name": "Dubsado", "tier": "third_party" },
+      { "domain": "timely.com", "name": "Timely", "tier": "third_party" },
+      { "domain": "appointlet.com", "name": "Appointlet", "tier": "third_party" }
+    ]
+  },
+  "payment": {
+    "note": "Manual payment/deposit links are a BUYING SIGNAL, not a negative: taking deposits by Venmo/CashApp means chasing money by hand, which is exactly the pain an integrated booking product removes.",
+    "platforms": [
+      { "domain": "venmo.com", "name": "Venmo" },
+      { "domain": "cash.app", "name": "Cash App" },
+      { "domain": "paypal.me", "name": "PayPal" },
+      { "domain": "paypal.com", "name": "PayPal" },
+      { "domain": "zellepay.com", "name": "Zelle" },
+      { "domain": "buy.stripe.com", "name": "Stripe Payment Link" },
+      { "domain": "checkout.square.site", "name": "Square Checkout" }
+    ]
+  },
+  "social": {
+    "platforms": [
+      { "domain": "instagram.com", "name": "Instagram" },
+      { "domain": "tiktok.com", "name": "TikTok" },
+      { "domain": "facebook.com", "name": "Facebook" },
+      { "domain": "youtube.com", "name": "YouTube" },
+      { "domain": "pinterest.com", "name": "Pinterest" },
+      { "domain": "x.com", "name": "X" },
+      { "domain": "twitter.com", "name": "X" },
+      { "domain": "snapchat.com", "name": "Snapchat" },
+      { "domain": "threads.net", "name": "Threads" }
+    ]
+  },
+  "contact": {
+    "note": "wa.me and direct tel:/mailto: links are how a DM-booking business actually takes enquiries.",
+    "platforms": [
+      { "domain": "wa.me", "name": "WhatsApp" },
+      { "domain": "api.whatsapp.com", "name": "WhatsApp" },
+      { "domain": "m.me", "name": "Facebook Messenger" }
+    ]
+  },
+  "review": {
+    "platforms": [
+      { "domain": "g.page", "name": "Google Reviews" },
+      { "domain": "google.com", "name": "Google" },
+      { "domain": "yelp.com", "name": "Yelp" },
+      { "domain": "maps.app.goo.gl", "name": "Google Maps" }
+    ]
+  }
+}

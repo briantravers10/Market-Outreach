@@ -110,3 +110,50 @@ with no service area rather than being assigned a plausible-looking guess.
 artist with a well-evidenced service area and no street address is
 *well-understood*, not *poorly-researched* — collapsing the two would penalise an
 entire industry for how it operates.
+
+---
+
+## The link-in-bio page: the highest-signal artifact
+
+For social-first industries, the single most valuable public artifact is the
+**link-in-bio page** — Linktree, Beacons, Stan Store, Milkshake and similar —
+that nearly every one of these businesses puts in their profile.
+
+**Why it is fair game where Instagram is not.** A link-in-bio page is an
+ordinary public web page whose entire purpose is to be opened by strangers.
+There is no auth wall and no API terms being worked around. Linktree in
+particular embeds every link in a `__NEXT_DATA__` JSON blob in the page HTML,
+so a plain HTTP GET plus a JSON parse is enough — no headless browser, no
+logged-in session. Instagram fails on both counts, which is why the handle
+itself must come from a directory or a search result rather than from crawling
+Instagram.
+
+It is also a **discovery** channel, not just an enrichment one: these pages are
+publicly indexed, so a search-engine query scoped to a link-in-bio host and a
+city surfaces them directly. That is the practical way around the wall
+described above.
+
+**What the page answers, in one fetch:**
+
+| Link found | What it means | Effect on score |
+|---|---|---|
+| GlossGenius / StyleSeat / Booksy / Vagaro / Fresha / Square | Full industry booking platform — a real incumbent | Strong negative |
+| Calendly / Acuity / Setmore / HoneyBook | Generic scheduler bolted on | Negative |
+| Venmo / Cash App / PayPal / Zelle, **and no booking link** | Collecting deposits by hand while coordinating in DMs | **Strongest positive** |
+| WhatsApp / tel: / mailto: only | Enquiries have nowhere to go but the DMs | Positive |
+| Nothing but socials | No booking infrastructure at all | Positive |
+
+That middle row is the ideal prospect: enough demand to be taking deposits,
+and no system to handle them.
+
+Classification lives in `packages/core/src/enrichment/linkClassifier.ts` and is
+deterministic and explainable — every link records *why* it was classified as
+it was. The platform registry is `config/link-signals.json`, so adding a
+booking platform is a config edit. Where a destination domain is unrecognised
+(a custom domain like `book.someartist.com`), the button text is used as a
+fallback signal, since those buttons almost always say "Book".
+
+A booking provider identified from a real link always **overrides** the
+pipeline's generic guess. Knowing the prospect uses Calendly is a fact; the
+analysis worker's placeholder label is not, and overwriting a fact with a guess
+would be a regression.

@@ -152,6 +152,23 @@ export interface PipedriveConfig {
   };
 }
 
+export interface LinkPlatform {
+  domain: string;
+  name: string;
+  tier?: "integrated" | "third_party";
+}
+
+export interface LinkSignalsConfig {
+  description: string;
+  linkInBioHosts: LinkPlatform[];
+  booking: { note: string; platforms: Array<LinkPlatform & { tier: "integrated" | "third_party" }> };
+  payment: { note: string; platforms: LinkPlatform[] };
+  social: { platforms: LinkPlatform[] };
+  contact: { note: string; platforms: LinkPlatform[] };
+  review: { platforms: LinkPlatform[] };
+}
+
+let linkSignalsCache: LinkSignalsConfig | null = null;
 let territoriesCache: Territory[] | null = null;
 let industriesCache: Industry[] | null = null;
 let scoringConfigCache: ScoringConfig | null = null;
@@ -186,6 +203,13 @@ export function getAgentConfigs(): AgentConfig[] {
   return agentsCache;
 }
 
+export function getLinkSignals(): LinkSignalsConfig {
+  if (!linkSignalsCache) {
+    linkSignalsCache = readJson<LinkSignalsConfig>("config/link-signals.json");
+  }
+  return linkSignalsCache;
+}
+
 export function getPipedriveConfig(): PipedriveConfig {
   if (!pipedriveConfigCache) {
     pipedriveConfigCache = readJson<PipedriveConfig>("config/crm-pipedrive.json");
@@ -200,6 +224,7 @@ export function clearConfigCache(): void {
   scoringConfigCache = null;
   agentsCache = null;
   pipedriveConfigCache = null;
+  linkSignalsCache = null;
 }
 
 export function getDiscoveryChannel(industryId: string): DiscoveryChannel {
