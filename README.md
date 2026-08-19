@@ -120,8 +120,13 @@ npm run typecheck                             # typecheck all workspaces
 ## Configuration (editable without touching code)
 
 - `config/territories.json` — target cities (currently 3 example FL cities)
-- `config/industries.json` — target industries (currently 10 examples; product is not
-  industry-specific, so this list is meant to grow)
+- `config/industries.json` — target industries. Each carries a `locationModel`
+  (`premises` / `mobile` / `hybrid`) and a `discoveryChannel` (`maps` /
+  `social-first`), which together tell the pipeline whether a street address is
+  expected and where the industry is realistically findable. Makeup artists are
+  the first `social-first` + `mobile` entry — see `agents/scout.md` for why
+  Instagram is an *enrichment* source rather than a *discovery* source, and how a
+  service area gets inferred when there's no address to read.
 - `config/scoring-config.json` — prospect-score point weights, thresholds for
   HIGH/MEDIUM/LOW data confidence, and QUALIFIED/HIGH_PRIORITY/DISQUALIFIED cutoffs
 - `config/agents.json` — the agent roster: identity, role, description, permitted/

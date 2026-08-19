@@ -10,7 +10,7 @@ import { runDiscoveryWorker } from "./workers/discoveryWorker";
 import { runEnrichmentWorker } from "./workers/enrichmentWorker";
 import { explainWebsiteBookingAnalysis, runWebsiteBookingAnalysisWorker } from "./workers/websiteBookingAnalysisWorker";
 import { runQualificationWorker } from "./workers/qualificationWorker";
-import { findLikelyDuplicate } from "./workers/dedupWorker";
+import { describeDuplicateMatch, findLikelyDuplicate } from "./workers/dedupWorker";
 import { makeSeededRandom, chance } from "./mockData/random";
 import { logActivity } from "./agents/agentActivity";
 import type { CommandParser } from "./nlp/commandParser";
@@ -317,6 +317,9 @@ export class ProspectingManager {
           bookingMethod: analysis.bookingMethod,
           staffCount: enrichment.staffCount,
           staffCountConfidence: enrichment.staffCountConfidence,
+          serviceArea: enrichment.serviceArea,
+          locationConfidence: enrichment.locationConfidence,
+          locationEvidence: enrichment.locationEvidence,
           rating: enrichment.rating,
           reviewCount: enrichment.reviewCount,
           instagram: enrichment.instagram,
@@ -381,15 +384,21 @@ export class ProspectingManager {
           leadId: lead.id,
         });
 
-        const duplicate = findLikelyDuplicate(
-          { businessName: seed.businessName, address: seed.address, phone: enrichment.phone, city: seed.city },
-          existingLeadsInCity
-        );
+        const dedupCandidate = {
+          businessName: seed.businessName,
+          address: seed.address,
+          phone: enrichment.phone,
+          city: seed.city,
+          website: enrichment.website,
+          instagram: enrichment.instagram,
+        };
+        const duplicate = findLikelyDuplicate(dedupCandidate, existingLeadsInCity);
         if (duplicate) {
+          const matchReason = describeDuplicateMatch(dedupCandidate, duplicate);
           lead.qualificationStatus = "DISQUALIFIED";
           lead.isDuplicateOf = duplicate.id;
-          lead.notes = `${analysisReason} Flagged as likely duplicate of "${duplicate.businessName}" (${duplicate.id}).`;
-          this.log("deduplication", `Flagged ${seed.businessName} as a likely duplicate of "${duplicate.businessName}".`, {
+          lead.notes = `${analysisReason} Flagged as likely duplicate of "${duplicate.businessName}" (${duplicate.id}) — ${matchReason}.`;
+          this.log("deduplication", `Flagged ${seed.businessName} as a likely duplicate of "${duplicate.businessName}" (${matchReason}).`, {
             action: "dedup_flagged",
             campaignId: job.campaignId,
             jobId: job.id,

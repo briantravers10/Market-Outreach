@@ -1,6 +1,7 @@
 import type { DiscoveredLeadSeed } from "../types";
-import { makeSeededRandom, intBetween } from "../mockData/random";
+import { makeSeededRandom, intBetween, chance } from "../mockData/random";
 import { generateBusinessName, generateStreetAddress, generateZip } from "../mockData/fakeBusinessNames";
+import { getLocationModel } from "../config";
 
 export interface DiscoveryParams {
   city: string;
@@ -31,15 +32,25 @@ export class MockDiscoveryProvider implements DiscoveryProvider {
     const { city, state, industry, batchId, batchSize } = params;
     const seeds: DiscoveredLeadSeed[] = [];
 
+    const locationModel = getLocationModel(industry);
+
     for (let i = 0; i < batchSize; i++) {
       const rng = makeSeededRandom(`${city}|${industry}|${batchId}|${i}`);
+
+      // A mobile operator (makeup artist, trainer, mobile detailer) frequently
+      // has no premises to find, so inventing a street address for one would be
+      // fabricating data the real pipeline could never obtain. Hybrid
+      // industries sometimes rent a suite and sometimes travel.
+      const hasFixedAddress =
+        locationModel === "premises" || (locationModel === "hybrid" ? chance(rng, 0.7) : chance(rng, 0.15));
+
       seeds.push({
         businessName: generateBusinessName(rng, industry),
         industry,
-        address: generateStreetAddress(rng),
+        address: hasFixedAddress ? generateStreetAddress(rng) : "",
         city,
         state,
-        zip: generateZip(rng),
+        zip: hasFixedAddress ? generateZip(rng) : "",
         discoverySource: this.sourceName,
       });
     }

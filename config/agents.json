@@ -89,12 +89,15 @@
       "id": "deduplication",
       "name": "Deduplication",
       "role": "Deduplication Worker",
-      "description": "Prevents duplicate lead records using name, phone, address, and website matching.",
+      "description": "Prevents duplicate lead records by matching on identifying signals: phone number, website, Instagram handle, or business name combined with street address.",
       "permittedActions": [
-        "Flag likely-duplicate candidates before they're stored as new leads"
+        "Flag likely-duplicate candidates before they're stored as new leads",
+        "Record which signal caused the match so a human can audit it"
       ],
       "prohibitedActions": [
         "Deleting existing lead records",
+        "Treating a shared business name alone as proof of a duplicate",
+        "Matching two records on a field that is empty in both",
         "Contacting any business"
       ],
       "disabled": false

@@ -39,10 +39,28 @@ export interface Territory {
   active: boolean;
 }
 
+/**
+ * How a business in this industry relates to a physical location.
+ * `premises` — fixed address, findable on a map.
+ * `mobile`   — travels to the client; a street address usually doesn't exist
+ *              and a service area has to be inferred from weaker signals.
+ * `hybrid`   — may rent a chair/suite or travel, so treat address as optional.
+ */
+export type LocationModel = "premises" | "mobile" | "hybrid";
+
+/** Where this industry is realistically discoverable. See agents/scout.md. */
+export type DiscoveryChannel = "maps" | "social-first";
+
 export interface Industry {
   id: string;
   label: string;
   active: boolean;
+  locationModel?: LocationModel;
+  discoveryChannel?: DiscoveryChannel;
+}
+
+export function getLocationModel(industryId: string): LocationModel {
+  return getIndustries().find((i) => i.id === industryId)?.locationModel ?? "premises";
 }
 
 export interface ScoringFactorConfig {
@@ -182,4 +200,8 @@ export function clearConfigCache(): void {
   scoringConfigCache = null;
   agentsCache = null;
   pipedriveConfigCache = null;
+}
+
+export function getDiscoveryChannel(industryId: string): DiscoveryChannel {
+  return getIndustries().find((i) => i.id === industryId)?.discoveryChannel ?? "maps";
 }

@@ -41,7 +41,11 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <div className="panel">
           <h2>Business Information</h2>
           <div className="field-grid">
-            <Field label="Address" value={`${lead.address}, ${lead.city}, ${lead.state} ${lead.zip}`} />
+            <Field
+              label="Address"
+              value={lead.address ? `${lead.address}, ${lead.city}, ${lead.state} ${lead.zip}` : "No fixed address (mobile)"}
+            />
+            <Field label="Service Area" value={lead.serviceArea ?? (lead.address ? "—" : "UNKNOWN")} />
             <Field label="Phone" value={lead.phone ?? "UNKNOWN"} />
             <Field label="Email" value={lead.email ?? "UNKNOWN"} />
             <Field label="Website" value={lead.website ?? "UNKNOWN"} />
@@ -50,7 +54,25 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <div className="panel">
-          <h2>Website Analysis</h2>
+          <h2>Location Confidence</h2>
+          <div style={{ marginBottom: 8 }}>
+            <ConfidenceBadge level={lead.locationConfidence} />
+          </div>
+          {lead.locationEvidence.length === 0 ? (
+            <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>No location signals recorded.</p>
+          ) : (
+            <ul className="evidence-list">
+              {lead.locationEvidence.map((e) => (
+                <li key={e}>{e}</li>
+              ))}
+            </ul>
+          )}
+          <p className="muted" style={{ fontSize: 11 }}>
+            Separate from data confidence: a mobile artist with a well-evidenced service area is located, not
+            under-researched.
+          </p>
+
+          <h2 style={{ marginTop: 18 }}>Website Analysis</h2>
           <div className="field-grid">
             <Field label="Website Status" value={lead.websiteStatus === "NONE" ? "No Website" : "Exists"} />
             <Field label="Website Quality" value={lead.websiteQuality} />

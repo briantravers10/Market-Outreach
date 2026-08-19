@@ -1,15 +1,16 @@
 {
-  "description": "Example target industries for the skeleton phase. Product is not industry-specific — this list is editable/extensible.",
+  "description": "Example target industries for the skeleton phase. Product is not industry-specific — this list is editable/extensible. `locationModel` tells the pipeline how to treat a business's whereabouts: `premises` = fixed address discoverable on a map; `mobile` = travels to the client, so a street address often does not exist and a service area has to be inferred; `hybrid` = may work from a suite/chair or travel. `discoveryChannel` records where this industry is realistically findable — see agents/scout.md.",
   "industries": [
-    { "id": "barbers", "label": "Barbers", "active": true },
-    { "id": "hair-salons", "label": "Hair Salons", "active": true },
-    { "id": "nail-salons", "label": "Nail Salons", "active": true },
-    { "id": "dog-groomers", "label": "Dog Groomers", "active": true },
-    { "id": "lash-brow-studios", "label": "Lash/Brow Studios", "active": true },
-    { "id": "estheticians", "label": "Estheticians", "active": true },
-    { "id": "massage-therapists", "label": "Massage Therapists", "active": true },
-    { "id": "personal-trainers", "label": "Personal Trainers", "active": true },
-    { "id": "tattoo-studios", "label": "Tattoo Studios", "active": true },
-    { "id": "car-detailers", "label": "Car Detailers", "active": true }
+    { "id": "barbers", "label": "Barbers", "active": true, "locationModel": "premises", "discoveryChannel": "maps" },
+    { "id": "hair-salons", "label": "Hair Salons", "active": true, "locationModel": "premises", "discoveryChannel": "maps" },
+    { "id": "nail-salons", "label": "Nail Salons", "active": true, "locationModel": "premises", "discoveryChannel": "maps" },
+    { "id": "dog-groomers", "label": "Dog Groomers", "active": true, "locationModel": "hybrid", "discoveryChannel": "maps" },
+    { "id": "lash-brow-studios", "label": "Lash/Brow Studios", "active": true, "locationModel": "hybrid", "discoveryChannel": "maps" },
+    { "id": "estheticians", "label": "Estheticians", "active": true, "locationModel": "hybrid", "discoveryChannel": "maps" },
+    { "id": "massage-therapists", "label": "Massage Therapists", "active": true, "locationModel": "hybrid", "discoveryChannel": "maps" },
+    { "id": "personal-trainers", "label": "Personal Trainers", "active": true, "locationModel": "mobile", "discoveryChannel": "maps" },
+    { "id": "tattoo-studios", "label": "Tattoo Studios", "active": true, "locationModel": "premises", "discoveryChannel": "maps" },
+    { "id": "car-detailers", "label": "Car Detailers", "active": true, "locationModel": "mobile", "discoveryChannel": "maps" },
+    { "id": "makeup-artists", "label": "Makeup Artists", "active": true, "locationModel": "mobile", "discoveryChannel": "social-first" }
   ]
 }

@@ -23,6 +23,32 @@ function materializeDemoDb(): string {
 }
 
 /**
+ * Columns added to existing tables after the initial schema shipped.
+ *
+ * schema.sql uses CREATE TABLE IF NOT EXISTS, which is a no-op against a
+ * database that already has the table — so a new column declared there never
+ * reaches an existing file. Rather than requiring a wipe (destructive, and it
+ * would throw away the committed demo snapshot), each new column is also
+ * listed here and added with ALTER TABLE when missing.
+ *
+ * Additive only: never drop, rename, or retype a column here.
+ */
+const ADDITIVE_COLUMNS: Array<{ table: string; column: string; definition: string }> = [
+  { table: "leads", column: "service_area", definition: "TEXT" },
+  { table: "leads", column: "location_confidence", definition: "TEXT NOT NULL DEFAULT 'UNKNOWN'" },
+  { table: "leads", column: "location_evidence", definition: "TEXT NOT NULL DEFAULT '[]'" },
+];
+
+function applyAdditiveMigrations(db: Database.Database): void {
+  for (const { table, column, definition } of ADDITIVE_COLUMNS) {
+    const existing = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (existing.length === 0) continue; // table not created yet — schema.sql owns it
+    if (existing.some((c) => c.name === column)) continue;
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+/**
  * Opens (or reuses) the SQLite connection and ensures the schema exists.
  * In DEMO_READ_ONLY mode (public Vercel deploy), opens a copy of the
  * embedded demo database read-only instead — unless SEED_DB_PATH is also
@@ -46,6 +72,7 @@ export function getDb(dbPath: string = defaultDbPath()): Database.Database {
     const schemaPath = path.join(findRepoRoot(), "packages", "db", "src", "schema.sql");
     const schema = fs.readFileSync(schemaPath, "utf-8");
     db.exec(schema);
+    applyAdditiveMigrations(db);
   }
 
   sharedDb = db;

@@ -123,6 +123,21 @@ export interface Lead {
   qualificationStatus: QualificationStatus;
   pipelineStage: PipelineStage;
 
+  /**
+   * Where this business actually operates, for businesses that have no fixed
+   * premises (mobile makeup artists, trainers, detailers). Free text like
+   * "Miami + 25mi" rather than a street address.
+   */
+  serviceArea: string | null;
+  /**
+   * How sure we are of the location. Deliberately separate from dataConfidence:
+   * a mobile artist with a confidently-known service area and no street address
+   * is well-understood, not poorly-researched.
+   */
+  locationConfidence: ConfidenceLevel;
+  /** The signals the location was inferred from, so a human can audit the guess. */
+  locationEvidence: string[];
+
   campaignId: string;
   jobId: string;
   isDuplicateOf: string | null;

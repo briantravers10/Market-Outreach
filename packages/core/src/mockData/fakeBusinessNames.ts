@@ -34,7 +34,26 @@ const SUFFIX_BY_INDUSTRY: Record<string, string[]> = {
   "personal-trainers": ["Fitness Studio", "Training Co.", "Strength Lab", "Performance Training", "Fit Studio"],
   "tattoo-studios": ["Tattoo Co.", "Ink Studio", "Tattoo Parlor", "Ink House", "Tattoo Collective"],
   "car-detailers": ["Auto Detailing", "Detail Co.", "Mobile Detailing", "Shine Auto Spa", "Detail Studio"],
+  // Makeup artists overwhelmingly trade under a personal brand rather than a
+  // storefront name, so they get their own generator below instead of the
+  // prefix+suffix shape the premises-based industries use.
+  "makeup-artists": ["Makeup Artistry", "Beauty", "Glam Studio", "Makeup Co.", "Artistry"],
 };
+
+/** Synthetic first names — used only for personal-brand industries. Never real people. */
+const FAKE_FIRST_NAMES = [
+  "Ana", "Mari", "Nia", "Cleo", "Rae", "Sol", "Ivy", "Jo",
+  "Lux", "Zia", "Noor", "Isa", "Vee", "Kai", "Wren",
+];
+
+const PERSONAL_BRAND_TEMPLATES = [
+  "{name} Beauty",
+  "Glam by {name}",
+  "{name} Makeup Artistry",
+  "Beauty by {name}",
+  "{name} MUA",
+  "Studio {name}",
+];
 
 const STREET_NAMES = [
   "Ocean Ave",
@@ -60,9 +79,16 @@ const SERVICES_BY_INDUSTRY: Record<string, string[]> = {
   "personal-trainers": ["1:1 Training", "Small Group Training", "Nutrition Coaching", "Assessment", "Online Coaching"],
   "tattoo-studios": ["Custom Tattoo", "Flash Tattoo", "Touch-up", "Cover-up", "Piercing"],
   "car-detailers": ["Full Detail", "Interior Detail", "Ceramic Coating", "Paint Correction", "Mobile Detail"],
+  "makeup-artists": ["Bridal Makeup", "Event Makeup", "Editorial Makeup", "Airbrush", "Makeup Lesson", "Special Occasion"],
 };
 
+/** Industries whose businesses trade under a person's name rather than a storefront name. */
+const PERSONAL_BRAND_INDUSTRIES = new Set(["makeup-artists"]);
+
 export function generateBusinessName(rng: Rng, industryId: string): string {
+  if (PERSONAL_BRAND_INDUSTRIES.has(industryId)) {
+    return pick(rng, PERSONAL_BRAND_TEMPLATES).replace("{name}", pick(rng, FAKE_FIRST_NAMES));
+  }
   const suffixOptions = SUFFIX_BY_INDUSTRY[industryId] ?? ["Studio"];
   return `${pick(rng, PREFIXES)} ${pick(rng, suffixOptions)}`;
 }

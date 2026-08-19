@@ -75,6 +75,9 @@ CREATE TABLE IF NOT EXISTS leads (
   job_id TEXT NOT NULL REFERENCES jobs(id),
   is_duplicate_of TEXT,
   stages_completed TEXT NOT NULL DEFAULT '[]',
+  service_area TEXT,
+  location_confidence TEXT NOT NULL DEFAULT 'UNKNOWN',
+  location_evidence TEXT NOT NULL DEFAULT '[]',
   notes TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_leads_campaign ON leads(campaign_id);
