@@ -242,6 +242,46 @@ export function describePipedriveMode(
 }
 
 // ---------------------------------------------------------------------------
+// HTTP
+// ---------------------------------------------------------------------------
+
+/**
+ * An actual HTTP request. Kept separate from PipedrivePayload because that
+ * type is the *preview* shape shown in the dashboard, where only creates and
+ * updates ever appear — a connection check is a GET and has no business
+ * widening the public type.
+ */
+interface PipedriveRequest {
+  endpoint: string;
+  method: "GET" | "POST" | "PUT";
+  body: Record<string, unknown>;
+}
+
+export interface PipedriveResponse {
+  status: number;
+  body: unknown;
+}
+
+/** Injectable so the live paths can be exercised without a Pipedrive account. */
+export type PipedriveTransport = (
+  url: string,
+  init: { method: string; headers: Record<string, string>; body?: string }
+) => Promise<PipedriveResponse>;
+
+const MAX_ATTEMPTS = 4;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Pulls the created object's numeric id out of a Pipedrive envelope ({ success, data: { id } }). */
+function extractId(body: unknown): string | null {
+  const data = (body as { data?: { id?: unknown } } | null)?.data;
+  const id = data?.id;
+  return id == null ? null : String(id);
+}
+
+// ---------------------------------------------------------------------------
 // Adapter
 // ---------------------------------------------------------------------------
 
@@ -259,13 +299,16 @@ export class PipedriveCrmAdapter implements CrmAdapter {
   readonly crmName = "pipedrive";
 
   private readonly config: PipedriveConfig;
+  private readonly transport: PipedriveTransport;
 
   constructor(
     private readonly repo: CrmRepository,
     private readonly env: NodeJS.ProcessEnv = process.env,
-    config?: PipedriveConfig
+    config?: PipedriveConfig,
+    transport?: PipedriveTransport
   ) {
     this.config = config ?? getPipedriveConfig();
+    this.transport = transport ?? defaultTransport;
   }
 
   describeMode(): PipedriveMode {
@@ -277,47 +320,103 @@ export class PipedriveCrmAdapter implements CrmAdapter {
     return buildHandoff(lead, this.config);
   }
 
+  /**
+   * Verifies the credentials actually work, without writing anything.
+   * /users/me is the cheapest authenticated read Pipedrive offers.
+   */
+  async testConnection(): Promise<{ ok: boolean; detail: string }> {
+    const mode = this.describeMode();
+    if (!mode.live) return { ok: false, detail: mode.explanation };
+    try {
+      const response = await this.send({ endpoint: "/users/me", method: "GET", body: {} });
+      const name = (response.body as { data?: { name?: string } } | null)?.data?.name;
+      return { ok: true, detail: name ? `Connected as ${name}.` : "Credentials accepted." };
+    } catch (err) {
+      return { ok: false, detail: (err as Error).message };
+    }
+  }
+
+  /**
+   * Pushes a lead, creating on first sync and UPDATING on every sync after.
+   *
+   * The ids Pipedrive assigns are stored on the CrmRecord, and their presence
+   * is what makes a repeat sync an update. Without that, running the same
+   * campaign twice would file a second copy of every business — which for a
+   * system built to re-run campaigns is not an edge case, it's Tuesday.
+   */
   async pushLead(lead: Lead): Promise<CrmRecord> {
     const handoff = buildHandoff(lead, this.config);
     const mode = this.describeMode();
+    const existing = this.latestRecord(lead.id);
+
+    let orgId = existing?.externalOrgId ?? null;
+    let personId = existing?.externalPersonId ?? null;
+    let dealId = existing?.externalDealId ?? null;
 
     if (mode.live) {
       for (const payload of handoff.payloads) {
-        await this.send(payload);
+        const known = payload.object === "organization" ? orgId : payload.object === "person" ? personId : dealId;
+
+        // Attach the person/org to the deal so Pipedrive shows them together.
+        const body = { ...payload.body };
+        if (payload.object === "person" && orgId) body.org_id = Number(orgId);
+        if (payload.object === "deal") {
+          if (orgId) body.org_id = Number(orgId);
+          if (personId) body.person_id = Number(personId);
+        }
+
+        const response = await this.send({
+          body,
+          method: known ? "PUT" : "POST",
+          endpoint: known ? `${payload.endpoint}/${known}` : payload.endpoint,
+        });
+
+        const returnedId = extractId(response.body) ?? known;
+        if (payload.object === "organization") orgId = returnedId;
+        else if (payload.object === "person") personId = returnedId;
+        else dealId = returnedId;
       }
     }
 
     // Recorded either way, so the dashboard shows an identical audit trail
     // whether the push was real or a dry run.
     return this.repo.upsert({
-      id: nextId(),
+      id: existing?.id ?? nextId(),
       leadId: lead.id,
       stage: "CRM",
       syncedAt: new Date().toISOString(),
       externalCrmName: mode.live ? this.crmName : `${this.crmName} (dry-run)`,
+      externalOrgId: orgId,
+      externalPersonId: personId,
+      externalDealId: dealId,
     });
   }
 
   async updateStage(leadId: string, stage: PipelineStage): Promise<CrmRecord> {
     const mode = this.describeMode();
     const stageId = this.config.deal.stageMap[stage];
+    const existing = this.latestRecord(leadId);
 
-    if (mode.live && stageId != null) {
+    // Address the deal by the id PIPEDRIVE assigned. An earlier version used
+    // our own lead UUID here, which is not a Pipedrive deal id and would have
+    // 404'd against the real API the first time it ran live.
+    if (mode.live && stageId != null && existing?.externalDealId) {
       await this.send({
-        object: "deal",
-        endpoint: `/deals/${leadId}`,
+        endpoint: `/deals/${existing.externalDealId}`,
         method: "PUT",
         body: { stage_id: stageId },
-        skipped: [],
       });
     }
 
     return this.repo.upsert({
-      id: nextId(),
+      id: existing?.id ?? nextId(),
       leadId,
       stage,
       syncedAt: new Date().toISOString(),
       externalCrmName: mode.live ? this.crmName : `${this.crmName} (dry-run)`,
+      externalOrgId: existing?.externalOrgId ?? null,
+      externalPersonId: existing?.externalPersonId ?? null,
+      externalDealId: existing?.externalDealId ?? null,
     });
   }
 
@@ -325,11 +424,20 @@ export class PipedriveCrmAdapter implements CrmAdapter {
     return this.repo.listByLead(leadId);
   }
 
+  /** Most recent sync for a lead, which carries the external ids. */
+  private latestRecord(leadId: string): CrmRecord | null {
+    return this.repo.listByLead(leadId)[0] ?? null;
+  }
+
   /**
    * The only place in this file that touches the network. Unreachable unless
    * describeMode() returned live, which requires both switches to be set.
+   *
+   * Retries on 429 and on 5xx. Pipedrive enforces both a rolling burst window
+   * and a daily token budget, so a busy campaign WILL hit 429 — treating that
+   * as a hard failure would drop leads on the floor mid-sync.
    */
-  private async send(payload: PipedrivePayload): Promise<unknown> {
+  private async send(payload: PipedriveRequest): Promise<PipedriveResponse> {
     const token = this.env[this.config.connection.apiTokenEnvVar];
     if (!token) {
       throw new Error(
@@ -340,18 +448,48 @@ export class PipedriveCrmAdapter implements CrmAdapter {
     const base = this.config.connection.companyDomain
       ? `https://${this.config.connection.companyDomain}.pipedrive.com/api/v1`
       : this.config.connection.apiBaseUrl;
-    const url = `${base}${payload.endpoint}?api_token=${encodeURIComponent(token)}`;
+    const url = `${base}${payload.endpoint}`;
 
-    const response = await fetch(url, {
-      method: payload.method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload.body),
-    });
+    let lastError = "";
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const response = await this.transport(url, {
+        method: payload.method,
+        headers: {
+          "Content-Type": "application/json",
+          // Header auth rather than ?api_token= so the secret never lands in
+          // a URL, where it would end up in logs and error messages.
+          "x-api-token": token,
+        },
+        body: payload.method === "GET" ? undefined : JSON.stringify(payload.body),
+      });
 
-    if (!response.ok) {
-      const text = await response.text().catch(() => "<unreadable body>");
-      throw new Error(`Pipedrive ${payload.method} ${payload.endpoint} failed: ${response.status} ${text}`);
+      if (response.status >= 200 && response.status < 300) return response;
+
+      const retryable = response.status === 429 || response.status >= 500;
+      lastError = `${response.status} ${JSON.stringify(response.body).slice(0, 300)}`;
+
+      if (!retryable || attempt === MAX_ATTEMPTS) {
+        throw new Error(`Pipedrive ${payload.method} ${payload.endpoint} failed: ${lastError}`);
+      }
+
+      // Exponential backoff. A real Retry-After would be honoured here; the
+      // transport interface deliberately keeps headers out of scope for now,
+      // so this is the conservative fallback.
+      await sleep(500 * 2 ** (attempt - 1));
     }
-    return response.json();
+
+    throw new Error(`Pipedrive ${payload.method} ${payload.endpoint} failed after ${MAX_ATTEMPTS} attempts: ${lastError}`);
   }
 }
+
+const defaultTransport: PipedriveTransport = async (url, init) => {
+  const response = await fetch(url, init);
+  const text = await response.text().catch(() => "");
+  let body: unknown = text;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    // Non-JSON error page — keep the raw text for the error message.
+  }
+  return { status: response.status, body };
+};

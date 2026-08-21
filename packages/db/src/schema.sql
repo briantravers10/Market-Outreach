@@ -92,7 +92,12 @@ CREATE TABLE IF NOT EXISTS mock_crm_records (
   lead_id TEXT NOT NULL REFERENCES leads(id),
   stage TEXT NOT NULL,
   synced_at TEXT NOT NULL,
-  external_crm_name TEXT NOT NULL
+  external_crm_name TEXT NOT NULL,
+  -- Ids the CRM assigned. These are what make a re-sync an update rather than
+  -- a duplicate, and what a stage update actually addresses.
+  external_org_id TEXT,
+  external_person_id TEXT,
+  external_deal_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_crm_lead ON mock_crm_records(lead_id);
 

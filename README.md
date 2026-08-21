@@ -214,6 +214,20 @@ half-configured account can't silently write records to the wrong stage. Connect
 account is a config-and-env change with no code edits: create the fields in Pipedrive, paste
 their keys into that file, set the two env vars.
 
+**Syncing twice does not duplicate.** The ids Pipedrive assigns are stored on
+the CRM record, and their presence turns a repeat sync into an update rather
+than a second copy of every business — which matters because re-running a
+campaign is the normal case here, not an edge case. The same stored deal id is
+what a stage update actually addresses. `npm run test-crm` verifies credentials
+with a single authenticated read and reports how much of the mapping is filled
+in, without writing anything.
+
+Requests retry with backoff on 429 and 5xx. Pipedrive enforces both a rolling
+burst window and a daily token budget, so a busy campaign will hit 429 —
+treating that as fatal would drop leads mid-sync. The token is sent as an
+`x-api-token` header rather than a query parameter so it never lands in a URL,
+where it would end up in logs.
+
 Sync rules: an Organization for every pushed lead; a Person only when a phone or email
 exists (many of the best-scoring leads are exactly the businesses with no contact details,
 and those still get an Organization rather than being dropped); a Deal only for

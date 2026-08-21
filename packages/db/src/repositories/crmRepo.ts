@@ -7,6 +7,9 @@ interface CrmRow {
   stage: string;
   synced_at: string;
   external_crm_name: string;
+  external_org_id: string | null;
+  external_person_id: string | null;
+  external_deal_id: string | null;
 }
 
 function rowToRecord(row: CrmRow): CrmRecord {
@@ -16,6 +19,9 @@ function rowToRecord(row: CrmRow): CrmRecord {
     stage: row.stage as PipelineStage,
     syncedAt: row.synced_at,
     externalCrmName: row.external_crm_name,
+    externalOrgId: row.external_org_id,
+    externalPersonId: row.external_person_id,
+    externalDealId: row.external_deal_id,
   };
 }
 
@@ -26,9 +32,15 @@ export class SqliteCrmRepository implements CrmRepository {
   upsert(record: CrmRecord): CrmRecord {
     this.db
       .prepare(
-        `INSERT INTO mock_crm_records (id, lead_id, stage, synced_at, external_crm_name)
-         VALUES (@id, @leadId, @stage, @syncedAt, @externalCrmName)
-         ON CONFLICT(id) DO UPDATE SET stage=excluded.stage, synced_at=excluded.synced_at`
+        `INSERT INTO mock_crm_records
+           (id, lead_id, stage, synced_at, external_crm_name, external_org_id, external_person_id, external_deal_id)
+         VALUES
+           (@id, @leadId, @stage, @syncedAt, @externalCrmName, @externalOrgId, @externalPersonId, @externalDealId)
+         ON CONFLICT(id) DO UPDATE SET
+           stage=excluded.stage, synced_at=excluded.synced_at,
+           external_org_id=excluded.external_org_id,
+           external_person_id=excluded.external_person_id,
+           external_deal_id=excluded.external_deal_id`
       )
       .run(record);
     return record;

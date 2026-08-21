@@ -35,6 +35,10 @@ export class MockCrmAdapter implements CrmAdapter {
       stage: "CRM",
       syncedAt: new Date().toISOString(),
       externalCrmName: this.crmName,
+      // The mock never talks to a CRM, so there are no external ids to record.
+      externalOrgId: null,
+      externalPersonId: null,
+      externalDealId: null,
     });
   }
 
@@ -45,6 +49,9 @@ export class MockCrmAdapter implements CrmAdapter {
       stage,
       syncedAt: new Date().toISOString(),
       externalCrmName: this.crmName,
+      externalOrgId: null,
+      externalPersonId: null,
+      externalDealId: null,
     });
   }
 

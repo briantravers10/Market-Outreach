@@ -14,7 +14,8 @@
     "dashboard": "npm run dev --workspace apps/dashboard",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build:demo": "SEED_DB_PATH=data/demo.db npx tsx scripts/reset-db.ts && SEED_DB_PATH=data/demo.db npx tsx scripts/seed.ts && SEED_DB_PATH=data/demo.db npx tsx scripts/run-campaign.ts && npm run build --workspace apps/dashboard",
-    "create-user": "npx tsx scripts/create-user.ts"
+    "create-user": "npx tsx scripts/create-user.ts",
+    "test-crm": "npx tsx scripts/test-crm.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

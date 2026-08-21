@@ -267,7 +267,15 @@ export interface CrmRecord {
   leadId: string;
   stage: PipelineStage;
   syncedAt: string;
-  externalCrmName: string; // e.g. "mock-crm" now, "hubspot" / "gohighlevel" later
+  externalCrmName: string; // e.g. "mock-crm", "pipedrive", "pipedrive (dry-run)"
+  /**
+   * Ids assigned by the CRM itself. Without these a re-sync has no way to know
+   * a record already exists, so it creates a second one — and a stage update
+   * has nothing real to address. Null until a live sync has actually run.
+   */
+  externalOrgId: string | null;
+  externalPersonId: string | null;
+  externalDealId: string | null;
 }
 
 // ---------------------------------------------------------------------------
