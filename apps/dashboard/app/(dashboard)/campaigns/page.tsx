@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { buildCampaignProgress, getIndustries, getTerritories } from "@market-outreach/core";
-import { getRepos } from "../../lib/data";
-import { StatusBadge } from "../../components/Badges";
-import { ActionButton } from "../../components/ActionButton";
-import { CommandBox } from "../../components/CommandBox";
-import { isDemoMode } from "../../lib/demo";
+import { getRepos } from "../../../lib/data";
+import { StatusBadge } from "../../../components/Badges";
+import { ActionButton } from "../../../components/ActionButton";
+import { CommandBox } from "../../../components/CommandBox";
+import { isDemoMode } from "../../../lib/demo";
 import {
   assignTaskAction,
   createCampaignAction,
@@ -13,7 +13,7 @@ import {
   runNextJobAction,
   startCampaignAction,
   stopCampaignAction,
-} from "../../lib/actions";
+} from "../../../lib/actions";
 
 export const dynamic = "force-dynamic";
 

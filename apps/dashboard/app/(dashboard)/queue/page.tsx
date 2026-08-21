@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { getIndustries, getTerritories, type JobStatus } from "@market-outreach/core";
-import { getRepos } from "../../lib/data";
-import { StatusBadge } from "../../components/Badges";
-import { ActionButton } from "../../components/ActionButton";
-import { requeueJobAction } from "../../lib/actions";
+import { getRepos } from "../../../lib/data";
+import { StatusBadge } from "../../../components/Badges";
+import { ActionButton } from "../../../components/ActionButton";
+import { requeueJobAction } from "../../../lib/actions";
 
 const STATUSES: JobStatus[] = ["pending", "running", "complete", "failed", "retry", "human_review", "paused"];
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getIndustries, getTerritories, type LeadFilter } from "@market-outreach/core";
-import { getRepos } from "../../lib/data";
-import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../components/Badges";
+import { getRepos } from "../../../lib/data";
+import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../components/Badges";
 
 interface LeadsSearchParams {
   q?: string;

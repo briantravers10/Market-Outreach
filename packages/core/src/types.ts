@@ -158,6 +158,46 @@ export interface Lead {
   notes: string;
 }
 
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+export interface User {
+  id: string;
+  email: string;
+  /** scrypt hash — never the password itself. */
+  passwordHash: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt: string | null;
+}
+
+export interface PasswordResetToken {
+  id: string;
+  userId: string;
+  /** SHA-256 of the token. The raw token is only ever in the reset link. */
+  tokenHash: string;
+  expiresAt: string;
+  usedAt: string | null;
+  createdAt: string;
+}
+
+export interface UsersRepository {
+  getByEmail(email: string): User | null;
+  getById(id: string): User | null;
+  upsert(user: User): User;
+  list(): User[];
+  markLoggedIn(id: string, at: string): void;
+}
+
+export interface PasswordResetRepository {
+  create(token: PasswordResetToken): PasswordResetToken;
+  getByHash(tokenHash: string): PasswordResetToken | null;
+  markUsed(id: string, at: string): void;
+  deleteForUser(userId: string): void;
+}
+
 /** Fields a Discovery worker is responsible for producing. */
 export type DiscoveredLeadSeed = Pick<
   Lead,
@@ -366,4 +406,6 @@ export interface Repositories {
   agentActivity: AgentActivityRepository;
   humanReview: HumanReviewRepository;
   scoreResults: ScoreResultsRepository;
+  users: UsersRepository;
+  passwordResets: PasswordResetRepository;
 }

@@ -271,6 +271,71 @@ benefit from feeling "alive" (Overview, Team, Campaigns) poll `router.refresh()`
 few seconds via `LiveRefresh.tsx` — no websockets, since this is a low-frequency
 single-process internal tool.
 
+## Authentication
+
+The dashboard sits behind a login. There are three possible postures, decided
+entirely by environment variables:
+
+| `SESSION_SECRET` | `DEMO_READ_ONLY` | Result |
+|---|---|---|
+| set | either | **Login required** on every route |
+| not set | `1` | Public read-only demo of synthetic data |
+| not set | not set | **Refuses to serve** (HTTP 503) |
+
+That last row is deliberate: a real deployment holding real prospect data
+fails closed rather than quietly exposing it. The only way to serve anything
+without a login is to explicitly mark the deployment as the fake-data demo.
+
+### Turning it on
+
+```bash
+npm run create-user -- you@example.com 'a long passphrase you choose'
+```
+
+That writes the user to the local database *and* prints the three environment
+variables to set on the deployment:
+
+```
+SESSION_SECRET=…        # signs session cookies; rotating it signs everyone out
+ADMIN_EMAIL=…
+ADMIN_PASSWORD_HASH=…   # scrypt hash — the password itself is never stored
+```
+
+`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH` exist because the deployed database is
+opened **read-only**, so there is nowhere to write a users row. Env credentials
+plus a stateless signed cookie mean sign-in works anyway. Once there's a
+writable database, users in the `users` table work the same way and the env
+admin can be dropped.
+
+### How it's built
+
+- **Passwords**: scrypt (`node:crypto`), random per-password salt, constant-time
+  comparison, parameters stored in the hash so they can be raised later without
+  invalidating existing hashes. No third-party dependency.
+- **Sessions**: an HMAC-SHA256-signed cookie — `httpOnly`, `sameSite=lax`,
+  `secure` in production, 12-hour expiry. Signed with **Web Crypto**, not
+  `node:crypto`, because Next.js middleware runs on the Edge runtime; that's
+  also why `packages/core` exposes `@market-outreach/core/auth/session` as a
+  subpath export, so middleware never pulls in the `node:fs`-dependent barrel.
+  Stateless sessions can't be revoked individually before expiry — rotating
+  `SESSION_SECRET` invalidates all of them, which is the right lever at this
+  size.
+- **Route protection**: `middleware.ts` protects everything by default; the
+  exceptions are the short explicit list in `lib/authConfig.ts`. A new page
+  cannot accidentally ship unprotected.
+- **Password reset**: single-use tokens, 30-minute expiry, only the SHA-256
+  **hash** is stored so a leaked database doesn't allow resets. Using a token
+  invalidates every other outstanding link for that account.
+- **No account enumeration**: login failures are always the same message, and
+  "forgot password" always reports success whether or not the address exists.
+- **Rate limiting**: an in-memory per-instance throttle on login and reset
+  attempts. It slows casual guessing but resets on cold start — a shared-store
+  limiter belongs here once there's a database to put it in.
+
+**The gap**: no email provider is connected, so a reset link is shown to the
+operator rather than sent. That must become a real email before anyone other
+than the owner uses this.
+
 ## Public demo
 
 A public, **read-only** deployment runs on Vercel with `DEMO_READ_ONLY=1`: every mutating

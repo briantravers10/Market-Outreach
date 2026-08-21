@@ -1,7 +1,7 @@
 import { summarizeAllAgents } from "@market-outreach/core";
-import { getRepos } from "../../lib/data";
-import { AgentCard } from "../../components/AgentCard";
-import { LiveRefresh } from "../../components/LiveRefresh";
+import { getRepos } from "../../../lib/data";
+import { AgentCard } from "../../../components/AgentCard";
+import { LiveRefresh } from "../../../components/LiveRefresh";
 
 export const dynamic = "force-dynamic";
 

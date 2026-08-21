@@ -19,6 +19,16 @@ export type { EnrichmentProvider, EnrichmentResult } from "./providers/enrichmen
 export { MockReasoningProvider } from "./reasoning/reasoningProvider";
 export type { ReasoningProvider } from "./reasoning/reasoningProvider";
 
+export { hashPassword, verifyPassword, validatePasswordStrength } from "./auth/password";
+export {
+  createSessionToken,
+  verifySessionToken,
+  SESSION_COOKIE,
+  DEFAULT_SESSION_TTL_SECONDS,
+} from "./auth/session";
+export type { SessionPayload } from "./auth/session";
+export { generateResetToken, hashResetToken, resetTokenMatches, RESET_TOKEN_TTL_MINUTES } from "./auth/resetTokens";
+
 export { classifyLink, analyzeLinks } from "./enrichment/linkClassifier";
 export type { DetectedLink, LinkPurpose, LinkAnalysis } from "./enrichment/linkClassifier";
 export { MockLinkInBioProvider, buildProfile, mockBioUrl } from "./providers/linkInBioProvider";

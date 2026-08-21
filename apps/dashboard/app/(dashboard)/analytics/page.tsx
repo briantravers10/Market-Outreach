@@ -10,10 +10,10 @@ import {
   getIndustries,
   type PipelineStageName,
 } from "@market-outreach/core";
-import { getRepos } from "../../lib/data";
-import { StatusBadge } from "../../components/Badges";
-import { KpiTile } from "../../components/KpiTile";
-import { BreakdownBars } from "../../components/BreakdownBars";
+import { getRepos } from "../../../lib/data";
+import { StatusBadge } from "../../../components/Badges";
+import { KpiTile } from "../../../components/KpiTile";
+import { BreakdownBars } from "../../../components/BreakdownBars";
 
 export const dynamic = "force-dynamic";
 

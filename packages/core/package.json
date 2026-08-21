@@ -11,5 +11,9 @@
   "devDependencies": {
     "typescript": "^5.6.3",
     "@types/node": "^22.10.2"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./auth/session": "./src/auth/session.ts"
   }
 }

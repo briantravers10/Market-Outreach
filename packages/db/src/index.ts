@@ -9,6 +9,7 @@ import { SqliteOutreachRepository } from "./repositories/outreachRepo";
 import { SqliteAgentActivityRepository } from "./repositories/agentActivityRepo";
 import { SqliteHumanReviewRepository } from "./repositories/humanReviewRepo";
 import { SqliteScoreResultsRepository } from "./repositories/scoreResultsRepo";
+import { createPasswordResetRepo, createUsersRepo } from "./repositories/usersRepo";
 
 export { getDb, closeDb, defaultDbPath };
 
@@ -24,5 +25,7 @@ export function createRepositories(dbPath?: string): Repositories {
     agentActivity: new SqliteAgentActivityRepository(db),
     humanReview: new SqliteHumanReviewRepository(db),
     scoreResults: new SqliteScoreResultsRepository(db),
+    users: createUsersRepo(db),
+    passwordResets: createPasswordResetRepo(db),
   };
 }

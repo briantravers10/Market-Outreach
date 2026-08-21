@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { summarizeAgent, type AgentId } from "@market-outreach/core";
-import { getRepos } from "../../../lib/data";
-import { sendAgentCommandAction } from "../../../lib/actions";
-import { AgentStatusBadge } from "../../../components/AgentStatusBadge";
-import { CommandBox } from "../../../components/CommandBox";
-import { LiveRefresh } from "../../../components/LiveRefresh";
-import { QualificationBadge, ScorePill } from "../../../components/Badges";
+import { getRepos } from "../../../../lib/data";
+import { sendAgentCommandAction } from "../../../../lib/actions";
+import { AgentStatusBadge } from "../../../../components/AgentStatusBadge";
+import { CommandBox } from "../../../../components/CommandBox";
+import { LiveRefresh } from "../../../../components/LiveRefresh";
+import { QualificationBadge, ScorePill } from "../../../../components/Badges";
 
 export const dynamic = "force-dynamic";
 

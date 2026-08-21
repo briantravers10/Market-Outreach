@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { getCrmHandoff, getCrmMode, getPipedriveConfig, getRepos } from "../../lib/data";
-import { PayloadPreview } from "../../components/PayloadPreview";
+import { getCrmHandoff, getCrmMode, getPipedriveConfig, getRepos } from "../../../lib/data";
+import { PayloadPreview } from "../../../components/PayloadPreview";
 
 export const dynamic = "force-dynamic";
 

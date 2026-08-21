@@ -153,3 +153,31 @@ CREATE TABLE IF NOT EXISTS score_results (
   scored_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_score_results_lead ON score_results(lead_id);
+
+-- Dashboard authentication. Separate from everything above: this is about who
+-- may look at the prospecting data, not about the data itself.
+-- The deployed demo opens this database read-only, so a bootstrap admin can
+-- also be supplied via ADMIN_EMAIL/ADMIN_PASSWORD_HASH environment variables
+-- and login still works with no write. See packages/core/src/auth/session.ts.
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  last_login_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(lower(email));
+
+-- Only the SHA-256 hash of a reset token is stored; the raw token exists only
+-- in the emailed link. used_at makes a token single-use.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  token_hash TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reset_tokens_hash ON password_reset_tokens(token_hash);

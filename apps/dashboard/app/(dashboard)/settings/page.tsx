@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getAgentConfigs, getIndustries, getScoringConfig, getTerritories } from "@market-outreach/core";
-import { getCrmMode } from "../../lib/data";
+import { getCrmMode } from "../../../lib/data";
 
 export const dynamic = "force-dynamic";
 

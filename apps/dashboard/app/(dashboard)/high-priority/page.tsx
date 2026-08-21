@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getIndustries, type Lead } from "@market-outreach/core";
-import { getRepos } from "../../lib/data";
-import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../components/Badges";
+import { getRepos } from "../../../lib/data";
+import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../components/Badges";
 
 const PRESETS: { key: string; label: string; test: (lead: Lead) => boolean }[] = [
   { key: "no-website-no-booking", label: "No website + no booking", test: (l) => l.websiteStatus === "NONE" && l.onlineBookingStatus === "NONE" && l.bookingMethod === "NONE" },

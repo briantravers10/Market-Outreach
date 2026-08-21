@@ -7,10 +7,10 @@ import {
   getIndustries,
   summarizeAllAgents,
 } from "@market-outreach/core";
-import { getRepos } from "../../lib/data";
-import { KpiTile } from "../../components/KpiTile";
-import { AgentStatusBadge } from "../../components/AgentStatusBadge";
-import { LiveRefresh } from "../../components/LiveRefresh";
+import { getRepos } from "../../../lib/data";
+import { KpiTile } from "../../../components/KpiTile";
+import { AgentStatusBadge } from "../../../components/AgentStatusBadge";
+import { LiveRefresh } from "../../../components/LiveRefresh";
 
 export const dynamic = "force-dynamic";
 

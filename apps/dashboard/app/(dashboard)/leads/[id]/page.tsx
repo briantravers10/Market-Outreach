@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getIndustries } from "@market-outreach/core";
-import { getCrmHandoff, getCrmMode, getPipedriveConfig, getRepos } from "../../../lib/data";
-import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../components/Badges";
-import { PipelineChecklist } from "../../../components/PipelineChecklist";
-import { PayloadPreview } from "../../../components/PayloadPreview";
-import { LinkInBio } from "../../../components/LinkInBio";
+import { getCrmHandoff, getCrmMode, getPipedriveConfig, getRepos } from "../../../../lib/data";
+import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../../components/Badges";
+import { PipelineChecklist } from "../../../../components/PipelineChecklist";
+import { PayloadPreview } from "../../../../components/PayloadPreview";
+import { LinkInBio } from "../../../../components/LinkInBio";
 
 export const dynamic = "force-dynamic";
 
