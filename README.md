@@ -214,6 +214,42 @@ half-configured account can't silently write records to the wrong stage. Connect
 account is a config-and-env change with no code edits: create the fields in Pipedrive, paste
 their keys into that file, set the two env vars.
 
+### Connecting a Pipedrive account
+
+```bash
+# 1. Get a token: Pipedrive -> your avatar (top right) -> Personal preferences -> API
+PIPEDRIVE_API_TOKEN=xxx npm run setup-crm -- --dry-run   # see what it would do
+PIPEDRIVE_API_TOKEN=xxx npm run setup-crm                # do it
+
+# 2. Check it
+PIPEDRIVE_API_TOKEN=xxx PIPEDRIVE_LIVE_SYNC=1 npm run test-crm
+
+# 3. Only when you actually want leads written:
+#    set PIPEDRIVE_LIVE_SYNC=1 in the environment
+```
+
+`setup-crm` verifies the token, creates the 14 custom fields this system
+produces, reads back the 40-character keys Pipedrive assigns them, discovers
+the deal pipeline and its stages, and writes all of it into
+`config/crm-pipedrive.json`. Commit that file — the keys are account-specific
+but not secret. The token is passed as a header, never in a URL.
+
+It is **safe to re-run**: fields are matched by name, so a second run creates
+nothing and just refreshes the keys. It only ever adds field *definitions* — it
+never edits or deletes an existing field, and never touches organizations,
+people, or deals.
+
+Two things to check afterwards:
+
+- **Stage mapping is positional.** The script maps this system's stages onto
+  yours in order and prints exactly what it chose. Your pipeline's stages mean
+  whatever you named them, so read that table and correct
+  `deal.stageMap` if the guess is wrong. Anything left `null` is skipped, never
+  guessed at.
+- **Setup does not turn syncing on.** `setup-crm` needs only the token;
+  actually writing leads needs `PIPEDRIVE_LIVE_SYNC=1` as well. Creating the
+  schema and starting to push records are separate decisions.
+
 **Syncing twice does not duplicate.** The ids Pipedrive assigns are stored on
 the CRM record, and their presence turns a repeat sync into an update rather
 than a second copy of every business — which matters because re-running a
@@ -300,7 +336,7 @@ That last row is deliberate: a real deployment holding real prospect data
 fails closed rather than quietly exposing it. The only way to serve anything
 without a login is to explicitly mark the deployment as the fake-data demo.
 
-### Turning it on
+### Turning it on (auth)
 
 ```bash
 npm run create-user -- you@example.com 'a long passphrase you choose'

@@ -1,5 +1,5 @@
 {
-  "description": "Pipedrive hand-off mapping. Edit this file (not code) to change what gets synced. `customFieldKey` values are the 40-character hash keys Pipedrive assigns to custom fields — they only exist once the fields are created in a real Pipedrive account, so they are null until then. A null key means that field is previewed but skipped on a real push, never guessed.",
+  "description": "Pipedrive hand-off mapping. Edit this file (not code) to change what gets synced. `customFieldKey` values are the 40-character hash keys Pipedrive assigns to custom fields \u2014 they only exist once the fields are created in a real Pipedrive account, so they are null until then. A null key means that field is previewed but skipped on a real push, never guessed.",
   "connection": {
     "apiBaseUrl": "https://api.pipedrive.com/v1",
     "companyDomain": null,
@@ -12,39 +12,126 @@
     "nameFrom": "businessName",
     "addressFrom": "address",
     "standardFields": [
-      { "leadField": "businessName", "pipedriveField": "name", "required": true },
-      { "leadField": "address", "pipedriveField": "address", "required": false }
+      {
+        "leadField": "businessName",
+        "pipedriveField": "name",
+        "required": true
+      },
+      {
+        "leadField": "address",
+        "pipedriveField": "address",
+        "required": false
+      }
     ],
     "customFields": [
-      { "leadField": "prospectScore", "label": "Prospect Score", "type": "double", "customFieldKey": null },
-      { "leadField": "qualificationStatus", "label": "Qualification Status", "type": "enum", "customFieldKey": null },
-      { "leadField": "dataConfidence", "label": "Data Confidence", "type": "enum", "customFieldKey": null },
-      { "leadField": "websiteStatus", "label": "Website Status", "type": "enum", "customFieldKey": null },
-      { "leadField": "websiteQuality", "label": "Website Quality", "type": "enum", "customFieldKey": null },
-      { "leadField": "onlineBookingStatus", "label": "Online Booking Status", "type": "enum", "customFieldKey": null },
-      { "leadField": "bookingProvider", "label": "Booking Provider", "type": "varchar", "customFieldKey": null },
-      { "leadField": "bookingMethod", "label": "Booking Method", "type": "enum", "customFieldKey": null },
-      { "leadField": "staffCount", "label": "Staff Count", "type": "double", "customFieldKey": null },
-      { "leadField": "rating", "label": "Google Rating", "type": "double", "customFieldKey": null },
-      { "leadField": "reviewCount", "label": "Review Count", "type": "double", "customFieldKey": null },
-      { "leadField": "industry", "label": "Industry", "type": "enum", "customFieldKey": null },
-      { "leadField": "scoreReason", "label": "Score Reason", "type": "text", "customFieldKey": null },
-      { "leadField": "discoverySource", "label": "Discovery Source", "type": "varchar", "customFieldKey": null }
-    ]
+      {
+        "leadField": "prospectScore",
+        "label": "Prospect Score",
+        "type": "double",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "qualificationStatus",
+        "label": "Qualification Status",
+        "type": "varchar",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "dataConfidence",
+        "label": "Data Confidence",
+        "type": "varchar",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "websiteStatus",
+        "label": "Website Status",
+        "type": "varchar",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "websiteQuality",
+        "label": "Website Quality",
+        "type": "varchar",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "onlineBookingStatus",
+        "label": "Online Booking Status",
+        "type": "varchar",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "bookingProvider",
+        "label": "Booking Provider",
+        "type": "varchar",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "bookingMethod",
+        "label": "Booking Method",
+        "type": "varchar",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "staffCount",
+        "label": "Staff Count",
+        "type": "double",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "rating",
+        "label": "Google Rating",
+        "type": "double",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "reviewCount",
+        "label": "Review Count",
+        "type": "double",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "industry",
+        "label": "Industry",
+        "type": "varchar",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "scoreReason",
+        "label": "Score Reason",
+        "type": "text",
+        "customFieldKey": null
+      },
+      {
+        "leadField": "discoverySource",
+        "label": "Discovery Source",
+        "type": "varchar",
+        "customFieldKey": null
+      }
+    ],
+    "customFieldsNote": "Types map to Pipedrive field_type values. Deliberately no 'enum' fields: Pipedrive enum/set fields are written by numeric option id, not by label, so sending a string like 'HIGH_PRIORITY' to one is silently dropped. varchar stores the label as-is, which is what this system produces and what is readable in Pipedrive."
   },
   "person": {
     "objectLabel": "Person",
     "createWhen": "phone-or-email-present",
     "nameTemplate": "{businessName} (main contact)",
     "standardFields": [
-      { "leadField": "phone", "pipedriveField": "phone", "required": false },
-      { "leadField": "email", "pipedriveField": "email", "required": false }
+      {
+        "leadField": "phone",
+        "pipedriveField": "phone",
+        "required": false
+      },
+      {
+        "leadField": "email",
+        "pipedriveField": "email",
+        "required": false
+      }
     ]
   },
   "deal": {
     "objectLabel": "Deal",
     "createWhen": "qualification-status-qualified-or-high-priority",
-    "titleTemplate": "{businessName} — {industryLabel}",
+    "titleTemplate": "{businessName} \u2014 {industryLabel}",
     "pipelineId": null,
     "currency": "USD",
     "valueFrom": null,
