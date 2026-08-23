@@ -300,6 +300,8 @@ export class PipedriveCrmAdapter implements CrmAdapter {
 
   private readonly config: PipedriveConfig;
   private readonly transport: PipedriveTransport;
+  /** Cached name -> 40-char key map, fetched from the account on first live use. */
+  private resolvedConfig: PipedriveConfig | null = null;
 
   constructor(
     private readonly repo: CrmRepository,
@@ -313,6 +315,64 @@ export class PipedriveCrmAdapter implements CrmAdapter {
 
   describeMode(): PipedriveMode {
     return describePipedriveMode(this.env, this.config);
+  }
+
+  /**
+   * Fills in whatever the config left blank by asking the account directly:
+   * custom-field keys matched on field NAME, and the deal pipeline.
+   *
+   * Pipedrive assigns each custom field an opaque 40-character key. Those keys
+   * were previously expected to be pasted into config by hand, one per field —
+   * fourteen chances to mistype a value that fails silently. Since the account
+   * already knows the mapping from name to key, the adapter just reads it.
+   *
+   * Anything explicitly set in config still wins, so a hand-tuned mapping is
+   * never overwritten. Resolved once per adapter instance and cached.
+   */
+  private async resolveConfig(): Promise<PipedriveConfig> {
+    if (this.resolvedConfig) return this.resolvedConfig;
+
+    const resolved: PipedriveConfig = JSON.parse(JSON.stringify(this.config));
+
+    try {
+      const response = await this.send({ endpoint: "/organizationFields", method: "GET", body: {} });
+      const fields = ((response.body as { data?: Array<{ name?: string; key?: string }> } | null)?.data ?? [])
+        .filter((f): f is { name: string; key: string } => Boolean(f?.name && f?.key));
+      const byName = new Map(fields.map((f) => [f.name.trim().toLowerCase(), f.key]));
+
+      for (const field of resolved.organization.customFields) {
+        if (field.customFieldKey) continue; // an explicit setting is authoritative
+        const key = byName.get(field.label.trim().toLowerCase());
+        if (key) field.customFieldKey = key;
+      }
+    } catch {
+      // Couldn't read the field list — fall back to whatever config holds.
+      // Unresolved fields are skipped and reported, never guessed.
+    }
+
+    if (resolved.deal.pipelineId == null) {
+      try {
+        const response = await this.send({ endpoint: "/pipelines", method: "GET", body: {} });
+        const pipelines = (response.body as { data?: Array<{ id?: number }> } | null)?.data ?? [];
+        if (pipelines[0]?.id != null) resolved.deal.pipelineId = pipelines[0].id;
+      } catch {
+        // No pipeline: the deal is still created, and Pipedrive files it in the
+        // default pipeline's first stage.
+      }
+    }
+
+    this.resolvedConfig = resolved;
+    return resolved;
+  }
+
+  /** What the adapter resolved from the account — for the setup/status scripts. */
+  async describeResolvedMapping(): Promise<{ mapped: string[]; unmapped: string[]; pipelineId: number | null }> {
+    const config = await this.resolveConfig();
+    return {
+      mapped: config.organization.customFields.filter((f) => f.customFieldKey).map((f) => f.label),
+      unmapped: config.organization.customFields.filter((f) => !f.customFieldKey).map((f) => f.label),
+      pipelineId: config.deal.pipelineId,
+    };
   }
 
   /** What would be (or was) sent for this lead. */
@@ -345,8 +405,10 @@ export class PipedriveCrmAdapter implements CrmAdapter {
    * system built to re-run campaigns is not an edge case, it's Tuesday.
    */
   async pushLead(lead: Lead): Promise<CrmRecord> {
-    const handoff = buildHandoff(lead, this.config);
     const mode = this.describeMode();
+    // Only live mode resolves against the account; dry-run stays offline.
+    const config = mode.live ? await this.resolveConfig() : this.config;
+    const handoff = buildHandoff(lead, config);
     const existing = this.latestRecord(lead.id);
 
     let orgId = existing?.externalOrgId ?? null;
@@ -394,7 +456,8 @@ export class PipedriveCrmAdapter implements CrmAdapter {
 
   async updateStage(leadId: string, stage: PipelineStage): Promise<CrmRecord> {
     const mode = this.describeMode();
-    const stageId = this.config.deal.stageMap[stage];
+    const config = mode.live ? await this.resolveConfig() : this.config;
+    const stageId = config.deal.stageMap[stage];
     const existing = this.latestRecord(leadId);
 
     // Address the deal by the id PIPEDRIVE assigned. An earlier version used
