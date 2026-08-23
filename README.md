@@ -391,6 +391,13 @@ going live) would publish a **writable** database to anyone with the URL.
 
 **Set the auth variables before, or at the same time as, `DATABASE_URL`.**
 
+`DATABASE_URL` also cancels demo mode itself (`lib/demo.ts`), for the same
+reason. Demo mode disables every control in the dashboard, because the SQLite
+snapshot cannot be written to. With Postgres attached that reason is gone, and
+a leftover `DEMO_READ_ONLY=1` would otherwise leave every button looking live
+while silently doing nothing. It does not relax the CRM switches — live sync
+still needs a token *and* `PIPEDRIVE_LIVE_SYNC=1`.
+
 ### Turning it on (auth)
 
 ```bash
