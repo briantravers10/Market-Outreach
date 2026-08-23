@@ -372,15 +372,24 @@ single-process internal tool.
 The dashboard sits behind a login. There are three possible postures, decided
 entirely by environment variables:
 
-| `SESSION_SECRET` | `DEMO_READ_ONLY` | Result |
-|---|---|---|
-| set | either | **Login required** on every route |
-| not set | `1` | Public read-only demo of synthetic data |
-| not set | not set | **Refuses to serve** (HTTP 503) |
+| `SESSION_SECRET` | `DEMO_READ_ONLY` | `DATABASE_URL` | Result |
+|---|---|---|---|
+| set | either | either | **Login required** on every route |
+| not set | `1` | not set | Public read-only demo of synthetic data |
+| not set | `1` | set | **Refuses to serve** (HTTP 503) |
+| not set | not set | either | **Refuses to serve** (HTTP 503) |
 
-That last row is deliberate: a real deployment holding real prospect data
-fails closed rather than quietly exposing it. The only way to serve anything
-without a login is to explicitly mark the deployment as the fake-data demo.
+Failing closed is deliberate: a real deployment holding real prospect data
+refuses rather than quietly exposing it. The only way to serve anything without
+a login is to explicitly mark the deployment as the fake-data demo.
+
+`DATABASE_URL` cancels that demo exemption on purpose. The exemption is only
+safe because the demo's data is a read-only synthetic snapshot — a Postgres
+connection is neither read-only nor synthetic. Without this rule, adding
+`DATABASE_URL` to the existing demo deployment (the natural first step when
+going live) would publish a **writable** database to anyone with the URL.
+
+**Set the auth variables before, or at the same time as, `DATABASE_URL`.**
 
 ### Turning it on (auth)
 
