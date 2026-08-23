@@ -23,16 +23,22 @@ async function main() {
 
   console.log(`Creating ${combos.length} campaigns (${territories.length} cities x ${industries.length} industries)...`);
 
-  const campaigns = combos.map(({ city, industryId }, i) =>
-    manager.createCampaign({
-      name: `${city} — ${getIndustries().find((ind) => ind.id === industryId)?.label ?? industryId}`,
-      city,
-      industry: industryId,
-      batchSize: 5,
-      priority: (i % 5) + 1,
-      targetLeadCount: 15, // -> 3 batches of 5 per campaign
-    })
-  );
+  // Sequential rather than Promise.all: seeding is not performance-critical,
+  // and creating campaigns in a deterministic order keeps the generated data
+  // reproducible run to run.
+  const campaigns: Array<Awaited<ReturnType<typeof manager.createCampaign>>> = [];
+  for (const [i, { city, industryId }] of combos.entries()) {
+    campaigns.push(
+      await manager.createCampaign({
+        name: `${city} — ${getIndustries().find((ind) => ind.id === industryId)?.label ?? industryId}`,
+        city,
+        industry: industryId,
+        batchSize: 5,
+        priority: (i % 5) + 1,
+        targetLeadCount: 15, // -> 3 batches of 5 per campaign
+      })
+    );
+  }
 
   let jobsRun = 0;
   let leadsCreated = 0;
@@ -43,7 +49,7 @@ async function main() {
     // Leave roughly 40% of campaigns untouched (draft, all jobs pending) — a realistic backlog.
     if (i % 5 === 0 || i % 5 === 3) continue;
 
-    manager.startCampaign(campaign.id);
+    await manager.startCampaign(campaign.id);
 
     if (i % 5 === 1) {
       // Fully run every job in this campaign -> demonstrates "Complete" campaigns.
@@ -57,13 +63,13 @@ async function main() {
       const result = await manager.runJob(jobs[0]);
       jobsRun += 1;
       leadsCreated += result.leadsCreated;
-      manager.pauseCampaign(campaign.id);
+      await manager.pauseCampaign(campaign.id);
     } else if (i % 5 === 4) {
       // Run the first job, then stop -> demonstrates "Stopped" campaigns.
       const result = await manager.runJob(jobs[0]);
       jobsRun += 1;
       leadsCreated += result.leadsCreated;
-      manager.stopCampaign(campaign.id);
+      await manager.stopCampaign(campaign.id);
     }
   }
 
@@ -73,7 +79,7 @@ async function main() {
   // the distribution that matters (roughly 40% already have a booking
   // incumbent; the rest are the targets). One dedicated fully-run campaign
   // gives that signal enough volume to be legible on the dashboard.
-  const showcase = manager.createCampaign({
+  const showcase = await manager.createCampaign({
     name: "Miami — Makeup Artists (link-in-bio showcase)",
     city: "Miami",
     industry: "makeup-artists",
@@ -81,7 +87,7 @@ async function main() {
     priority: 5,
     targetLeadCount: 36,
   });
-  manager.startCampaign(showcase.campaign.id);
+  await manager.startCampaign(showcase.campaign.id);
   for (const job of showcase.jobs) {
     const result = await manager.runJob(job);
     jobsRun += 1;
@@ -92,11 +98,11 @@ async function main() {
   // "Miami | Dog Groomers | Batch 001 | Running" example in the architecture spec.
   const runningDemoCampaign = campaigns.find((c) => c.campaign.city === "Miami" && c.campaign.industry === "dog-groomers");
   if (runningDemoCampaign) {
-    manager.startCampaign(runningDemoCampaign.campaign.id);
+    await manager.startCampaign(runningDemoCampaign.campaign.id);
     const repos = createRepositories();
-    const pendingJob = repos.jobs.list({ campaignId: runningDemoCampaign.campaign.id, status: "pending" })[0];
+    const pendingJob = (await repos.jobs.list({ campaignId: runningDemoCampaign.campaign.id, status: "pending" }))[0];
     if (pendingJob) {
-      repos.jobs.update({ ...pendingJob, status: "running", updatedAt: new Date().toISOString() });
+      await repos.jobs.update({ ...pendingJob, status: "running", updatedAt: new Date().toISOString() });
     }
   }
 

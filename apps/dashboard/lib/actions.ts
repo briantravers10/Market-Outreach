@@ -19,7 +19,7 @@ import { isDemoMode } from "./demo";
 
 export async function startCampaignAction(campaignId: string) {
   if (isDemoMode) return;
-  getManager().startCampaign(campaignId);
+  await getManager().startCampaign(campaignId);
   revalidatePath("/campaigns");
   revalidatePath("/queue");
   revalidatePath("/overview");
@@ -28,7 +28,7 @@ export async function startCampaignAction(campaignId: string) {
 
 export async function pauseCampaignAction(campaignId: string) {
   if (isDemoMode) return;
-  getManager().pauseCampaign(campaignId);
+  await getManager().pauseCampaign(campaignId);
   revalidatePath("/campaigns");
   revalidatePath("/queue");
   revalidatePath("/team");
@@ -36,7 +36,7 @@ export async function pauseCampaignAction(campaignId: string) {
 
 export async function resumeCampaignAction(campaignId: string) {
   if (isDemoMode) return;
-  getManager().resumeCampaign(campaignId);
+  await getManager().resumeCampaign(campaignId);
   revalidatePath("/campaigns");
   revalidatePath("/queue");
   revalidatePath("/team");
@@ -44,7 +44,7 @@ export async function resumeCampaignAction(campaignId: string) {
 
 export async function stopCampaignAction(campaignId: string) {
   if (isDemoMode) return;
-  getManager().stopCampaign(campaignId);
+  await getManager().stopCampaign(campaignId);
   revalidatePath("/campaigns");
   revalidatePath("/queue");
   revalidatePath("/team");
@@ -54,7 +54,7 @@ export async function runNextJobAction(campaignId: string) {
   if (isDemoMode) return;
   const repos = getRepos();
   const manager = getManager();
-  const nextPending = repos.jobs.list({ campaignId, status: "pending" })[0];
+  const nextPending = (await repos.jobs.list({ campaignId, status: "pending" }))[0];
   if (nextPending) {
     await manager.runJob(nextPending);
   }
@@ -70,7 +70,7 @@ export async function runNextJobAction(campaignId: string) {
 export async function requeueJobAction(jobId: string) {
   if (isDemoMode) return;
   const repos = getRepos();
-  const job = repos.jobs.getById(jobId);
+  const job = await repos.jobs.getById(jobId);
   if (job) {
     getManager().queue.requeue(job);
   }
@@ -86,7 +86,7 @@ export async function createCampaignAction(formData: FormData) {
   const targetLeadCount = Number(formData.get("targetLeadCount") || 15);
   const priority = Number(formData.get("priority") || 3);
 
-  getManager().createCampaign({ name, city, industry, batchSize, targetLeadCount, priority });
+  await getManager().createCampaign({ name, city, industry, batchSize, targetLeadCount, priority });
   revalidatePath("/campaigns");
   revalidatePath("/queue");
 }
@@ -107,7 +107,7 @@ export async function assignTaskAction(formData: FormData) {
     redirect(`/campaigns?clarify=${encodeURIComponent("Type an instruction first, e.g. \"Find 50 dog groomers in Miami with no online booking.\"")}`);
   }
 
-  const result = getManager().assignTask(text, getCommandParser());
+  const result = await getManager().assignTask(text, getCommandParser());
   revalidatePath("/campaigns");
   revalidatePath("/queue");
   revalidatePath("/overview");

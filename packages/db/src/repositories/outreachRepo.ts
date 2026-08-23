@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqlClient } from "../sqlClient";
 import type { OutreachAttempt, OutreachChannel, OutreachRepository } from "@market-outreach/core";
 
 interface OutreachRow {
@@ -23,10 +23,10 @@ function rowToAttempt(row: OutreachRow): OutreachAttempt {
 
 /** Logs disabled outreach attempts only — see packages/core/src/outreach/outreachService.ts. */
 export class SqliteOutreachRepository implements OutreachRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(private readonly db: SqlClient) {}
 
-  logAttempt(attempt: OutreachAttempt): OutreachAttempt {
-    this.db
+  async logAttempt(attempt: OutreachAttempt): Promise<OutreachAttempt> {
+    await this.db
       .prepare(
         `INSERT INTO outreach_log (id, lead_id, channel, status, requested_at, note)
          VALUES (@id, @leadId, @channel, @status, @requestedAt, @note)`
@@ -35,8 +35,8 @@ export class SqliteOutreachRepository implements OutreachRepository {
     return attempt;
   }
 
-  list(): OutreachAttempt[] {
-    const rows = this.db.prepare("SELECT * FROM outreach_log ORDER BY requested_at DESC").all() as OutreachRow[];
+  async list(): Promise<OutreachAttempt[]> {
+    const rows = await this.db.prepare("SELECT * FROM outreach_log ORDER BY requested_at DESC").all() as OutreachRow[];
     return rows.map(rowToAttempt);
   }
 }

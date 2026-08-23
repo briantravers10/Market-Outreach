@@ -129,7 +129,7 @@ export async function loginAction(formData: FormData) {
   // Database-backed users.
   let user: { id: string; email: string; passwordHash: string } | null = null;
   try {
-    user = getRepos().users.getByEmail(email);
+    user = await getRepos().users.getByEmail(email);
   } catch {
     // Unreadable/missing users table — treat as "no such user" rather than 500.
     user = null;
@@ -141,7 +141,7 @@ export async function loginAction(formData: FormData) {
 
   clearAttempts(`login:${email}`);
   try {
-    getRepos().users.markLoggedIn(user!.id, new Date().toISOString());
+    await getRepos().users.markLoggedIn(user!.id, new Date().toISOString());
   } catch {
     // Read-only database — a missing last_login stamp is not worth failing a login over.
   }
@@ -174,7 +174,7 @@ export async function forgotPasswordAction(formData: FormData) {
 
   let user: { id: string } | null = null;
   try {
-    user = getRepos().users.getByEmail(email);
+    user = await getRepos().users.getByEmail(email);
   } catch {
     user = null;
   }
@@ -187,7 +187,7 @@ export async function forgotPasswordAction(formData: FormData) {
   try {
     const repos = getRepos();
     const { token, tokenHash, expiresAt } = generateResetToken();
-    repos.passwordResets.create({
+    await repos.passwordResets.create({
       id: randomUUID(),
       userId: user!.id,
       tokenHash,
@@ -220,7 +220,7 @@ export async function resetPasswordAction(formData: FormData) {
   if (strengthError) fail(strengthError);
 
   const repos = getRepos();
-  const record = repos.passwordResets.getByHash(hashResetToken(token));
+  const record = await repos.passwordResets.getByHash(hashResetToken(token));
 
   if (
     !record ||
@@ -231,14 +231,14 @@ export async function resetPasswordAction(formData: FormData) {
     fail("This reset link has expired or already been used.");
   }
 
-  const user = repos.users.getById(record!.userId);
+  const user = await repos.users.getById(record!.userId);
   if (!user) fail("This reset link is invalid.");
 
   const now = new Date().toISOString();
-  repos.users.upsert({ ...user!, passwordHash: await hashPassword(password), updatedAt: now });
-  repos.passwordResets.markUsed(record!.id, now);
+  await repos.users.upsert({ ...user!, passwordHash: await hashPassword(password), updatedAt: now });
+  await repos.passwordResets.markUsed(record!.id, now);
   // Invalidate every other outstanding link for this account.
-  repos.passwordResets.deleteForUser(record!.userId);
+  await repos.passwordResets.deleteForUser(record!.userId);
 
   redirect("/login?reset=1");
 }

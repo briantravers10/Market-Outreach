@@ -28,9 +28,9 @@ export default async function CampaignsPage({
   const industries = getIndustries();
   const industryLabels = new Map(industries.map((i) => [i.id, i.label]));
 
-  const campaigns = repos.campaigns.list();
-  const allJobs = repos.jobs.list();
-  const allLeads = repos.leads.list();
+  const campaigns = await repos.campaigns.list();
+  const allJobs = await repos.jobs.list();
+  const allLeads = await repos.leads.list();
 
   return (
     <div>

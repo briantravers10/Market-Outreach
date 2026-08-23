@@ -18,7 +18,7 @@ export default async function HighPriorityPage({ searchParams }: { searchParams:
   const repos = getRepos();
   const industryLabels = new Map(getIndustries().map((i) => [i.id, i.label]));
 
-  const highPriority = repos.leads.list({ minScore: 80 });
+  const highPriority = await repos.leads.list({ minScore: 80 });
   const preset = PRESETS.find((p) => p.key === params.preset);
   const leads = preset ? highPriority.filter(preset.test) : highPriority;
 

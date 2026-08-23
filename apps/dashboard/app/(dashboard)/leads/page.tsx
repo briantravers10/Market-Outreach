@@ -39,7 +39,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     qualificationStatus: (params.qualificationStatus as LeadFilter["qualificationStatus"]) || undefined,
   };
 
-  let leads = repos.leads.list(filter);
+  let leads = await repos.leads.list(filter);
   if (params.q) {
     const q = params.q.toLowerCase();
     leads = leads.filter((l) => l.businessName.toLowerCase().includes(q));

@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqlClient } from "../sqlClient";
 import type { AgentActivity, AgentActivityLevel, AgentActivityRepository, AgentId } from "@market-outreach/core";
 
 interface AgentActivityRow {
@@ -28,10 +28,10 @@ function rowToActivity(row: AgentActivityRow): AgentActivity {
 }
 
 export class SqliteAgentActivityRepository implements AgentActivityRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(private readonly db: SqlClient) {}
 
-  log(activity: AgentActivity): AgentActivity {
-    this.db
+  async log(activity: AgentActivity): Promise<AgentActivity> {
+    await this.db
       .prepare(
         `INSERT INTO agent_activity (id, agent_id, campaign_id, job_id, lead_id, action, summary, level, created_at)
          VALUES (@id, @agentId, @campaignId, @jobId, @leadId, @action, @summary, @level, @createdAt)`
@@ -40,7 +40,7 @@ export class SqliteAgentActivityRepository implements AgentActivityRepository {
     return activity;
   }
 
-  list(filter: { agentId?: AgentId; campaignId?: string; leadId?: string; limit?: number } = {}): AgentActivity[] {
+  async list(filter: { agentId?: AgentId; campaignId?: string; leadId?: string; limit?: number } = {}): Promise<AgentActivity[]> {
     const clauses: string[] = [];
     const params: Record<string, unknown> = {};
     if (filter.agentId) { clauses.push("agent_id = @agentId"); params.agentId = filter.agentId; }
@@ -49,7 +49,7 @@ export class SqliteAgentActivityRepository implements AgentActivityRepository {
 
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     params.limit = filter.limit ?? 100;
-    const rows = this.db
+    const rows = await this.db
       .prepare(`SELECT * FROM agent_activity ${where} ORDER BY created_at DESC LIMIT @limit`)
       .all(params) as AgentActivityRow[];
     return rows.map(rowToActivity);

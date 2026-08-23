@@ -30,8 +30,8 @@ async function main() {
 
   try {
     const repos = createRepositories();
-    const existing = repos.users.getByEmail(email);
-    repos.users.upsert({
+    const existing = await repos.users.getByEmail(email);
+    await repos.users.upsert({
       id: existing?.id ?? randomUUID(),
       email: email.trim(),
       passwordHash,

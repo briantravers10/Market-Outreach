@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqlClient } from "../sqlClient";
 import type { Campaign, CampaignsRepository, CampaignStatus } from "@market-outreach/core";
 
 interface CampaignRow {
@@ -38,10 +38,10 @@ function rowToCampaign(row: CampaignRow): Campaign {
 }
 
 export class SqliteCampaignsRepository implements CampaignsRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(private readonly db: SqlClient) {}
 
-  create(campaign: Campaign): Campaign {
-    this.db
+  async create(campaign: Campaign): Promise<Campaign> {
+    await this.db
       .prepare(
         `INSERT INTO campaigns (
           id, name, city, industry, status, batch_size, priority, target_lead_count,
@@ -55,8 +55,8 @@ export class SqliteCampaignsRepository implements CampaignsRepository {
     return campaign;
   }
 
-  update(campaign: Campaign): Campaign {
-    this.db
+  async update(campaign: Campaign): Promise<Campaign> {
+    await this.db
       .prepare(
         `UPDATE campaigns SET name=@name, status=@status, batch_size=@batchSize, priority=@priority,
          target_lead_count=@targetLeadCount, filters=@filters, updated_at=@updatedAt,
@@ -66,13 +66,13 @@ export class SqliteCampaignsRepository implements CampaignsRepository {
     return campaign;
   }
 
-  getById(id: string): Campaign | null {
-    const row = this.db.prepare("SELECT * FROM campaigns WHERE id = ?").get(id) as CampaignRow | undefined;
+  async getById(id: string): Promise<Campaign | null> {
+    const row = await this.db.prepare("SELECT * FROM campaigns WHERE id = ?").get(id) as CampaignRow | undefined;
     return row ? rowToCampaign(row) : null;
   }
 
-  list(): Campaign[] {
-    const rows = this.db.prepare("SELECT * FROM campaigns ORDER BY created_at DESC").all() as CampaignRow[];
+  async list(): Promise<Campaign[]> {
+    const rows = await this.db.prepare("SELECT * FROM campaigns ORDER BY created_at DESC").all() as CampaignRow[];
     return rows.map(rowToCampaign);
   }
 }

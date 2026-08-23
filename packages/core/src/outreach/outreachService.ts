@@ -39,7 +39,7 @@ export class DisabledOutreachService implements OutreachService {
   }
 
   private async logDisabledAttempt(lead: Lead, channel: OutreachChannel, note: string): Promise<OutreachAttempt> {
-    return this.repo.logAttempt({
+    return await this.repo.logAttempt({
       id: nextId(),
       leadId: lead.id,
       channel,

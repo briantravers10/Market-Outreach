@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqlClient } from "../sqlClient";
 import type { Lead, LeadFilter, LeadsRepository } from "@market-outreach/core";
 
 interface LeadRow {
@@ -98,10 +98,10 @@ function rowToLead(row: LeadRow): Lead {
 }
 
 export class SqliteLeadsRepository implements LeadsRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(private readonly db: SqlClient) {}
 
-  upsert(lead: Lead): Lead {
-    this.db
+  async upsert(lead: Lead): Promise<Lead> {
+    await this.db
       .prepare(
         `INSERT INTO leads (
           id, business_name, industry, address, city, state, zip, phone, email, website,
@@ -152,12 +152,12 @@ export class SqliteLeadsRepository implements LeadsRepository {
     return lead;
   }
 
-  getById(id: string): Lead | null {
-    const row = this.db.prepare("SELECT * FROM leads WHERE id = ?").get(id) as LeadRow | undefined;
+  async getById(id: string): Promise<Lead | null> {
+    const row = await this.db.prepare("SELECT * FROM leads WHERE id = ?").get(id) as LeadRow | undefined;
     return row ? rowToLead(row) : null;
   }
 
-  list(filter: LeadFilter = {}): Lead[] {
+  async list(filter: LeadFilter = {}): Promise<Lead[]> {
     const clauses: string[] = [];
     const params: Record<string, unknown> = {};
 
@@ -176,12 +176,12 @@ export class SqliteLeadsRepository implements LeadsRepository {
     if (filter.campaignId) { clauses.push("campaign_id = @campaignId"); params.campaignId = filter.campaignId; }
 
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-    const rows = this.db.prepare(`SELECT * FROM leads ${where} ORDER BY date_discovered DESC`).all(params) as LeadRow[];
+    const rows = await this.db.prepare(`SELECT * FROM leads ${where} ORDER BY date_discovered DESC`).all(params) as LeadRow[];
     return rows.map(rowToLead);
   }
 
-  findPossibleDuplicates(lead: Pick<Lead, "businessName" | "address" | "phone" | "city">): Lead[] {
-    const rows = this.db
+  async findPossibleDuplicates(lead: Pick<Lead, "businessName" | "address" | "phone" | "city">): Promise<Lead[]> {
+    const rows = await this.db
       .prepare(
         `SELECT * FROM leads WHERE city = @city AND (business_name = @businessName OR (phone IS NOT NULL AND phone = @phone))`
       )

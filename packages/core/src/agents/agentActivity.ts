@@ -17,7 +17,7 @@ export interface LogActivityInput {
  * doing right now and what it's done recently. Called from
  * ProspectingManager.runJob at each pipeline stage.
  */
-export function logActivity(repo: AgentActivityRepository, input: LogActivityInput): AgentActivity {
+export async function logActivity(repo: AgentActivityRepository, input: LogActivityInput): Promise<AgentActivity> {
   return repo.log({
     id: randomUUID(),
     agentId: input.agentId,

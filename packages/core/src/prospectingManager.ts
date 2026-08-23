@@ -94,12 +94,12 @@ export class ProspectingManager {
     });
   }
 
-  createCampaign(input: CreateCampaignInput): { campaign: Campaign; jobs: Job[] } {
+  async createCampaign(input: CreateCampaignInput): Promise<{ campaign: Campaign; jobs: Job[] }> {
     const territory = this.deps.territories.find((t) => t.city === input.city);
     if (!territory) throw new Error(`Unknown territory city: ${input.city}`);
 
     const filters = input.filters ?? [];
-    const campaign = this.deps.repos.campaigns.create({
+    const campaign = await this.deps.repos.campaigns.create({
       id: randomUUID(),
       name: input.name,
       city: input.city,
@@ -121,7 +121,7 @@ export class ProspectingManager {
     for (let i = 0; i < numBatches; i++) {
       const batchId = `batch-${String(i + 1).padStart(3, "0")}`;
       jobs.push(
-        this.queue.enqueue({
+        await this.queue.enqueue({
           id: randomUUID(),
           campaignId: campaign.id,
           city: input.city,
@@ -147,7 +147,7 @@ export class ProspectingManager {
    * see nlp/commandParser.ts), or returns a clarification request instead
    * of guessing when the city/industry can't be confidently determined.
    */
-  assignTask(text: string, parser: CommandParser): AssignTaskResult {
+  async assignTask(text: string, parser: CommandParser): Promise<AssignTaskResult> {
     const parsed = parser.parse(text);
 
     if (parsed.confidence === "NEEDS_CLARIFICATION" || !parsed.industryId || !parsed.city) {
@@ -157,7 +157,7 @@ export class ProspectingManager {
       return { parsed, campaign: null, jobs: [] };
     }
 
-    const { campaign, jobs } = this.createCampaign({
+    const { campaign, jobs } = await this.createCampaign({
       name: `${parsed.city} — ${parsed.industryLabel}`,
       city: parsed.city,
       industry: parsed.industryId,
@@ -171,10 +171,10 @@ export class ProspectingManager {
     return { parsed, campaign, jobs };
   }
 
-  startCampaign(campaignId: string): Campaign {
-    const existing = this.deps.repos.campaigns.getById(campaignId);
+  async startCampaign(campaignId: string): Promise<Campaign> {
+    const existing = await this.deps.repos.campaigns.getById(campaignId);
     const extra = existing && !existing.startedAt ? { startedAt: nowIso() } : {};
-    const campaign = this.setCampaignStatus(campaignId, "running", extra);
+    const campaign = await this.setCampaignStatus(campaignId, "running", extra);
     this.log("manager", `Started campaign: ${campaign.city} — ${industryLabel(campaign.industry)}.`, {
       action: "start_campaign",
       campaignId,
@@ -182,10 +182,10 @@ export class ProspectingManager {
     return campaign;
   }
 
-  pauseCampaign(campaignId: string): Campaign {
-    const campaign = this.setCampaignStatus(campaignId, "paused");
-    for (const job of this.deps.repos.jobs.list({ campaignId, status: "pending" })) {
-      this.queue.pause(job);
+  async pauseCampaign(campaignId: string): Promise<Campaign> {
+    const campaign = await this.setCampaignStatus(campaignId, "paused");
+    for (const job of await this.deps.repos.jobs.list({ campaignId, status: "pending" })) {
+      await this.queue.pause(job);
     }
     this.log("manager", `Paused campaign: ${campaign.city} — ${industryLabel(campaign.industry)}.`, {
       action: "pause_campaign",
@@ -194,10 +194,10 @@ export class ProspectingManager {
     return campaign;
   }
 
-  resumeCampaign(campaignId: string): Campaign {
-    const campaign = this.setCampaignStatus(campaignId, "running");
-    for (const job of this.deps.repos.jobs.list({ campaignId, status: "paused" })) {
-      this.queue.resume(job);
+  async resumeCampaign(campaignId: string): Promise<Campaign> {
+    const campaign = await this.setCampaignStatus(campaignId, "running");
+    for (const job of await this.deps.repos.jobs.list({ campaignId, status: "paused" })) {
+      await this.queue.resume(job);
     }
     this.log("manager", `Resumed campaign: ${campaign.city} — ${industryLabel(campaign.industry)}.`, {
       action: "resume_campaign",
@@ -206,8 +206,8 @@ export class ProspectingManager {
     return campaign;
   }
 
-  stopCampaign(campaignId: string): Campaign {
-    const campaign = this.setCampaignStatus(campaignId, "stopped");
+  async stopCampaign(campaignId: string): Promise<Campaign> {
+    const campaign = await this.setCampaignStatus(campaignId, "stopped");
     this.log("manager", `Stopped campaign: ${campaign.city} — ${industryLabel(campaign.industry)}.`, {
       action: "stop_campaign",
       campaignId,
@@ -215,20 +215,20 @@ export class ProspectingManager {
     return campaign;
   }
 
-  private setCampaignStatus(campaignId: string, status: Campaign["status"], extra: Partial<Campaign> = {}): Campaign {
-    const campaign = this.deps.repos.campaigns.getById(campaignId);
+  private async setCampaignStatus(campaignId: string, status: Campaign["status"], extra: Partial<Campaign> = {}): Promise<Campaign> {
+    const campaign = await this.deps.repos.campaigns.getById(campaignId);
     if (!campaign) throw new Error(`Unknown campaign: ${campaignId}`);
-    return this.deps.repos.campaigns.update({ ...campaign, ...extra, status, updatedAt: nowIso() });
+    return await this.deps.repos.campaigns.update({ ...campaign, ...extra, status, updatedAt: nowIso() });
   }
 
   /** Marks a campaign complete (with a completedAt stamp) once it has no pending/running jobs left. */
-  private maybeCompleteCampaign(campaignId: string) {
-    const campaign = this.deps.repos.campaigns.getById(campaignId);
+  private async maybeCompleteCampaign(campaignId: string) {
+    const campaign = await this.deps.repos.campaigns.getById(campaignId);
     if (!campaign || campaign.status !== "running") return;
-    const jobs = this.deps.repos.jobs.list({ campaignId });
+    const jobs = await this.deps.repos.jobs.list({ campaignId });
     const unfinished = jobs.some((j) => j.status === "pending" || j.status === "running");
     if (unfinished || jobs.length === 0) return;
-    this.deps.repos.campaigns.update({ ...campaign, status: "complete", completedAt: nowIso(), updatedAt: nowIso() });
+    await this.deps.repos.campaigns.update({ ...campaign, status: "complete", completedAt: nowIso(), updatedAt: nowIso() });
     this.log("manager", `Campaign complete: ${campaign.city} — ${industryLabel(campaign.industry)}.`, {
       action: "complete_campaign",
       campaignId,
@@ -237,14 +237,14 @@ export class ProspectingManager {
 
   /** Runs one pending job through the full pipeline. The job's own campaign must be "running". */
   async runJob(job: Job): Promise<JobRunResult> {
-    const campaign = this.deps.repos.campaigns.getById(job.campaignId);
+    const campaign = await this.deps.repos.campaigns.getById(job.campaignId);
     if (!campaign || campaign.status !== "running") {
       return { job, outcome: "human_review", leadsCreated: 0 };
     }
 
     const territory = this.deps.territories.find((t) => t.city === job.city);
-    const running = this.queue.list({ campaignId: job.campaignId }).find((j) => j.id === job.id) ?? job;
-    let current = this.deps.repos.jobs.update({ ...running, status: "running", updatedAt: nowIso() });
+    const running = (await this.queue.list({ campaignId: job.campaignId })).find((j) => j.id === job.id) ?? job;
+    let current = await this.deps.repos.jobs.update({ ...running, status: "running", updatedAt: nowIso() });
 
     try {
       // Simulated transient failure, so the queue realistically shows Failed/Retry states.
@@ -256,8 +256,8 @@ export class ProspectingManager {
       const seeds = await runDiscoveryWorker(current, this.deps.discovery, territory?.state ?? "FL", campaign.batchSize);
       if (seeds.length === 0) {
         const reason = "Scout found 0 candidate businesses for this batch.";
-        const reviewed = this.queue.markHumanReview(current, reason);
-        this.deps.repos.humanReview.create({
+        const reviewed = await this.queue.markHumanReview(current, reason);
+        await this.deps.repos.humanReview.create({
           id: randomUUID(),
           jobId: job.id,
           leadId: null,
@@ -278,7 +278,7 @@ export class ProspectingManager {
       });
 
       let leadsCreated = 0;
-      const existingLeadsInCity = this.deps.repos.leads.list({ city: job.city });
+      const existingLeadsInCity = await this.deps.repos.leads.list({ city: job.city });
 
       for (const seed of seeds) {
         const enrichment = await runEnrichmentWorker(seed, job.id, this.deps.enrichment);
@@ -349,7 +349,7 @@ export class ProspectingManager {
         // Persist the base row now — score_results/agent_activity below reference
         // lead.id via a foreign key, so the lead must exist before anything else
         // can point at it.
-        this.deps.repos.leads.upsert(lead);
+        await this.deps.repos.leads.upsert(lead);
 
         // Qualify first (every lead gets a transparent score), then dedup — matches the
         // Manager -> Scout -> Researcher -> Website Analyst -> Qualifier -> Deduplication
@@ -368,7 +368,7 @@ export class ProspectingManager {
           pipelineStage: "QUALIFICATION",
           stagesCompleted: [...stagesCompleted, "qualification"],
         };
-        this.deps.repos.scoreResults.create({
+        await this.deps.repos.scoreResults.create({
           id: randomUUID(),
           leadId: lead.id,
           score: scoreResult.score,
@@ -416,20 +416,20 @@ export class ProspectingManager {
         }
         lead.stagesCompleted = [...lead.stagesCompleted, "deduplication"];
 
-        this.deps.repos.leads.upsert(lead);
+        await this.deps.repos.leads.upsert(lead);
 
         if (!duplicate && (qualificationStatus === "QUALIFIED" || qualificationStatus === "HIGH_PRIORITY")) {
           await this.deps.crm.pushLead(lead);
           lead.pipelineStage = "CRM";
-          this.deps.repos.leads.upsert(lead);
+          await this.deps.repos.leads.upsert(lead);
         }
 
         existingLeadsInCity.push(lead);
         leadsCreated += 1;
-        current = this.queue.checkpoint(current, { leadsProcessed: leadsCreated, totalSeeds: seeds.length });
+        current = await this.queue.checkpoint(current, { leadsProcessed: leadsCreated, totalSeeds: seeds.length });
       }
 
-      const completed = this.queue.markComplete(current);
+      const completed = await this.queue.markComplete(current);
       this.log("reporting", `Recorded results for ${job.city} — ${industryLabel(job.industry)} ${job.batchId}: ${leadsCreated} leads processed.`, {
         action: "record_batch",
         campaignId: job.campaignId,
@@ -446,9 +446,9 @@ export class ProspectingManager {
           jobId: job.id,
           level: "error",
         });
-        return { job: this.queue.markRetry(current, message), outcome: "retry", leadsCreated: 0 };
+        return { job: await this.queue.markRetry(current, message), outcome: "retry", leadsCreated: 0 };
       }
-      this.deps.repos.humanReview.create({
+      await this.deps.repos.humanReview.create({
         id: randomUUID(),
         jobId: job.id,
         leadId: null,
@@ -464,7 +464,7 @@ export class ProspectingManager {
         jobId: job.id,
         level: "error",
       });
-      return { job: this.queue.markFailed(current, message), outcome: "failed", leadsCreated: 0 };
+      return { job: await this.queue.markFailed(current, message), outcome: "failed", leadsCreated: 0 };
     }
   }
 }

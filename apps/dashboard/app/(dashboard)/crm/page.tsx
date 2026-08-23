@@ -11,7 +11,7 @@ export default async function CrmPage() {
 
   // Preview against a real lead — the best-scoring one, since that's the case
   // that produces every object type (organization + person + deal).
-  const leads = repos.leads.list({});
+  const leads = await repos.leads.list({});
   const sample =
     leads.filter((l) => l.qualificationStatus === "HIGH_PRIORITY").sort((a, b) => (b.prospectScore ?? 0) - (a.prospectScore ?? 0))[0] ??
     leads[0];

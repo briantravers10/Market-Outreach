@@ -1,10 +1,17 @@
 /**
  * Canonical domain types for the prospecting system.
+ *
  * Pure types only — this file has zero runtime dependencies, so both
  * @market-outreach/db (storage) and apps/dashboard (UI) can depend on it
  * without creating a cycle. Repositories are expressed as *interfaces*
- * here (ports); @market-outreach/db provides the SQLite implementations
- * (adapters), which callers (scripts, dashboard) inject into workers.
+ * here (ports); @market-outreach/db provides the concrete adapters (SQLite
+ * for local development, Postgres for deployment), which callers (scripts,
+ * dashboard) inject into workers.
+ *
+ * Repository methods are ASYNC. They were synchronous while SQLite was the
+ * only backend (better-sqlite3 is synchronous by design), but Postgres is
+ * not, and a synchronous port cannot express a network round-trip. Async is
+ * the honest signature for a storage boundary; SQLite just resolves instantly.
  */
 
 // ---------------------------------------------------------------------------
@@ -184,18 +191,18 @@ export interface PasswordResetToken {
 }
 
 export interface UsersRepository {
-  getByEmail(email: string): User | null;
-  getById(id: string): User | null;
-  upsert(user: User): User;
-  list(): User[];
-  markLoggedIn(id: string, at: string): void;
+  getByEmail(email: string): Promise<User | null>;
+  getById(id: string): Promise<User | null>;
+  upsert(user: User): Promise<User>;
+  list(): Promise<User[]>;
+  markLoggedIn(id: string, at: string): Promise<void>;
 }
 
 export interface PasswordResetRepository {
-  create(token: PasswordResetToken): PasswordResetToken;
-  getByHash(tokenHash: string): PasswordResetToken | null;
-  markUsed(id: string, at: string): void;
-  deleteForUser(userId: string): void;
+  create(token: PasswordResetToken): Promise<PasswordResetToken>;
+  getByHash(tokenHash: string): Promise<PasswordResetToken | null>;
+  markUsed(id: string, at: string): Promise<void>;
+  deleteForUser(userId: string): Promise<void>;
 }
 
 /** Fields a Discovery worker is responsible for producing. */
@@ -342,10 +349,10 @@ export interface ScoreResultRecord {
 // ---------------------------------------------------------------------------
 
 export interface LeadsRepository {
-  upsert(lead: Lead): Lead;
-  getById(id: string): Lead | null;
-  list(filter?: LeadFilter): Lead[];
-  findPossibleDuplicates(lead: Pick<Lead, "businessName" | "address" | "phone" | "city">): Lead[];
+  upsert(lead: Lead): Promise<Lead>;
+  getById(id: string): Promise<Lead | null>;
+  list(filter?: LeadFilter): Promise<Lead[]>;
+  findPossibleDuplicates(lead: Pick<Lead, "businessName" | "address" | "phone" | "city">): Promise<Lead[]>;
 }
 
 export interface LeadFilter {
@@ -365,44 +372,44 @@ export interface LeadFilter {
 }
 
 export interface JobsRepository {
-  create(job: Job): Job;
-  update(job: Job): Job;
-  getById(id: string): Job | null;
-  list(filter?: { campaignId?: string; status?: JobStatus; city?: string; industry?: string }): Job[];
-  claimNextPending(): Job | null;
+  create(job: Job): Promise<Job>;
+  update(job: Job): Promise<Job>;
+  getById(id: string): Promise<Job | null>;
+  list(filter?: { campaignId?: string; status?: JobStatus; city?: string; industry?: string }): Promise<Job[]>;
+  claimNextPending(): Promise<Job | null>;
 }
 
 export interface CampaignsRepository {
-  create(campaign: Campaign): Campaign;
-  update(campaign: Campaign): Campaign;
-  getById(id: string): Campaign | null;
-  list(): Campaign[];
+  create(campaign: Campaign): Promise<Campaign>;
+  update(campaign: Campaign): Promise<Campaign>;
+  getById(id: string): Promise<Campaign | null>;
+  list(): Promise<Campaign[]>;
 }
 
 export interface CrmRepository {
-  upsert(record: CrmRecord): CrmRecord;
-  listByLead(leadId: string): CrmRecord[];
-  list(): CrmRecord[];
+  upsert(record: CrmRecord): Promise<CrmRecord>;
+  listByLead(leadId: string): Promise<CrmRecord[]>;
+  list(): Promise<CrmRecord[]>;
 }
 
 export interface OutreachRepository {
-  logAttempt(attempt: OutreachAttempt): OutreachAttempt;
-  list(): OutreachAttempt[];
+  logAttempt(attempt: OutreachAttempt): Promise<OutreachAttempt>;
+  list(): Promise<OutreachAttempt[]>;
 }
 
 export interface AgentActivityRepository {
-  log(activity: AgentActivity): AgentActivity;
-  list(filter?: { agentId?: AgentId; campaignId?: string; leadId?: string; limit?: number }): AgentActivity[];
+  log(activity: AgentActivity): Promise<AgentActivity>;
+  list(filter?: { agentId?: AgentId; campaignId?: string; leadId?: string; limit?: number }): Promise<AgentActivity[]>;
 }
 
 export interface HumanReviewRepository {
-  create(item: HumanReviewItem): HumanReviewItem;
-  list(filter?: { status?: HumanReviewStatus; agentId?: AgentId }): HumanReviewItem[];
+  create(item: HumanReviewItem): Promise<HumanReviewItem>;
+  list(filter?: { status?: HumanReviewStatus; agentId?: AgentId }): Promise<HumanReviewItem[]>;
 }
 
 export interface ScoreResultsRepository {
-  create(record: ScoreResultRecord): ScoreResultRecord;
-  listByLead(leadId: string): ScoreResultRecord[];
+  create(record: ScoreResultRecord): Promise<ScoreResultRecord>;
+  listByLead(leadId: string): Promise<ScoreResultRecord[]>;
 }
 
 export interface Repositories {

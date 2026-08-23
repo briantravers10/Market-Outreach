@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqlClient } from "../sqlClient";
 import type { Job, JobsRepository, JobStatus } from "@market-outreach/core";
 
 interface JobRow {
@@ -32,10 +32,10 @@ function rowToJob(row: JobRow): Job {
 }
 
 export class SqliteJobsRepository implements JobsRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(private readonly db: SqlClient) {}
 
-  create(job: Job): Job {
-    this.db
+  async create(job: Job): Promise<Job> {
+    await this.db
       .prepare(
         `INSERT INTO jobs (id, campaign_id, city, industry, batch_id, status, payload, attempts, error, created_at, updated_at)
          VALUES (@id, @campaignId, @city, @industry, @batchId, @status, @payload, @attempts, @error, @createdAt, @updatedAt)`
@@ -44,8 +44,8 @@ export class SqliteJobsRepository implements JobsRepository {
     return job;
   }
 
-  update(job: Job): Job {
-    this.db
+  async update(job: Job): Promise<Job> {
+    await this.db
       .prepare(
         `UPDATE jobs SET status=@status, payload=@payload, attempts=@attempts, error=@error, updated_at=@updatedAt WHERE id=@id`
       )
@@ -53,12 +53,12 @@ export class SqliteJobsRepository implements JobsRepository {
     return job;
   }
 
-  getById(id: string): Job | null {
-    const row = this.db.prepare("SELECT * FROM jobs WHERE id = ?").get(id) as JobRow | undefined;
+  async getById(id: string): Promise<Job | null> {
+    const row = await this.db.prepare("SELECT * FROM jobs WHERE id = ?").get(id) as JobRow | undefined;
     return row ? rowToJob(row) : null;
   }
 
-  list(filter: { campaignId?: string; status?: JobStatus; city?: string; industry?: string } = {}): Job[] {
+  async list(filter: { campaignId?: string; status?: JobStatus; city?: string; industry?: string } = {}): Promise<Job[]> {
     const clauses: string[] = [];
     const params: Record<string, unknown> = {};
     if (filter.campaignId) { clauses.push("campaign_id = @campaignId"); params.campaignId = filter.campaignId; }
@@ -67,12 +67,12 @@ export class SqliteJobsRepository implements JobsRepository {
     if (filter.industry) { clauses.push("industry = @industry"); params.industry = filter.industry; }
 
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-    const rows = this.db.prepare(`SELECT * FROM jobs ${where} ORDER BY created_at ASC`).all(params) as JobRow[];
+    const rows = await this.db.prepare(`SELECT * FROM jobs ${where} ORDER BY created_at ASC`).all(params) as JobRow[];
     return rows.map(rowToJob);
   }
 
-  claimNextPending(): Job | null {
-    const row = this.db
+  async claimNextPending(): Promise<Job | null> {
+    const row = await this.db
       .prepare(`SELECT * FROM jobs WHERE status = 'pending' ORDER BY created_at ASC LIMIT 1`)
       .get() as JobRow | undefined;
     return row ? rowToJob(row) : null;

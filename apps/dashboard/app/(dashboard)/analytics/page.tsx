@@ -30,11 +30,11 @@ export default async function AnalyticsPage() {
   const industryLabels = new Map(getIndustries().map((i) => [i.id, i.label]));
   const agentNames = new Map(getAgentConfigs().map((a) => [a.id, a.name]));
 
-  const campaigns = repos.campaigns.list();
-  const jobs = repos.jobs.list();
-  const leads = repos.leads.list();
-  const activity = repos.agentActivity.list({ limit: 5000 });
-  const outreachAttempts = repos.outreach.list();
+  const campaigns = await repos.campaigns.list();
+  const jobs = await repos.jobs.list();
+  const leads = await repos.leads.list();
+  const activity = await repos.agentActivity.list({ limit: 5000 });
+  const outreachAttempts = await repos.outreach.list();
 
   const summary = buildOverallSummary(leads, jobs);
   const qualificationCounts = {

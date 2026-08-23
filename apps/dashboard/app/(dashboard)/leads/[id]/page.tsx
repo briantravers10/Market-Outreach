@@ -12,15 +12,15 @@ export const dynamic = "force-dynamic";
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const repos = getRepos();
-  const lead = repos.leads.getById(id);
+  const lead = await repos.leads.getById(id);
   if (!lead) notFound();
 
   const industryLabel = getIndustries().find((i) => i.id === lead.industry)?.label ?? lead.industry;
-  const crmRecords = repos.crm.listByLead(lead.id);
-  const duplicateOf = lead.isDuplicateOf ? repos.leads.getById(lead.isDuplicateOf) : null;
-  const scoreHistory = repos.scoreResults.listByLead(lead.id);
+  const crmRecords = await repos.crm.listByLead(lead.id);
+  const duplicateOf = lead.isDuplicateOf ? await repos.leads.getById(lead.isDuplicateOf) : null;
+  const scoreHistory = await repos.scoreResults.listByLead(lead.id);
   const latestScore = scoreHistory[0] ?? null;
-  const activity = repos.agentActivity.list({ leadId: lead.id, limit: 20 });
+  const activity = await repos.agentActivity.list({ leadId: lead.id, limit: 20 });
   const crmMode = getCrmMode();
   const crmHandoff = getCrmHandoff(lead);
   const pipedriveConfig = getPipedriveConfig();

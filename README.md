@@ -285,11 +285,57 @@ row rather than silently failing.
 ## Scaling later
 
 - Adding a state/city/industry = adding config rows, not code.
-- The repository layer (`packages/db`) implements interfaces defined in `packages/core` —
-  swapping SQLite for Postgres/a dedicated Supabase project (never the booking platform's
-  production project) is a config change behind the same interfaces.
+- The repository layer (`packages/db`) implements interfaces defined in `packages/core`,
+  and now runs on either SQLite or Postgres behind those same interfaces — see
+  **Storage** below.
 - `batchSize` on a campaign bounds job size; the DB-backed queue is designed so multiple
   worker processes could later claim jobs concurrently.
+
+## Storage
+
+One switch decides the backend, and it is just an environment variable:
+
+| `DATABASE_URL` | `DEMO_READ_ONLY` | Backend |
+|---|---|---|
+| set | — | **Postgres.** Persistent and writable. What a real deployment uses. |
+| unset | `1` | SQLite snapshot opened read-only — the public demo. Nothing written persists. |
+| unset | unset | Local SQLite file (`data/prospecting.db`). Development. |
+
+`describeBackend()` in `packages/db/src/index.ts` is the single place that decides, and the
+Settings page displays the result, so which backend is live is never a guess.
+
+### Why one repository implementation, not two
+
+`packages/db/src/sqlClient.ts` is a thin shim over both drivers. It exposes the same
+`prepare(...).get/all/run` shape better-sqlite3 uses, and for Postgres rewrites
+better-sqlite3's parameter styles (`@name` and `?`) into Postgres positional placeholders
+(`$1`, `$2`), skipping anything inside single-quoted string literals.
+
+The point is that the repositories are written **once**. The same SQL and the same
+row-mapping code serve both backends, so the two cannot quietly disagree about how a null
+is stored or how an upsert resolves. Two hand-written repository sets would have been twice
+the code and twice the places to drift.
+
+Everything on the repository interfaces is `async` for this reason: better-sqlite3 is
+synchronous and simply resolves immediately, while Postgres genuinely goes over the wire.
+
+### Schema
+
+`supabase/migrations/` holds the Postgres schema as applied, in order.
+`packages/db/src/schema.sql` is the SQLite equivalent — the two are kept deliberately
+parallel. JSON-ish columns are `TEXT` on both sides rather than `JSONB`, so both adapters
+`JSON.parse`/`stringify` at the same edge.
+
+The Supabase project used here is a **separate project from the booking platform's** —
+never that one. Row Level Security is enabled on every table with **no policies**, which
+denies every PostgREST request; the app's own server-side connection bypasses RLS. Without
+that, the publishable anon key could read `users` password hashes and live reset tokens.
+
+### Connecting it
+
+Set `DATABASE_URL` to the Supabase connection string (Project Settings → Database →
+Connection string → **Transaction pooler**, with your database password substituted in) as
+a Vercel environment variable. Nothing else changes: same image, same code.
 
 ## Dashboard
 
@@ -417,5 +463,4 @@ website/booking analysis (actually reading a site via a live `ReasoningProvider`
 live LLM-backed command parser, a real CRM connector, Resend/Twilio outreach, a CRM agent,
 an Outreach agent, call transcription and sales-assistant features (objection/buying-signal
 extraction, meeting briefings/debriefs, geographic trip clustering, onboarding
-automation), auth/multi-user permissions, production hosting, and any Postgres/Supabase
-migration.
+automation), and production hosting.

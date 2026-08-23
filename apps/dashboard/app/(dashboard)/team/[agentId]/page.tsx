@@ -13,14 +13,16 @@ export const dynamic = "force-dynamic";
 export default async function AgentDetailPage({ params }: { params: Promise<{ agentId: string }> }) {
   const { agentId } = await params;
   const repos = getRepos();
-  const agent = summarizeAgent(agentId as AgentId, repos.agentActivity, repos.humanReview);
+  const agent = await summarizeAgent(agentId as AgentId, repos.agentActivity, repos.humanReview);
   if (!agent) notFound();
 
-  const recentActivity = repos.agentActivity.list({ agentId: agent.id, limit: 25 });
-  const reviewItems = repos.humanReview.list({ agentId: agent.id, status: "open" });
+  const recentActivity = await repos.agentActivity.list({ agentId: agent.id, limit: 25 });
+  const reviewItems = await repos.humanReview.list({ agentId: agent.id, status: "open" });
 
   const recentLeadIds = Array.from(new Set(recentActivity.filter((a) => a.leadId).map((a) => a.leadId as string))).slice(0, 8);
-  const recentLeads = recentLeadIds.map((id) => repos.leads.getById(id)).filter((l): l is NonNullable<typeof l> => l !== null);
+  const recentLeads = (await Promise.all(recentLeadIds.map((id) => repos.leads.getById(id)))).filter(
+    (l): l is NonNullable<typeof l> => l !== null
+  );
 
   return (
     <div>

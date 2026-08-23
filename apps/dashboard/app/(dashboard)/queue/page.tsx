@@ -20,17 +20,22 @@ export default async function QueuePage({
   const industries = getIndustries();
   const industryLabels = new Map(industries.map((i) => [i.id, i.label]));
 
-  const jobs = repos.jobs.list({
+  const jobs = await repos.jobs.list({
     city: params.city || undefined,
     industry: params.industry || undefined,
     status: (params.status as JobStatus) || undefined,
     campaignId: params.campaignId || undefined,
   });
-  const campaigns = new Map(repos.campaigns.list().map((c) => [c.id, c]));
+  const campaigns = new Map((await repos.campaigns.list()).map((c) => [c.id, c]));
   const filteredCampaign = params.campaignId ? campaigns.get(params.campaignId) : null;
 
-  const statusCounts = STATUSES.reduce<Record<string, number>>((acc, s) => {
-    acc[s] = repos.jobs.list({ status: s }).length;
+  // One query per status, run concurrently — a sequential reduce would be a
+  // round-trip each against Postgres.
+  const statusCountEntries = await Promise.all(
+    STATUSES.map(async (s) => [s, (await repos.jobs.list({ status: s })).length] as const)
+  );
+  const statusCounts = statusCountEntries.reduce<Record<string, number>>((acc, [s, n]) => {
+    acc[s] = n;
     return acc;
   }, {});
 

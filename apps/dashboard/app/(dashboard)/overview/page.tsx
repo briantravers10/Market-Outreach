@@ -16,15 +16,15 @@ export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
   const repos = getRepos();
-  const leads = repos.leads.list();
-  const jobs = repos.jobs.list();
-  const campaigns = repos.campaigns.list();
+  const leads = await repos.leads.list();
+  const jobs = await repos.jobs.list();
+  const campaigns = await repos.campaigns.list();
 
   const summary = buildOverallSummary(leads, jobs);
   const byCity = buildProgressByCity(leads);
   const byIndustry = buildProgressByIndustry(leads);
   const industryLabels = new Map(getIndustries().map((i) => [i.id, i.label]));
-  const agents = summarizeAllAgents(repos.agentActivity, repos.humanReview);
+  const agents = await summarizeAllAgents(repos.agentActivity, repos.humanReview);
   const activeCampaigns = campaigns.filter((c) => c.status === "running");
 
   return (

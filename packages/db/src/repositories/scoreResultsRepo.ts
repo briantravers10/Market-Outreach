@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqlClient } from "../sqlClient";
 import type { ConfidenceLevel, ScoreResultRecord, ScoreResultsRepository } from "@market-outreach/core";
 
 interface ScoreResultRow {
@@ -29,10 +29,10 @@ function rowToRecord(row: ScoreResultRow): ScoreResultRecord {
 
 /** Append-only history of every scoring pass — see schema.sql for why this exists alongside leads' denormalized current score. */
 export class SqliteScoreResultsRepository implements ScoreResultsRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(private readonly db: SqlClient) {}
 
-  create(record: ScoreResultRecord): ScoreResultRecord {
-    this.db
+  async create(record: ScoreResultRecord): Promise<ScoreResultRecord> {
+    await this.db
       .prepare(
         `INSERT INTO score_results (id, lead_id, score, breakdown, confidence, confidence_reason, score_reason, scoring_config_version, scored_at)
          VALUES (@id, @leadId, @score, @breakdown, @confidence, @confidenceReason, @scoreReason, @scoringConfigVersion, @scoredAt)`
@@ -41,8 +41,8 @@ export class SqliteScoreResultsRepository implements ScoreResultsRepository {
     return record;
   }
 
-  listByLead(leadId: string): ScoreResultRecord[] {
-    const rows = this.db
+  async listByLead(leadId: string): Promise<ScoreResultRecord[]> {
+    const rows = await this.db
       .prepare(`SELECT * FROM score_results WHERE lead_id = ? ORDER BY scored_at DESC`)
       .all(leadId) as ScoreResultRow[];
     return rows.map(rowToRecord);

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TeamPage() {
   const repos = getRepos();
-  const agents = summarizeAllAgents(repos.agentActivity, repos.humanReview);
+  const agents = await summarizeAllAgents(repos.agentActivity, repos.humanReview);
 
   return (
     <div>

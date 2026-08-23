@@ -28,12 +28,12 @@ const WORKING_WINDOW_MS = 20_000;
  * about "status" is ever stored directly, so it can never drift out of sync
  * with what actually happened.
  */
-export function summarizeAgent(
+export async function summarizeAgent(
   agentId: AgentId,
   activityRepo: AgentActivityRepository,
   humanReviewRepo: HumanReviewRepository,
   configs: AgentConfig[] = getAgentConfigs()
-): AgentSummary | null {
+): Promise<AgentSummary | null> {
   const config = configs.find((a) => a.id === agentId);
   if (!config) return null;
 
@@ -55,14 +55,14 @@ export function summarizeAgent(
     };
   }
 
-  const activity = activityRepo.list({ agentId, limit: 200 });
+  const activity = await activityRepo.list({ agentId, limit: 200 });
   const latest = activity[0] ?? null;
   const lastInfo = activity.find((a) => a.level === "info") ?? null;
   const isRecent = latest ? Date.now() - new Date(latest.createdAt).getTime() < WORKING_WINDOW_MS : false;
 
   const jobsProcessed = new Set(activity.filter((a) => a.jobId).map((a) => a.jobId)).size;
   const errorCount = activity.filter((a) => a.level === "error").length;
-  const humanReviewCount = humanReviewRepo.list({ agentId, status: "open" }).length;
+  const humanReviewCount = (await humanReviewRepo.list({ agentId, status: "open" })).length;
 
   return {
     id: agentId,
@@ -81,12 +81,15 @@ export function summarizeAgent(
   };
 }
 
-export function summarizeAllAgents(
+export async function summarizeAllAgents(
   activityRepo: AgentActivityRepository,
   humanReviewRepo: HumanReviewRepository
-): AgentSummary[] {
+): Promise<AgentSummary[]> {
   const configs = getAgentConfigs();
-  return configs
-    .map((c) => summarizeAgent(c.id as AgentId, activityRepo, humanReviewRepo, configs))
-    .filter((s): s is AgentSummary => s !== null);
+  // Concurrent rather than sequential: each summary is independent, and against
+  // Postgres a serial loop would be one round-trip per agent.
+  const summaries = await Promise.all(
+    configs.map((c) => summarizeAgent(c.id as AgentId, activityRepo, humanReviewRepo, configs))
+  );
+  return summaries.filter((s): s is AgentSummary => s !== null);
 }

@@ -409,7 +409,7 @@ export class PipedriveCrmAdapter implements CrmAdapter {
     // Only live mode resolves against the account; dry-run stays offline.
     const config = mode.live ? await this.resolveConfig() : this.config;
     const handoff = buildHandoff(lead, config);
-    const existing = this.latestRecord(lead.id);
+    const existing = await this.latestRecord(lead.id);
 
     let orgId = existing?.externalOrgId ?? null;
     let personId = existing?.externalPersonId ?? null;
@@ -442,7 +442,7 @@ export class PipedriveCrmAdapter implements CrmAdapter {
 
     // Recorded either way, so the dashboard shows an identical audit trail
     // whether the push was real or a dry run.
-    return this.repo.upsert({
+    return await this.repo.upsert({
       id: existing?.id ?? nextId(),
       leadId: lead.id,
       stage: "CRM",
@@ -458,7 +458,7 @@ export class PipedriveCrmAdapter implements CrmAdapter {
     const mode = this.describeMode();
     const config = mode.live ? await this.resolveConfig() : this.config;
     const stageId = config.deal.stageMap[stage];
-    const existing = this.latestRecord(leadId);
+    const existing = await this.latestRecord(leadId);
 
     // Address the deal by the id PIPEDRIVE assigned. An earlier version used
     // our own lead UUID here, which is not a Pipedrive deal id and would have
@@ -471,7 +471,7 @@ export class PipedriveCrmAdapter implements CrmAdapter {
       });
     }
 
-    return this.repo.upsert({
+    return await this.repo.upsert({
       id: existing?.id ?? nextId(),
       leadId,
       stage,
@@ -484,12 +484,12 @@ export class PipedriveCrmAdapter implements CrmAdapter {
   }
 
   async getRecords(leadId: string): Promise<CrmRecord[]> {
-    return this.repo.listByLead(leadId);
+    return await this.repo.listByLead(leadId);
   }
 
   /** Most recent sync for a lead, which carries the external ids. */
-  private latestRecord(leadId: string): CrmRecord | null {
-    return this.repo.listByLead(leadId)[0] ?? null;
+  private async latestRecord(leadId: string): Promise<CrmRecord | null> {
+    return (await this.repo.listByLead(leadId))[0] ?? null;
   }
 
   /**

@@ -29,7 +29,7 @@ export class MockCrmAdapter implements CrmAdapter {
   constructor(private readonly repo: CrmRepository) {}
 
   async pushLead(lead: Lead): Promise<CrmRecord> {
-    return this.repo.upsert({
+    return await this.repo.upsert({
       id: nextId("crm"),
       leadId: lead.id,
       stage: "CRM",
@@ -43,7 +43,7 @@ export class MockCrmAdapter implements CrmAdapter {
   }
 
   async updateStage(leadId: string, stage: PipelineStage): Promise<CrmRecord> {
-    return this.repo.upsert({
+    return await this.repo.upsert({
       id: nextId("crm"),
       leadId,
       stage,
@@ -56,6 +56,6 @@ export class MockCrmAdapter implements CrmAdapter {
   }
 
   async getRecords(leadId: string): Promise<CrmRecord[]> {
-    return this.repo.listByLead(leadId);
+    return await this.repo.listByLead(leadId);
   }
 }

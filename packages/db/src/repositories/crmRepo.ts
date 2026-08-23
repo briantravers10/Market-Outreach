@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqlClient } from "../sqlClient";
 import type { CrmRecord, CrmRepository, PipelineStage } from "@market-outreach/core";
 
 interface CrmRow {
@@ -27,10 +27,10 @@ function rowToRecord(row: CrmRow): CrmRecord {
 
 /** Backs the future-CRM preview (mock_crm_records) — not a real CRM integration. */
 export class SqliteCrmRepository implements CrmRepository {
-  constructor(private readonly db: Database.Database) {}
+  constructor(private readonly db: SqlClient) {}
 
-  upsert(record: CrmRecord): CrmRecord {
-    this.db
+  async upsert(record: CrmRecord): Promise<CrmRecord> {
+    await this.db
       .prepare(
         `INSERT INTO mock_crm_records
            (id, lead_id, stage, synced_at, external_crm_name, external_org_id, external_person_id, external_deal_id)
@@ -46,15 +46,15 @@ export class SqliteCrmRepository implements CrmRepository {
     return record;
   }
 
-  listByLead(leadId: string): CrmRecord[] {
-    const rows = this.db
+  async listByLead(leadId: string): Promise<CrmRecord[]> {
+    const rows = await this.db
       .prepare("SELECT * FROM mock_crm_records WHERE lead_id = ? ORDER BY synced_at DESC")
       .all(leadId) as CrmRow[];
     return rows.map(rowToRecord);
   }
 
-  list(): CrmRecord[] {
-    const rows = this.db.prepare("SELECT * FROM mock_crm_records ORDER BY synced_at DESC").all() as CrmRow[];
+  async list(): Promise<CrmRecord[]> {
+    const rows = await this.db.prepare("SELECT * FROM mock_crm_records ORDER BY synced_at DESC").all() as CrmRow[];
     return rows.map(rowToRecord);
   }
 }

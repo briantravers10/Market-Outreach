@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqlClient } from "../sqlClient";
 import type { PasswordResetRepository, PasswordResetToken, User, UsersRepository } from "@market-outreach/core";
 
 interface UserRow {
@@ -23,25 +23,25 @@ function toUser(row: UserRow): User {
   };
 }
 
-export function createUsersRepo(db: Database.Database): UsersRepository {
+export function createUsersRepo(db: SqlClient): UsersRepository {
   return {
-    getByEmail(email) {
+    async getByEmail(email) {
       // Case-insensitive: people don't type their email consistently, and
       // treating Ana@x.com as a different account from ana@x.com is a
       // lockout waiting to happen.
-      const row = db
+      const row = await db
         .prepare(`SELECT * FROM users WHERE lower(email) = lower(?)`)
         .get(email.trim()) as UserRow | undefined;
       return row ? toUser(row) : null;
     },
 
-    getById(id) {
-      const row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(id) as UserRow | undefined;
+    async getById(id) {
+      const row = await db.prepare(`SELECT * FROM users WHERE id = ?`).get(id) as UserRow | undefined;
       return row ? toUser(row) : null;
     },
 
-    upsert(user) {
-      db.prepare(
+    async upsert(user) {
+      await db.prepare(
         `INSERT INTO users (id, email, password_hash, name, created_at, updated_at, last_login_at)
          VALUES (@id, @email, @passwordHash, @name, @createdAt, @updatedAt, @lastLoginAt)
          ON CONFLICT(id) DO UPDATE SET
@@ -51,13 +51,13 @@ export function createUsersRepo(db: Database.Database): UsersRepository {
       return user;
     },
 
-    list() {
-      const rows = db.prepare(`SELECT * FROM users ORDER BY created_at`).all() as UserRow[];
+    async list() {
+      const rows = await db.prepare(`SELECT * FROM users ORDER BY created_at`).all() as UserRow[];
       return rows.map(toUser);
     },
 
-    markLoggedIn(id, at) {
-      db.prepare(`UPDATE users SET last_login_at = ? WHERE id = ?`).run(at, id);
+    async markLoggedIn(id, at) {
+      await db.prepare(`UPDATE users SET last_login_at = ? WHERE id = ?`).run(at, id);
     },
   };
 }
@@ -82,30 +82,30 @@ function toToken(row: ResetRow): PasswordResetToken {
   };
 }
 
-export function createPasswordResetRepo(db: Database.Database): PasswordResetRepository {
+export function createPasswordResetRepo(db: SqlClient): PasswordResetRepository {
   return {
-    create(token) {
-      db.prepare(
+    async create(token) {
+      await db.prepare(
         `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used_at, created_at)
          VALUES (@id, @userId, @tokenHash, @expiresAt, @usedAt, @createdAt)`
       ).run(token);
       return token;
     },
 
-    getByHash(tokenHash) {
-      const row = db
+    async getByHash(tokenHash) {
+      const row = await db
         .prepare(`SELECT * FROM password_reset_tokens WHERE token_hash = ?`)
         .get(tokenHash) as ResetRow | undefined;
       return row ? toToken(row) : null;
     },
 
-    markUsed(id, at) {
-      db.prepare(`UPDATE password_reset_tokens SET used_at = ? WHERE id = ?`).run(at, id);
+    async markUsed(id, at) {
+      await db.prepare(`UPDATE password_reset_tokens SET used_at = ? WHERE id = ?`).run(at, id);
     },
 
     /** Called after a successful reset so no other outstanding link still works. */
-    deleteForUser(userId) {
-      db.prepare(`DELETE FROM password_reset_tokens WHERE user_id = ?`).run(userId);
+    async deleteForUser(userId) {
+      await db.prepare(`DELETE FROM password_reset_tokens WHERE user_id = ?`).run(userId);
     },
   };
 }
