@@ -65,6 +65,17 @@ export interface SpeechState {
   stopListening(): void;
   speak(text: string): void;
   stopSpeaking(): void;
+  /**
+   * Must be called synchronously from inside a tap/click handler.
+   *
+   * iOS Safari only permits speech that begins within a user gesture. Our reply
+   * arrives after a server round-trip, which breaks that chain, so a later
+   * speak() is silently dropped — it works on desktop and fails on iPad, with no
+   * error either way. Speaking a silent utterance during the tap unlocks the
+   * engine for the rest of the page's life, after which programmatic speech is
+   * allowed.
+   */
+  primeVoice(): void;
 }
 
 export function useSpeech(onFinalTranscript: (text: string) => void): SpeechState {
@@ -76,6 +87,8 @@ export function useSpeech(onFinalTranscript: (text: string) => void): SpeechStat
   const [synthesisSupported, setSynthesisSupported] = useState(false);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  // Held in a ref because primeVoice is defined below startListening.
+  const primeVoiceRef = useRef<(() => void) | null>(null);
   // Held in a ref so the recognition callbacks always call the latest handler
   // without having to tear down and rebuild recognition on every render.
   const onFinalRef = useRef(onFinalTranscript);
@@ -156,6 +169,9 @@ export function useSpeech(onFinalTranscript: (text: string) => void): SpeechStat
   }, []);
 
   const startListening = useCallback(() => {
+    // This runs inside the tap, so it is the ideal moment to unlock playback for
+    // the answer that will arrive later.
+    primeVoiceRef.current?.();
     const recognition = recognitionRef.current;
     if (!recognition) {
       setError("This browser doesn't support voice input. Chrome, Edge or Safari do.");
@@ -218,6 +234,34 @@ export function useSpeech(onFinalTranscript: (text: string) => void): SpeechStat
     window.speechSynthesis.speak(utterance);
   }, []);
 
+  // Set once the engine has been unlocked by a gesture, so priming is a no-op
+  // afterwards rather than a stutter before every reply.
+  const primedRef = useRef(false);
+
+  const primeVoice = useCallback(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    // Safari can leave the queue paused after a period of inactivity.
+    try {
+      window.speechSynthesis.resume();
+    } catch {
+      // Not paused.
+    }
+    if (primedRef.current) return;
+    try {
+      const silent = new SpeechSynthesisUtterance("");
+      silent.volume = 0;
+      window.speechSynthesis.speak(silent);
+      // Also forces the voice list to populate, which on iOS is empty until
+      // synthesis has been touched at least once.
+      window.speechSynthesis.getVoices();
+      primedRef.current = true;
+    } catch {
+      // If priming throws, speaking later will simply not happen; nothing to recover.
+    }
+  }, []);
+
+  primeVoiceRef.current = primeVoice;
+
   const stopSpeaking = useCallback(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
@@ -244,5 +288,6 @@ export function useSpeech(onFinalTranscript: (text: string) => void): SpeechStat
     stopListening,
     speak,
     stopSpeaking,
+    primeVoice,
   };
 }

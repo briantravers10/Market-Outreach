@@ -219,7 +219,11 @@ export function ManagerAssistant({ demoMode }: { demoMode: boolean }) {
               type="button"
               className={`assistant-toggle ${voiceReplies ? "on" : ""}`}
               onClick={() => {
-                if (voiceReplies) speech.stopSpeaking();
+                if (voiceReplies) {
+                  speech.stopSpeaking();
+                } else {
+                  speech.primeVoice();
+                }
                 setVoiceReplies(!voiceReplies);
               }}
               title={voiceReplies ? "Spoken replies on" : "Spoken replies off"}
@@ -245,7 +249,14 @@ export function ManagerAssistant({ demoMode }: { demoMode: boolean }) {
                 "Show me the best leads",
                 "Tell the Scout to stop including chains",
               ].map((s) => (
-                <button key={s} type="button" onClick={() => void submit(s, speech.speak)}>
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    if (voiceReplies) speech.primeVoice();
+                    void submit(s, speech.speak);
+                  }}
+                >
                   {s}
                 </button>
               ))}
@@ -266,7 +277,10 @@ export function ManagerAssistant({ demoMode }: { demoMode: boolean }) {
                   type="button"
                   className="btn btn-primary"
                   disabled={thinking}
-                  onClick={() => void decide(turn.id, turn.pendingActionId!, true)}
+                  onClick={() => {
+                    if (voiceReplies) speech.primeVoice();
+                    void decide(turn.id, turn.pendingActionId!, true);
+                  }}
                 >
                   Yes, do it
                 </button>
@@ -317,6 +331,8 @@ export function ManagerAssistant({ demoMode }: { demoMode: boolean }) {
         className="assistant-composer"
         onSubmit={(e) => {
           e.preventDefault();
+          // Unlock audio inside the gesture; the reply arrives too late to do it.
+          if (voiceReplies) speech.primeVoice();
           void submit(input, speech.speak);
         }}
       >
@@ -327,6 +343,7 @@ export function ManagerAssistant({ demoMode }: { demoMode: boolean }) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
+              if (voiceReplies) speech.primeVoice();
               void submit(input, speech.speak);
             }
           }}
