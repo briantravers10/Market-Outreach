@@ -229,6 +229,7 @@ export class AiManager {
       intent: plan.intent,
       brain: this.deps.brain.name,
       acknowledgement: plan.acknowledgement,
+      ownerText: text,
     });
     await this.touch(conversation);
     return { conversation, ownerMessage, managerMessage, pendingAction: null, data };
@@ -239,8 +240,9 @@ export class AiManager {
     action: ManagerAction,
     toolName: string,
     ctx: ToolContext,
-    meta: { intent: string; brain: string; acknowledgement?: string | null }
+    meta: { intent: string; brain: string; acknowledgement?: string | null; ownerText?: string }
   ): Promise<{ message: ConversationMessage; data?: unknown }> {
+    const ownerText = meta.ownerText ?? "";
     const tool = findTool(toolName);
     if (!tool) {
       if (this.persist) {
@@ -285,6 +287,25 @@ export class AiManager {
       // nothing while the Manager said "done" is the exact failure mode this
       // whole design is trying to avoid.
       result = { speech: `That didn't work: ${detail}` };
+    }
+
+    // Let the brain say it in its own words, when it can.
+    //
+    // Deliberately NOT applied to approval prompts (they never reach here) or to
+    // failures: an approval has to state exactly what will happen, and a failure
+    // has to name the actual error. Both are cases where fluent paraphrase is a
+    // liability rather than an improvement.
+    if (toolStatus === "succeeded" && this.deps.brain.narrate) {
+      try {
+        const narrated = await this.deps.brain.narrate({
+          question: ownerText,
+          tool: tool.name,
+          facts: result.speech,
+        });
+        if (narrated?.trim()) result = { ...result, speech: narrated.trim() };
+      } catch {
+        // Keep the tool's own wording. Never lose a good answer to a bad rewrite.
+      }
     }
 
     // Every consequential action also lands on the Manager's own activity feed,
@@ -343,6 +364,9 @@ export class AiManager {
     const { message, data } = await this.execute(approved, approved.tool, ctx, {
       intent: "approved",
       brain: this.deps.brain.name,
+      // The original request, so the rewrite answers what was actually asked
+      // rather than the bare "yes, go ahead".
+      ownerText: action.intentSummary,
     });
     await this.touch(conversation);
     return { conversation, ownerMessage, managerMessage: message, pendingAction: null, data };

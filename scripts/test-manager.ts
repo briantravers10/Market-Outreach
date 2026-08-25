@@ -35,6 +35,8 @@ import {
   today,
   toolsForApi,
   buildSystemPrompt,
+  numbersAreGrounded,
+  findTool,
   getScoringConfig,
   getTerritories,
   type AnthropicResponse,
@@ -619,6 +621,107 @@ async function main() {
 
   const allMessages = await repos.conversations.searchMessages({ limit: 500 });
   check("messages are searchable across conversations", allMessages.length > 20, `${allMessages.length}`);
+
+
+  // =========================================================================
+  section("23. Narration: the Manager phrases results without inventing them");
+  // =========================================================================
+  check("a faithful rewrite is accepted",
+    numbersAreGrounded("Discovered 12 businesses, 3 high priority.",
+                       "The Scout found 12 businesses yesterday, 3 of them high priority."));
+  check("dropping a number is allowed",
+    numbersAreGrounded("Discovered 12 businesses, 3 high priority.", "The Scout found 12 businesses."));
+  check("an INVENTED number is rejected",
+    !numbersAreGrounded("Discovered 12 businesses.", "The Scout found 12 businesses, up 40% on last week."));
+  check("a subtly altered number is rejected",
+    !numbersAreGrounded("Discovered 12 businesses.", "The Scout found 13 businesses."));
+  check("word-numbers pass (the risk is confident digits)",
+    numbersAreGrounded("Nothing ran yesterday.", "Nothing ran yesterday — a quiet one."));
+  check("decimals are compared exactly",
+    !numbersAreGrounded("Average score was 58.9.", "Average score was 58.7."));
+  check("thousands separators don't cause false rejections",
+    numbersAreGrounded("Processed 1,200 jobs.", "Processed 1200 jobs."));
+
+  // The narration path itself, against a stand-in transport.
+  let narrationBody: any = null;
+  const narrator = new ClaudeManagerBrain("k", {
+    async send(body: unknown): Promise<AnthropicResponse> {
+      narrationBody = body;
+      return { content: [{ type: "text", text: "Quiet day — nothing ran yesterday at all." }] };
+    },
+  });
+  const narrated = await narrator.narrate({
+    question: "give me my briefing",
+    tool: "get_briefing",
+    facts: "Good evening.\nNothing ran yesterday. No businesses were discovered and no jobs completed.",
+  });
+  check("the rewrite replaces the template", narrated === "Quiet day — nothing ran yesterday at all.", narrated);
+  check("the request forbids inventing facts", /never add a number/i.test(String(narrationBody?.system)));
+  check("the request carries the owner's question", JSON.stringify(narrationBody).includes("give me my briefing"));
+  check("the request carries the tool's facts", JSON.stringify(narrationBody).includes("Nothing ran yesterday"));
+
+  const liar = new ClaudeManagerBrain("k", {
+    async send(): Promise<AnthropicResponse> {
+      return { content: [{ type: "text", text: "Great news, 47 businesses came in overnight." }] };
+    },
+  });
+  const guarded = await liar.narrate({ question: "briefing", tool: "get_briefing", facts: "Nothing ran yesterday." });
+  check("a rewrite that invents a figure falls back to the facts",
+    guarded === "Nothing ran yesterday.", guarded);
+
+  const brokenNarrator = new ClaudeManagerBrain("k", {
+    async send(): Promise<AnthropicResponse> { throw new Error("503 overloaded"); },
+  });
+  check("a narration failure falls back rather than losing the answer",
+    (await brokenNarrator.narrate({ question: "q", tool: "t", facts: "Six leads." })) === "Six leads.");
+
+  const emptyNarrator = new ClaudeManagerBrain("k", {
+    async send(): Promise<AnthropicResponse> { return { content: [{ type: "text", text: "   " }] }; },
+  });
+  check("an empty rewrite falls back",
+    (await emptyNarrator.narrate({ question: "q", tool: "t", facts: "Six leads." })) === "Six leads.");
+
+  check("the rule-based brain has no narrator, so tool wording stands",
+    typeof (new RuleBasedManagerBrain() as { narrate?: unknown }).narrate === "undefined");
+
+  // =========================================================================
+  section("24. Approval prompts are never rephrased");
+  // =========================================================================
+  const narratingAi = new AiManager({
+    repos,
+    brain: {
+      name: "narrating-stub",
+      async plan() {
+        return {
+          tool: findTool("give_instruction"),
+          params: { agent: "scout", instruction: "Stop including chains", scope: "permanent" },
+          acknowledgement: null,
+          reply: null,
+          intent: "give_instruction",
+        } as never;
+      },
+      async narrate() {
+        return "REWRITTEN BY THE MODEL";
+      },
+    },
+    manager: prospecting,
+    commandParser: new DeterministicCommandParser(),
+  });
+  const approvalTurn = await narratingAi.handle("tell the scout to stop including chains from now on");
+  check("an approval prompt is raised", approvalTurn.pendingAction !== null);
+  check("the approval prompt is NOT rephrased by the model",
+    !approvalTurn.managerMessage.content.includes("REWRITTEN BY THE MODEL"),
+    approvalTurn.managerMessage.content);
+  check("the approval prompt still states exactly what will happen",
+    /Scout/.test(approvalTurn.managerMessage.content) &&
+    /shall i go ahead/i.test(approvalTurn.managerMessage.content),
+    approvalTurn.managerMessage.content);
+  if (approvalTurn.pendingAction) {
+    const done = await narratingAi.approve(approvalTurn.pendingAction.id);
+    check("but the RESULT afterwards is rephrased",
+      done?.managerMessage.content === "REWRITTEN BY THE MODEL",
+      done?.managerMessage.content);
+  }
 
   // =========================================================================
   console.log(`\n${"=".repeat(60)}`);

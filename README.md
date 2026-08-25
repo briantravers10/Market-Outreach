@@ -316,6 +316,23 @@ are understood*, never *what can be done*.
 `selectBrain()` picks from the environment and the Manager page displays which
 one answered, so you always know what you're talking to.
 
+### Who writes the reply
+
+The tool computes the facts; the brain may rephrase them. `ManagerBrain.narrate`
+is optional — the rule-based brain omits it entirely, so with no key the tool's
+own wording is what you read.
+
+Two things are never rephrased, deliberately:
+
+- **Approval prompts.** They have to state exactly what is about to happen, so a
+  fluent paraphrase is a liability rather than an improvement.
+- **Failures.** They have to name the actual error.
+
+And a rewrite is discarded — falling back to the tool's wording — whenever it
+can't be trusted: an API failure, an empty reply, or a digit that wasn't in the
+source. `numbersAreGrounded()` enforces that last one. Dropping a figure is
+fine; inventing one is not. A stiff sentence beats a fluent fabrication.
+
 ### Instructions: enforced or advisory, never pretend
 
 An instruction either changes behaviour or is labelled advisory. There is no

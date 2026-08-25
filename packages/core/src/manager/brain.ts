@@ -43,6 +43,40 @@ export interface BrainPlan {
 export interface ManagerBrain {
   readonly name: string;
   plan(request: BrainRequest, ctx: ToolContext): Promise<BrainPlan>;
+  /**
+   * Optional: rephrase a completed tool result in the Manager's own words.
+   *
+   * The tool has already produced the facts; this only changes how they read.
+   * Brains that can't write (the rule-based one) simply omit this and the
+   * tool's own wording is used, which is why the Manager still speaks sensibly
+   * with no model attached.
+   */
+  narrate?(input: NarrationRequest): Promise<string>;
+}
+
+export interface NarrationRequest {
+  /** What the owner actually asked. */
+  question: string;
+  /** The tool that ran. */
+  tool: string;
+  /** The tool's factual output — the ONLY source of facts allowed. */
+  facts: string;
+}
+
+/**
+ * Guard against a rephrasing that invents figures.
+ *
+ * Every digit-sequence in the narration must already appear in the facts.
+ * Words like "three" pass freely — the risk being defended against is a
+ * confident, specific, wrong number, and that always arrives as digits.
+ *
+ * Deliberately strict and one-directional: dropping a number is fine
+ * (a summary may not mention everything), inventing one is not.
+ */
+export function numbersAreGrounded(facts: string, narration: string): boolean {
+  const digitsIn = (text: string) => (text.replace(/,/g, "").match(/\d+(?:\.\d+)?/g) ?? []);
+  const allowed = new Set(digitsIn(facts));
+  return digitsIn(narration).every((n) => allowed.has(n));
 }
 
 // ---------------------------------------------------------------------------
@@ -497,6 +531,59 @@ export class ClaudeManagerBrain implements ManagerBrain {
   async plan(request: BrainRequest): Promise<BrainPlan> {
     const response = await this.transport.send(this.buildRequest(request), this.apiKey, this.model);
     return this.interpretResponse(response, request);
+  }
+
+  buildNarrationRequest(input: NarrationRequest) {
+    return {
+      max_tokens: 400,
+      system: [
+        "You are the Manager of a small AI prospecting team, reporting back to the owner.",
+        "You will be given the owner's question and the factual result of running one internal tool.",
+        "Rewrite that result as you would say it out loud: brief, plain, professional. Two or three sentences at most.",
+        "",
+        "Absolute rules:",
+        "- Use ONLY the facts given. Never add a number, name, date or claim that is not in them.",
+        "- If the facts say nothing happened, say so plainly. Do not soften it or speculate about why.",
+        "- Never offer to do something you have not been told you can do.",
+        "- No markdown, no bullet points, no headings. This is often read aloud.",
+        "- Do not open with a greeting unless the facts begin with one.",
+      ].join("\n"),
+      messages: [
+        {
+          role: "user" as const,
+          content: [
+            `The owner asked: "${input.question}"`,
+            `Tool run: ${input.tool}`,
+            "",
+            "Result:",
+            input.facts,
+          ].join("\n"),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Rephrases a tool result, falling back to the tool's own wording whenever
+   * the rewrite can't be trusted — an API failure, an empty reply, or a number
+   * that wasn't in the source. A stiff sentence is a far better outcome than a
+   * fluent invented one.
+   */
+  async narrate(input: NarrationRequest): Promise<string> {
+    try {
+      const response = await this.transport.send(this.buildNarrationRequest(input), this.apiKey, this.model);
+      const text = response.content
+        .filter((c): c is { type: "text"; text: string } => c.type === "text")
+        .map((c) => c.text)
+        .join(" ")
+        .trim();
+
+      if (!text) return input.facts;
+      if (!numbersAreGrounded(input.facts, text)) return input.facts;
+      return text;
+    } catch {
+      return input.facts;
+    }
   }
 }
 
