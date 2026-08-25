@@ -466,9 +466,16 @@ export class SqliteLeadsRepository implements LeadsRepository {
     // NULLS LAST on score: an unscored lead is not a zero-scoring lead, and
     // burying them under every scored one is wrong when you are checking an
     // import. Both dialects spell it the same way here.
+    // The tiebreak is `id`, not `business_name`, and that is load-bearing.
+    // Scores tie heavily — every lead awaiting a website check currently scores
+    // exactly 25 — so a tiebreak the index does not carry forces Postgres to
+    // read and sort the whole matching set to find one page. Measured on the
+    // live database: 2,391ms with the name tiebreak, 3.9ms with this one.
+    // Ties come out in id order rather than alphabetically, which is stable,
+    // which is what paging actually needs.
     const order =
       filter.orderBy === "score"
-        ? "prospect_score DESC NULLS LAST, business_name ASC"
+        ? "prospect_score DESC NULLS LAST, id"
         : filter.orderBy === "name"
           ? "business_name ASC"
           : "date_discovered DESC";

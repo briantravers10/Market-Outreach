@@ -99,7 +99,10 @@ CREATE INDEX IF NOT EXISTS idx_leads_zip ON leads(zip);
 -- Reports are always scoped to a period, so every one of them filters on this.
 CREATE INDEX IF NOT EXISTS idx_leads_discovered ON leads(date_discovered);
 -- The Website Analyst's work queue: sites nobody has read, best prospects first.
-CREATE INDEX IF NOT EXISTS idx_leads_awaiting_check ON leads(website_checked_at, prospect_score);
+-- Carries the tiebreak column so ORDER BY score can stop at the LIMIT rather
+-- than sorting every matching row. See the note in leadsRepo.list().
+CREATE INDEX IF NOT EXISTS idx_leads_awaiting_check ON leads(website_checked_at, prospect_score, id);
+CREATE INDEX IF NOT EXISTS idx_leads_score_id ON leads(prospect_score, id);
 
 CREATE TABLE IF NOT EXISTS mock_crm_records (
   id TEXT PRIMARY KEY,
