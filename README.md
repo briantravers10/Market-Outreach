@@ -463,9 +463,10 @@ top-level nav items.
   direct natural-language command box.
 - **Campaigns** — Manager Command Box ("Assign Task") plus the existing manual form and
   per-campaign start/pause/resume/stop controls and job list.
-- **Leads** — filterable/searchable table with a per-lead pipeline-stage checklist column;
-  Lead Detail shows the full field set, score breakdown, agent activity, and explicit
-  "FUTURE CRM STATUS: DISABLED" / "FUTURE OUTREACH STATUS: DISABLED" panels.
+- **Leads** — filterable/searchable table with a per-lead pipeline-stage checklist column
+  and a **Download CSV** button; Lead Detail shows the full field set, score breakdown,
+  agent activity, and explicit "FUTURE CRM STATUS: DISABLED" / "FUTURE OUTREACH STATUS:
+  DISABLED" panels.
 - **Analytics** — score/website/booking/confidence distributions and per-agent
   throughput. Deliberately no fake sales/revenue numbers — this system doesn't sell
   anything yet.
@@ -477,6 +478,27 @@ only touch the local SQLite file — see `apps/dashboard/lib/actions.ts`. Pages 
 benefit from feeling "alive" (Overview, Team, Campaigns) poll `router.refresh()` every
 few seconds via `LiveRefresh.tsx` — no websockets, since this is a low-frequency
 single-process internal tool.
+
+## Spreadsheet export
+
+Nothing has to be "connected" to Excel. The **Download CSV** button on **Leads** and
+**High Priority** produces a file that Excel, Numbers and Google Sheets all open by
+double-clicking.
+
+- The download honours whatever filters are on screen, including the High-Priority saved
+  views — filter first, then download, and the file matches the table above it. The saved
+  views live in `packages/core/src/leadPresets.ts` so the page and the export cannot
+  disagree about what "poor website + no booking" means.
+- One row per lead, 38 columns: identity, score and the reason for it, location, contact
+  details, website/booking findings, social, the services list, and the campaign and lead
+  ids so a row can be traced back into the app.
+- Route: `apps/dashboard/app/api/export/leads.csv/route.ts`. It is behind the same session
+  check as every other page — the only self-authenticating exception in `middleware.ts` is
+  `/api/cron/*`.
+- Writer: `packages/core/src/export/leadsCsv.ts`. It emits a UTF-8 BOM (Excel misreads
+  accented characters without one) and neutralises leading `=`, `+`, `-` and `@` so a
+  business name can never execute as a spreadsheet formula. `npm run test-export` covers
+  the escaping, the formula guard, and a round-trip parse (37 assertions).
 
 ## Authentication
 

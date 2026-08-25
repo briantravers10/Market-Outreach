@@ -152,3 +152,9 @@ export type { Period } from "./manager/periods";
 
 export { looksLikeChain, CHAIN_NAME_PATTERNS } from "./mockData/fakeBusinessNames";
 export { applyQualifierInstructions } from "./prospectingManager";
+
+export { leadsToCsv, csvField, csvRow, csvFilename, CSV_BOM } from "./export/leadsCsv";
+export type { LeadsCsvOptions } from "./export/leadsCsv";
+
+export { LEAD_PRESETS, findLeadPreset } from "./leadPresets";
+export type { LeadPreset } from "./leadPresets";

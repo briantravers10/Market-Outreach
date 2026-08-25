@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getIndustries, getTerritories, type LeadFilter } from "@market-outreach/core";
 import { getRepos } from "../../../lib/data";
 import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../components/Badges";
+import { ExportCsvLink } from "../../../components/ExportCsvLink";
 
 interface LeadsSearchParams {
   q?: string;
@@ -49,7 +50,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     <div>
       <div className="page-header">
         <h1>Leads</h1>
-        <p>All researched businesses across every campaign. Fake data only.</p>
+        <p>All researched businesses across every campaign. Fake data only. Filter, then download the CSV to review in Excel or Numbers.</p>
       </div>
 
       <form className="filter-bar" method="get">
@@ -128,6 +129,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           </select>
         </div>
         <button className="btn btn-secondary" type="submit">Apply Filters</button>
+        <ExportCsvLink params={{ ...params }} count={leads.length} />
         <Link href="/high-priority" className="btn-ghost" style={{ display: "inline-flex", alignItems: "center" }}>80+ only →</Link>
       </form>
 

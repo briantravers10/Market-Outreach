@@ -1,15 +1,8 @@
 import Link from "next/link";
-import { getIndustries, type Lead } from "@market-outreach/core";
+import { getIndustries, LEAD_PRESETS, findLeadPreset } from "@market-outreach/core";
 import { getRepos } from "../../../lib/data";
 import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../components/Badges";
-
-const PRESETS: { key: string; label: string; test: (lead: Lead) => boolean }[] = [
-  { key: "no-website-no-booking", label: "No website + no booking", test: (l) => l.websiteStatus === "NONE" && l.onlineBookingStatus === "NONE" && l.bookingMethod === "NONE" },
-  { key: "poor-website-no-booking", label: "Poor website + no booking", test: (l) => l.websiteQuality === "POOR" && l.onlineBookingStatus === "NONE" },
-  { key: "social-no-website", label: "Active social + no website", test: (l) => l.socialActivity === "ACTIVE" && l.websiteStatus === "NONE" },
-  { key: "reviews-poor-infra", label: "Strong reviews + poor digital infra", test: (l) => (l.rating ?? 0) >= 4.4 && (l.reviewCount ?? 0) >= 40 && (l.websiteStatus === "NONE" || l.websiteQuality === "POOR") },
-  { key: "staff-phone-only", label: "Multiple staff + phone-only booking", test: (l) => (l.staffCount ?? 0) >= 3 && l.bookingMethod === "PHONE_ONLY" },
-];
+import { ExportCsvLink } from "../../../components/ExportCsvLink";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +12,7 @@ export default async function HighPriorityPage({ searchParams }: { searchParams:
   const industryLabels = new Map(getIndustries().map((i) => [i.id, i.label]));
 
   const highPriority = await repos.leads.list({ minScore: 80 });
-  const preset = PRESETS.find((p) => p.key === params.preset);
+  const preset = findLeadPreset(params.preset);
   const leads = preset ? highPriority.filter(preset.test) : highPriority;
 
   return (
@@ -31,7 +24,7 @@ export default async function HighPriorityPage({ searchParams }: { searchParams:
 
       <div className="filter-bar">
         <Link href="/high-priority" className={`btn ${!preset ? "" : "btn-secondary"}`}>All ({highPriority.length})</Link>
-        {PRESETS.map((p) => {
+        {LEAD_PRESETS.map((p) => {
           const count = highPriority.filter(p.test).length;
           return (
             <Link
@@ -43,6 +36,11 @@ export default async function HighPriorityPage({ searchParams }: { searchParams:
             </Link>
           );
         })}
+        <ExportCsvLink
+          params={{ minScore: "80", preset: params.preset }}
+          view="high-priority"
+          count={leads.length}
+        />
       </div>
 
       <div className="panel">
