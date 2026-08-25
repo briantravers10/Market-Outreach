@@ -149,9 +149,12 @@ async function main() {
     computeDataConfidence({ ...lead, onlineBookingStatus: "THIRD_PARTY_BOOKING_SYSTEM" }, config).resolvedRatio >
       withUnknowns.resolvedRatio
   );
+  // NONE, by contrast, IS a researched value: somebody read their site and the
+  // answer was none. It has to raise confidence, or checking a prospect's
+  // website could never make them better understood.
   check(
-    "and neither does NONE, which is also not a researched value",
-    computeDataConfidence({ ...lead, onlineBookingStatus: "NONE" }, config).resolvedRatio ===
+    "but NONE does count, because it is an answer",
+    computeDataConfidence({ ...lead, onlineBookingStatus: "NONE" }, config).resolvedRatio >
       withUnknowns.resolvedRatio
   );
 

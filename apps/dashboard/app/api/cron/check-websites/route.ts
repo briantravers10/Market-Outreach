@@ -1,0 +1,96 @@
+import { NextResponse, type NextRequest } from "next/server";
+import {
+  checkWebsites,
+  HttpSiteFetcher,
+  MockReasoningProvider,
+  getScoringConfig,
+} from "@market-outreach/core";
+import { getRepos } from "../../../../lib/data";
+import { isDemoMode } from "../../../../lib/demo";
+
+/**
+ * Works through the queue of prospect websites nobody has read yet.
+ *
+ * Driven by cron rather than a button because there are tens of thousands of
+ * sites to fetch and no single request finishes that. Each firing takes a slice
+ * of the queue, best prospects first, and the queue drains over hours. Nothing
+ * is lost if a run dies mid-way: every lead is stamped as it completes, so the
+ * next run picks up exactly where this one stopped.
+ *
+ * Auth: CRON_SECRET, same as the scheduled-reports endpoint. It refuses to run
+ * without one rather than defaulting open.
+ */
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+/**
+ * How many leads to pull off the queue. Not how many get done — the deadline
+ * below decides that. Pulling generously means a fast run is not artificially
+ * capped, and pulling more than can be finished costs one query.
+ */
+const DEFAULT_BATCH = 400;
+
+/** Leaves the invocation room to write results and answer before its 60s limit. */
+const WORK_DEADLINE_MS = 42_000;
+
+export async function GET(request: NextRequest) {
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret) {
+    return NextResponse.json(
+      { error: "CRON_SECRET is not set, so this endpoint refuses to run." },
+      { status: 503 }
+    );
+  }
+  if (request.headers.get("authorization") !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (isDemoMode) {
+    return NextResponse.json({ error: "The demo database is a read-only snapshot." }, { status: 403 });
+  }
+
+  const requested = Number(request.nextUrl.searchParams.get("batch"));
+  const batchSize = Number.isFinite(requested) ? Math.min(Math.max(1, requested), 1000) : DEFAULT_BATCH;
+
+  const repos = getRepos();
+  const queue = await repos.leads.list({
+    awaitingWebsiteCheck: true,
+    orderBy: "score",
+    limit: batchSize,
+  });
+
+  if (queue.length === 0) {
+    const remaining = await repos.leads.count({ awaitingWebsiteCheck: true });
+    return NextResponse.json({ checked: 0, remaining, done: true });
+  }
+
+  const results = await checkWebsites(queue, {
+    fetcher: new HttpSiteFetcher(),
+    scoringConfig: getScoringConfig(),
+    reasoning: new MockReasoningProvider(),
+    now: new Date().toISOString(),
+    concurrency: 8,
+    deadlineMs: WORK_DEADLINE_MS,
+  });
+
+  // Only the leads actually processed are written. The rest of the slice was
+  // never touched, so it stays queued rather than being stamped as checked.
+  await repos.leads.upsertMany(results.map((result) => result.lead));
+
+  const reachable = results.filter((r) => r.reachable).length;
+  const improved = results.filter(
+    (r) => r.scoreAfter !== null && r.scoreBefore !== null && r.scoreAfter > r.scoreBefore
+  ).length;
+  const nowQualified = results.filter(
+    (r) => r.lead.qualificationStatus === "QUALIFIED" || r.lead.qualificationStatus === "HIGH_PRIORITY"
+  ).length;
+
+  return NextResponse.json({
+    checked: results.length,
+    reachable,
+    unreachable: results.length - reachable,
+    scoreImproved: improved,
+    nowQualified,
+    remaining: await repos.leads.count({ awaitingWebsiteCheck: true }),
+    done: false,
+  });
+}

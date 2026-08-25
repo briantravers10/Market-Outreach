@@ -35,6 +35,7 @@ interface LeadRow {
   source_confidence: number | null;
   latitude: number | null;
   longitude: number | null;
+  website_checked_at: string | null;
   date_discovered: string;
   date_last_researched: string | null;
   research_status: string;
@@ -87,6 +88,7 @@ function rowToLead(row: LeadRow): Lead {
     sourceConfidence: row.source_confidence,
     latitude: row.latitude,
     longitude: row.longitude,
+    websiteCheckedAt: row.website_checked_at,
     dateDiscovered: row.date_discovered,
     dateLastResearched: row.date_last_researched,
     researchStatus: row.research_status as Lead["researchStatus"],
@@ -118,7 +120,7 @@ const LEAD_COLUMNS = [
   "website_status", "website_quality", "online_booking_status", "booking_provider", "booking_method",
   "staff_count", "staff_count_confidence", "rating", "review_count", "instagram", "facebook",
   "social_activity", "location_count", "services", "prospect_score", "score_breakdown", "score_reason",
-  "data_confidence", "discovery_source", "external_id", "source_confidence", "latitude", "longitude",
+  "data_confidence", "discovery_source", "external_id", "source_confidence", "latitude", "longitude", "website_checked_at",
   "date_discovered", "date_last_researched", "research_status", "qualification_status", "pipeline_stage",
   "campaign_id", "job_id", "is_duplicate_of", "stages_completed", "link_in_bio_url", "detected_links",
   "service_area", "location_confidence", "location_evidence", "notes",
@@ -164,6 +166,7 @@ function leadToRow(lead: Lead): Record<string, unknown> {
     source_confidence: lead.sourceConfidence,
     latitude: lead.latitude,
     longitude: lead.longitude,
+    website_checked_at: lead.websiteCheckedAt,
     date_discovered: lead.dateDiscovered,
     date_last_researched: lead.dateLastResearched,
     research_status: lead.researchStatus,
@@ -203,6 +206,9 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
   if (filter.researchStatus) { clauses.push("research_status = @researchStatus"); params.researchStatus = filter.researchStatus; }
   if (filter.qualificationStatus) { clauses.push("qualification_status = @qualificationStatus"); params.qualificationStatus = filter.qualificationStatus; }
   if (filter.campaignId) { clauses.push("campaign_id = @campaignId"); params.campaignId = filter.campaignId; }
+  if (filter.awaitingWebsiteCheck) {
+    clauses.push("website IS NOT NULL AND website_checked_at IS NULL AND online_booking_status = 'UNKNOWN'");
+  }
 
   return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
 }
@@ -218,7 +224,7 @@ export class SqliteLeadsRepository implements LeadsRepository {
           website_status, website_quality, online_booking_status, booking_provider, booking_method,
           staff_count, staff_count_confidence, rating, review_count, instagram, facebook,
           social_activity, location_count, services, prospect_score, score_breakdown, score_reason,
-          data_confidence, discovery_source, external_id, source_confidence, latitude, longitude,
+          data_confidence, discovery_source, external_id, source_confidence, latitude, longitude, website_checked_at,
           date_discovered, date_last_researched, research_status,
           qualification_status, pipeline_stage, campaign_id, job_id, is_duplicate_of, stages_completed,
           link_in_bio_url, detected_links, service_area, location_confidence, location_evidence, notes
@@ -227,7 +233,7 @@ export class SqliteLeadsRepository implements LeadsRepository {
           @websiteStatus, @websiteQuality, @onlineBookingStatus, @bookingProvider, @bookingMethod,
           @staffCount, @staffCountConfidence, @rating, @reviewCount, @instagram, @facebook,
           @socialActivity, @locationCount, @services, @prospectScore, @scoreBreakdown, @scoreReason,
-          @dataConfidence, @discoverySource, @externalId, @sourceConfidence, @latitude, @longitude,
+          @dataConfidence, @discoverySource, @externalId, @sourceConfidence, @latitude, @longitude, @websiteCheckedAt,
           @dateDiscovered, @dateLastResearched, @researchStatus,
           @qualificationStatus, @pipelineStage, @campaignId, @jobId, @isDuplicateOf, @stagesCompleted,
           @linkInBioUrl, @detectedLinks, @serviceArea, @locationConfidence, @locationEvidence, @notes
@@ -244,6 +250,7 @@ export class SqliteLeadsRepository implements LeadsRepository {
           score_breakdown=excluded.score_breakdown, score_reason=excluded.score_reason,
           data_confidence=excluded.data_confidence, source_confidence=excluded.source_confidence,
           latitude=excluded.latitude, longitude=excluded.longitude,
+          website_checked_at=excluded.website_checked_at,
           date_last_researched=excluded.date_last_researched,
           research_status=excluded.research_status, qualification_status=excluded.qualification_status,
           pipeline_stage=excluded.pipeline_stage, is_duplicate_of=excluded.is_duplicate_of,

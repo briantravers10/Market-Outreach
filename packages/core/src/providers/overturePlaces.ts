@@ -153,6 +153,8 @@ export function observationToLead(observation: OvertureObservation, context: Obs
     sourceConfidence: observation.confidence,
     latitude: observation.latitude,
     longitude: observation.longitude,
+    // Nobody has read their site yet — that is the Website Analyst's job.
+    websiteCheckedAt: null,
     dateDiscovered: context.now,
     dateLastResearched: context.now,
     researchStatus: "ENRICHED",

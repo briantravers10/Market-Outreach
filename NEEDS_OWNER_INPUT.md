@@ -161,12 +161,39 @@ crosses the Qualified line.
 they are at the top. A salon with no website and an active Instagram is the
 strongest signal available without visiting a single page.
 
-### The next real step
+### The website sweep is running
 
-Fetching each business's website and detecting their booking setup. That is what
-unlocks the rest of the score, and the link classifier for it is already built
-and tested (`config/link-signals.json`). It costs nothing per business — just
-our own requests. Say the word.
+The next real step is now built and live. Every 10 minutes a background job
+takes the highest-scoring leads whose websites nobody has read, fetches each
+one, works out whether they already book online and with whom, and re-scores
+them. It works through roughly 53,000 sites over a few days without you doing
+anything.
+
+Watch it happen: the **Booking** column on Leads changes from "Not checked" to
+a real answer, and leads start crossing into Qualified.
+
+### Then Pipedrive
+
+Do it in that order. Until the sweep has run, almost nothing is Qualified, so a
+CRM sync now would either push nothing or push 77,000 unqualified organisations
+— and a CRM full of businesses you have no reason to call is worse than an
+empty one.
+
+When you are ready, I need one thing from you: your Pipedrive API token
+(Pipedrive -> Settings -> Personal preferences -> API), added to Vercel as
+`PIPEDRIVE_API_TOKEN`. Everything else — the adapter, the payload building, the
+idempotent re-sync, the "only qualified leads open a deal" rule — is already
+built and tested in dry run.
+
+Two things I will do rather than ask you to:
+
+- Resolve your custom-field keys automatically instead of by hand-editing a
+  config file. You created those fields in Pipedrive already; the app should
+  find them by name.
+- Sync only leads above a score threshold, not the whole database.
+
+Live sync needs a second switch (`PIPEDRIVE_LIVE_SYNC=1`) on top of the token,
+so adding the token alone changes nothing until you say go.
 
 ### Still open
 

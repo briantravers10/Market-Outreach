@@ -390,6 +390,7 @@ export class ProspectingManager {
           sourceConfidence: null,
           latitude: null,
           longitude: null,
+          websiteCheckedAt: null,
           dateDiscovered: nowIso(),
           dateLastResearched: null,
           researchStatus: "ANALYZED",

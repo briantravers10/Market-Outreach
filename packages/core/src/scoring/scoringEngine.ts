@@ -112,15 +112,15 @@ export function computeDataConfidence(
   for (const field of keyFields) {
     const leadKey = fieldToLeadKey[field];
     const value = leadKey ? leadRecord[leadKey] : undefined;
-    // "UNKNOWN" is excluded alongside "NONE" deliberately. They mean opposite
-    // things about the business and the same thing about us: we do not have a
-    // usable value. Counting UNKNOWN as resolved would let a lead nobody has
-    // researched report HIGH confidence purely because the field was populated
-    // with a placeholder.
+    // UNKNOWN is excluded; NONE is not. They used to be treated the same, which
+    // was defensible when NONE doubled as the unresearched default — but now
+    // that UNKNOWN carries "nobody looked", NONE means the opposite: somebody
+    // looked and the answer is none. Excluding it would mean reading a
+    // prospect's website could never improve how well-researched they are,
+    // which is precisely backwards.
     const isResolved =
       value !== null &&
       value !== undefined &&
-      value !== "NONE" &&
       value !== "UNKNOWN" &&
       !(typeof value === "string" && value.trim() === "");
     if (isResolved) resolved += 1;

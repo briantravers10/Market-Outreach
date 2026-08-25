@@ -163,6 +163,15 @@ export interface Lead {
   sourceConfidence: number | null;
   latitude: number | null;
   longitude: number | null;
+  /**
+   * When their website was last fetched and read.
+   *
+   * Distinct from dateLastResearched, which covers the whole record. This one
+   * exists so a site that timed out is marked as tried rather than retried
+   * forever — without it, the few thousand dead domains in any dataset become
+   * an infinite work queue that starves the leads that would actually answer.
+   */
+  websiteCheckedAt: string | null;
   dateDiscovered: string; // ISO timestamp
   dateLastResearched: string | null;
   researchStatus: ResearchStatus;
@@ -447,6 +456,8 @@ export interface LeadFilter {
   offset?: number;
   /** Highest score first is what you want when working a call list; newest first is what you want when checking an import. */
   orderBy?: "score" | "discovered" | "name";
+  /** Only leads that have a website nobody has read yet — the work queue for the Website Analyst. */
+  awaitingWebsiteCheck?: boolean;
 }
 
 export interface JobsRepository {

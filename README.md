@@ -542,6 +542,51 @@ not survive 714 of them in one state, so campaigns are per (state, industry) —
 spine: ZIPs are postal routes, they do not nest inside cities, and there are
 about 41,000 of them.
 
+## Website analysis — the Website Analyst
+
+The largest single factor in the score is whether a business already takes
+bookings online. Overture cannot answer that, so the answer comes from reading
+their own website.
+
+- `packages/core/src/enrichment/siteFetcher.ts` — the fetch. Identifies itself,
+  gives up after 8s, caps the read at 600KB, and refuses anything that is not a
+  public http(s) URL. The URLs come from a third-party dataset, so a server-side
+  fetcher that would follow `file://` or dial a private address is a
+  server-side request forgery waiting to happen.
+- `packages/core/src/enrichment/websiteAnalyzer.ts` — the judgement. Pure, so it
+  is testable against canned pages. Every conclusion traces to something
+  literally in the HTML: a link to a known booking platform, a "Book Now"
+  anchor, a viewport tag, a stale copyright year. Where the evidence runs out
+  the answer stays UNKNOWN.
+- `packages/core/src/workers/websiteCheckWorker.ts` — fetch, analyse, re-score,
+  with bounded concurrency and a wall-clock deadline rather than a guessed
+  batch size.
+- `apps/dashboard/app/api/cron/check-websites/route.ts` — drains the queue,
+  best prospects first, every 10 minutes. `CRON_SECRET` required; it refuses to
+  run without one.
+
+Three deliberate refusals:
+
+1. **An unreachable site asserts nothing.** A dead domain is not evidence of no
+   online booking — they might still be on Booksy. The lead is stamped as
+   checked so it leaves the queue, but booking stays UNKNOWN.
+2. **A "Book Now" link to their own site counts as online booking.** No provider
+   is named, and the evidence says to go and look. Scoring an in-house booking
+   page as NONE would be wrong in the most expensive direction.
+3. **Businesses with no website are not analysed at all.** They are 23,941 of
+   the best-looking leads and marking them "no online booking" would light the
+   whole cohort up — but a salon with no website can still be on Booksy, which
+   makes them a worse prospect, not a better one. Resolving them needs the
+   booking platforms' own directories, which is separate work.
+
+### Data confidence: NONE counts, UNKNOWN does not
+
+`NONE` and `UNKNOWN` were once treated alike, which was defensible while NONE
+doubled as the unresearched default. Now that UNKNOWN carries "nobody looked",
+NONE means the opposite — somebody looked and the answer is none — so it raises
+data confidence. Without that, reading a prospect's website could never make
+them better understood, which is precisely backwards.
+
 ## Spreadsheet export
 
 Nothing has to be "connected" to Excel. The **Download CSV** button on **Leads** and

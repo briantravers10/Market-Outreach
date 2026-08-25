@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS leads (
   source_confidence REAL,
   latitude REAL,
   longitude REAL,
+  website_checked_at TEXT,
   date_discovered TEXT NOT NULL,
   date_last_researched TEXT,
   research_status TEXT NOT NULL,
@@ -95,6 +96,8 @@ CREATE INDEX IF NOT EXISTS idx_leads_qualification ON leads(qualification_status
 CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_external_id ON leads(external_id) WHERE external_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_leads_state ON leads(state);
 CREATE INDEX IF NOT EXISTS idx_leads_zip ON leads(zip);
+-- The Website Analyst's work queue: sites nobody has read, best prospects first.
+CREATE INDEX IF NOT EXISTS idx_leads_awaiting_check ON leads(website_checked_at, prospect_score);
 
 CREATE TABLE IF NOT EXISTS mock_crm_records (
   id TEXT PRIMARY KEY,
