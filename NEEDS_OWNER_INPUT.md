@@ -195,6 +195,22 @@ Two things I will do rather than ask you to:
 Live sync needs a second switch (`PIPEDRIVE_LIVE_SYNC=1`) on top of the token,
 so adding the token alone changes nothing until you say go.
 
+### Tomorrow's work is written down
+
+See `SCORING-PLAN.md`. Short version: seven of the sixteen scoring factors have
+never fired once, because the fields they depend on are empty for every lead —
+staff count, ratings, social activity, location count. Most of the fix costs
+nothing; the paid options are named with prices and come last.
+
+Two things there need you rather than me:
+
+- **Start the Instagram Business account and Facebook Page.** Nothing depends on
+  it yet, but Meta's app review is the slow part and there is no reason to start
+  that clock late.
+- **Two config decisions** are listed at the end of that file — whether the
+  poor-fit-industry flag is wanted at all, and whether beauty salons and day
+  spas should stay separate from hair salons.
+
 ### Still open
 
 - **Which states next.** I would sequence by market size and register quality;
