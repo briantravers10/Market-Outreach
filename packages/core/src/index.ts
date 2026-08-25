@@ -80,3 +80,74 @@ export { logActivity } from "./agents/agentActivity";
 export type { LogActivityInput } from "./agents/agentActivity";
 export { summarizeAgent, summarizeAllAgents } from "./agents/agentRegistry";
 export type { AgentSummary, AgentLiveStatus } from "./agents/agentRegistry";
+
+// --- AI Manager -----------------------------------------------------------
+export type {
+  Conversation,
+  ConversationMessage,
+  MessageRole,
+  ToolCallRecord,
+  AgentInstruction,
+  InstructionScope,
+  InstructionStatus,
+  InstructionEffect,
+  ScoreCondition,
+  ManagerAction,
+  ActionRisk,
+  ActionStatus,
+  Report,
+  ReportType,
+  ReportMetrics,
+  PeriodComparison,
+  ScheduledTask,
+  ScheduledTaskKind,
+  ConversationsRepository,
+  InstructionsRepository,
+  ManagerActionsRepository,
+  ReportsRepository,
+  ScheduledTasksRepository,
+} from "./manager/types";
+
+export { AiManager } from "./manager/aiManager";
+export type { AiManagerDeps, TurnResult } from "./manager/aiManager";
+
+export {
+  RuleBasedManagerBrain,
+  ClaudeManagerBrain,
+  selectBrain,
+  buildSystemPrompt,
+  toolsForApi,
+  resetAcknowledgements,
+} from "./manager/brain";
+export type { ManagerBrain, BrainPlan, BrainRequest, BrainDescription, AnthropicTransport, AnthropicResponse } from "./manager/brain";
+
+export { MANAGER_TOOLS, findTool, requiresApproval, resolveAgentId } from "./manager/tools";
+export type { ManagerTool, ToolContext, ToolResult } from "./manager/tools";
+
+export {
+  parseInstructionEffect,
+  describeEffect,
+  activeInstructionsFor,
+  effectsOf,
+  applyDiscoveryInstructions,
+  scoreAdjustmentsFor,
+  minScoreThreshold,
+} from "./manager/instructionEffects";
+
+export { computeMetrics, writeSummary, generateReport } from "./manager/reporting";
+
+export {
+  parsePeriod,
+  parseSchedule,
+  nextRunAt,
+  withinPeriod,
+  previousPeriodOf,
+  dayPeriod,
+  rollingWeek,
+  today,
+  yesterday,
+} from "./manager/periods";
+export type { Period } from "./manager/periods";
+
+export { looksLikeChain, CHAIN_NAME_PATTERNS } from "./mockData/fakeBusinessNames";
+export { applyQualifierInstructions } from "./prospectingManager";

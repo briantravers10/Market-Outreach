@@ -11,6 +11,13 @@ import { SqliteAgentActivityRepository } from "./repositories/agentActivityRepo"
 import { SqliteHumanReviewRepository } from "./repositories/humanReviewRepo";
 import { SqliteScoreResultsRepository } from "./repositories/scoreResultsRepo";
 import { createPasswordResetRepo, createUsersRepo } from "./repositories/usersRepo";
+import {
+  createConversationsRepo,
+  createInstructionsRepo,
+  createManagerActionsRepo,
+  createReportsRepo,
+  createScheduledTasksRepo,
+} from "./repositories/managerRepo";
 
 export { getDb, closeDb, defaultDbPath };
 export { createPostgresClient, createSqliteClient, toPositional } from "./sqlClient";
@@ -66,5 +73,10 @@ export function createRepositories(dbPath?: string): Repositories {
     scoreResults: new SqliteScoreResultsRepository(db),
     users: createUsersRepo(db),
     passwordResets: createPasswordResetRepo(db),
+    conversations: createConversationsRepo(db),
+    instructions: createInstructionsRepo(db),
+    managerActions: createManagerActionsRepo(db),
+    reports: createReportsRepo(db),
+    scheduledTasks: createScheduledTasksRepo(db),
   };
 }

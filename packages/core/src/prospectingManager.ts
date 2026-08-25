@@ -1,5 +1,15 @@
 import { randomUUID } from "node:crypto";
-import type { AgentActivityLevel, AgentId, Campaign, Job, Lead, PipelineStageName, Repositories } from "./types";
+import type {
+  AgentActivityLevel,
+  AgentId,
+  Campaign,
+  Job,
+  Lead,
+  PipelineStageName,
+  QualificationStatus,
+  Repositories,
+  ScoreResult,
+} from "./types";
 import type { DiscoveryProvider } from "./providers/discoveryProvider";
 import type { EnrichmentProvider } from "./providers/enrichmentProvider";
 import type { ReasoningProvider } from "./reasoning/reasoningProvider";
@@ -11,8 +21,17 @@ import { runEnrichmentWorker } from "./workers/enrichmentWorker";
 import { explainWebsiteBookingAnalysis, runWebsiteBookingAnalysisWorker } from "./workers/websiteBookingAnalysisWorker";
 import { runQualificationWorker } from "./workers/qualificationWorker";
 import { describeDuplicateMatch, findLikelyDuplicate } from "./workers/dedupWorker";
+import { qualificationStatusForScore } from "./scoring/scoringEngine";
 import { makeSeededRandom, chance } from "./mockData/random";
 import { logActivity } from "./agents/agentActivity";
+import {
+  activeInstructionsFor,
+  applyDiscoveryInstructions,
+  effectsOf,
+  minScoreThreshold,
+  scoreAdjustmentsFor,
+} from "./manager/instructionEffects";
+import type { InstructionEffect } from "./manager/types";
 import type { CommandParser } from "./nlp/commandParser";
 import type { ParsedCommand } from "./nlp/intentTypes";
 
@@ -253,7 +272,28 @@ export class ProspectingManager {
         throw new Error("Simulated transient research error (rate-limited by a mock data source).");
       }
 
-      const seeds = await runDiscoveryWorker(current, this.deps.discovery, territory?.state ?? "FL", campaign.batchSize);
+      const discovered = await runDiscoveryWorker(current, this.deps.discovery, territory?.state ?? "FL", campaign.batchSize);
+
+      // The owner's standing and campaign-scoped orders to the Scout, applied
+      // before anything is stored. Whatever gets dropped is logged with its
+      // reason at the moment it happens, so "why did the Scout only find 54?"
+      // has a recorded answer instead of a reconstructed guess.
+      const scoutInstructions = activeInstructionsFor(
+        await this.deps.repos.instructions.list({ agentId: "scout", status: "active" }),
+        { campaignId: job.campaignId }
+      );
+      const { kept: seeds, dropped } = applyDiscoveryInstructions(discovered, effectsOf(scoutInstructions));
+      if (dropped.length > 0) {
+        this.log(
+          "scout",
+          `Excluded ${dropped.length} of ${discovered.length} candidates on your instructions (${dropped
+            .slice(0, 3)
+            .map((d) => `${d.businessName}: ${d.reason}`)
+            .join("; ")}${dropped.length > 3 ? "; …" : ""}).`,
+          { action: "discovery_filtered", campaignId: job.campaignId, jobId: job.id }
+        );
+      }
+
       if (seeds.length === 0) {
         const reason = "Scout found 0 candidate businesses for this batch.";
         const reviewed = await this.queue.markHumanReview(current, reason);
@@ -279,6 +319,15 @@ export class ProspectingManager {
 
       let leadsCreated = 0;
       const existingLeadsInCity = await this.deps.repos.leads.list({ city: job.city });
+
+      // Loaded once per job rather than per lead: they cannot change mid-batch,
+      // and against Postgres a per-lead read would be a round-trip each time.
+      const qualifierEffects = effectsOf(
+        activeInstructionsFor(
+          await this.deps.repos.instructions.list({ agentId: "qualifier", status: "active" }),
+          { campaignId: job.campaignId }
+        )
+      );
 
       for (const seed of seeds) {
         const enrichment = await runEnrichmentWorker(seed, job.id, this.deps.enrichment);
@@ -355,7 +404,16 @@ export class ProspectingManager {
         // Manager -> Scout -> Researcher -> Website Analyst -> Qualifier -> Deduplication
         // pipeline order. A duplicate still shows its computed score; it's just also
         // flagged and disqualified, rather than silently skipped.
-        const { scoreResult, qualificationStatus } = await runQualificationWorker(lead, this.deps.scoringConfig, this.deps.reasoning);
+        const baseResult = await runQualificationWorker(lead, this.deps.scoringConfig, this.deps.reasoning);
+        // Owner instructions to the Qualifier land as ordinary score factors, so
+        // an instructed adjustment is as visible in the breakdown as a
+        // configured one rather than being a hidden nudge to the total.
+        const { scoreResult, qualificationStatus } = applyQualifierInstructions(
+          lead,
+          baseResult,
+          qualifierEffects,
+          this.deps.scoringConfig
+        );
         lead = {
           ...lead,
           prospectScore: scoreResult.score,
@@ -467,4 +525,44 @@ export class ProspectingManager {
       return { job: await this.queue.markFailed(current, message), outcome: "failed", leadsCreated: 0 };
     }
   }
+}
+
+/**
+ * Folds the Qualifier's owner instructions into a computed score.
+ *
+ * The adjustments are appended to the breakdown as ordinary factors and the
+ * total is recomputed from that breakdown, so the number always equals the sum
+ * of its visible parts. A silent delta between the shown factors and the final
+ * score would make the whole score page untrustworthy.
+ *
+ * A min_score_threshold instruction can only ever *demote* a lead. It never
+ * promotes one, because "only show me leads above 70" is a filter on what the
+ * owner wants to see, not a claim that a 40-point lead is secretly good.
+ */
+export function applyQualifierInstructions(
+  lead: Lead,
+  base: { scoreResult: ScoreResult; qualificationStatus: QualificationStatus },
+  effects: InstructionEffect[],
+  scoringConfig: ScoringConfig
+): { scoreResult: ScoreResult; qualificationStatus: QualificationStatus } {
+  const adjustments = scoreAdjustmentsFor(lead, effects);
+  const threshold = minScoreThreshold(effects);
+  if (adjustments.length === 0 && threshold === null) return base;
+
+  const breakdown = [...base.scoreResult.breakdown, ...adjustments.map((a) => a.factor)];
+  const raw = scoringConfig.baseScore + breakdown.reduce((sum, f) => sum + f.points, 0);
+  const score = Math.max(
+    scoringConfig.scoreRange.min,
+    Math.min(scoringConfig.scoreRange.max, Math.round(raw))
+  );
+
+  let qualificationStatus = qualificationStatusForScore(score, scoringConfig);
+  if (threshold !== null && score < threshold) {
+    qualificationStatus = "UNQUALIFIED";
+  }
+
+  return {
+    scoreResult: { ...base.scoreResult, score, breakdown },
+    qualificationStatus,
+  };
 }

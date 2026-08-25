@@ -85,9 +85,67 @@ const SERVICES_BY_INDUSTRY: Record<string, string[]> = {
 /** Industries whose businesses trade under a person's name rather than a storefront name. */
 const PERSONAL_BRAND_INDUSTRIES = new Set(["makeup-artists"]);
 
+/**
+ * Synthetic multi-location franchise brands. Invented names, never real ones.
+ *
+ * These exist because "independent vs. chain" is a real prospecting
+ * distinction — a franchise usually can't choose its own booking software, so
+ * it's a poor prospect no matter how good its other signals look. Without any
+ * chain-shaped businesses in the generated data, an instruction like "stop
+ * including national chains" would have nothing to act on, and the exclusion
+ * would appear to work while doing nothing.
+ *
+ * Marked by the shared franchise-style suffixes below so a name-pattern
+ * exclusion has a real, checkable signal to match on.
+ */
+const CHAIN_BRANDS: Record<string, string[]> = {
+  barbers: ["ClipZone Express", "FadeNation", "SharpCo Barber Group"],
+  "hair-salons": ["StyleNation", "GlossBar Express", "HairCo Group"],
+  "nail-salons": ["NailNation", "PolishPro Express", "TipTop Nails Group"],
+  "dog-groomers": ["PawNation", "GroomCo Express", "FurFresh Group"],
+  "lash-brow-studios": ["LashNation", "BrowCo Express"],
+  estheticians: ["GlowNation", "SkinCo Express"],
+  "massage-therapists": ["RelaxNation", "MassageCo Express"],
+  "personal-trainers": ["FitNation", "StrengthCo Express"],
+  "tattoo-studios": ["InkNation"],
+  "car-detailers": ["ShineNation", "DetailCo Express"],
+};
+
+/**
+ * Roughly one in six generated businesses is a chain, in industries that have
+ * them. Personal-brand industries (makeup artists) never are — a franchise
+ * makeup artist isn't a thing.
+ */
+const CHAIN_PROBABILITY = 1 / 6;
+
+/**
+ * The franchise-style tokens shared by every CHAIN_BRANDS entry.
+ *
+ * Deliberately excludes "co." — the independent word bank already uses it
+ * heavily ("Detail Co.", "Barber Co.", "Grooming Co."), so matching on it
+ * would flag ordinary independents as chains. Every token here was checked
+ * against PREFIXES and SUFFIX_BY_INDUSTRY for collisions; the unit test in
+ * scripts/test-manager.ts re-checks that as the word banks grow.
+ */
+export const CHAIN_NAME_PATTERNS = ["nation", "express", "group"];
+
+/**
+ * Whether a business name looks like a multi-location franchise rather than an
+ * independent operator. Name-based and therefore a heuristic, which is why the
+ * Manager reports it as "looks like a chain" rather than asserting it.
+ */
+export function looksLikeChain(businessName: string): boolean {
+  const lower = businessName.toLowerCase();
+  return CHAIN_NAME_PATTERNS.some((token) => lower.includes(token));
+}
+
 export function generateBusinessName(rng: Rng, industryId: string): string {
   if (PERSONAL_BRAND_INDUSTRIES.has(industryId)) {
     return pick(rng, PERSONAL_BRAND_TEMPLATES).replace("{name}", pick(rng, FAKE_FIRST_NAMES));
+  }
+  const chains = CHAIN_BRANDS[industryId];
+  if (chains && rng() < CHAIN_PROBABILITY) {
+    return pick(rng, chains);
   }
   const suffixOptions = SUFFIX_BY_INDUSTRY[industryId] ?? ["Studio"];
   return `${pick(rng, PREFIXES)} ${pick(rng, suffixOptions)}`;

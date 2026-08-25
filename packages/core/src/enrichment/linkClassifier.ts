@@ -30,6 +30,20 @@ export interface DetectedLink {
   tier: "integrated" | "third_party" | null;
   /** Why it was classified this way — keeps the judgement auditable. */
   reason: string;
+  /**
+   * Whether the destination actually resolved when checked.
+   *
+   *   true  — responded normally
+   *   false — dead: the business believes it takes bookings here and doesn't
+   *   null  — not checked
+   *
+   * Deliberately three-state rather than boolean: "we didn't look" and "we
+   * looked and it was broken" are completely different sales conversations,
+   * and collapsing them would invent a fact. A dead booking link is the
+   * sharpest prospect signal there is — they already decided they want online
+   * booking and are silently losing every customer who clicks it.
+   */
+  reachable: boolean | null;
 }
 
 /** Extracts a lowercase hostname, or null if the URL is unparseable. */
@@ -71,7 +85,7 @@ export function classifyLink(
   label: string | null = null,
   config: LinkSignalsConfig = getLinkSignals()
 ): DetectedLink {
-  const base = { url: rawUrl, label, tier: null as DetectedLink["tier"] };
+  const base = { url: rawUrl, label, tier: null as DetectedLink["tier"], reachable: null as boolean | null };
 
   // Scheme-based links carry their purpose explicitly.
   const scheme = rawUrl.slice(0, rawUrl.indexOf(":")).toLowerCase();

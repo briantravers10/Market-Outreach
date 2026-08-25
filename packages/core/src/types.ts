@@ -19,6 +19,13 @@
 // ---------------------------------------------------------------------------
 
 import type { DetectedLink } from "./enrichment/linkClassifier";
+import type {
+  ConversationsRepository,
+  InstructionsRepository,
+  ManagerActionsRepository,
+  ReportsRepository,
+  ScheduledTasksRepository,
+} from "./manager/types";
 
 export type WebsiteStatus = "NONE" | "EXISTS";
 export type WebsiteQuality = "POOR" | "AVERAGE" | "GOOD" | "EXCELLENT" | "UNKNOWN";
@@ -423,4 +430,10 @@ export interface Repositories {
   scoreResults: ScoreResultsRepository;
   users: UsersRepository;
   passwordResets: PasswordResetRepository;
+  // AI Manager storage — see manager/types.ts for the port definitions.
+  conversations: ConversationsRepository;
+  instructions: InstructionsRepository;
+  managerActions: ManagerActionsRepository;
+  reports: ReportsRepository;
+  scheduledTasks: ScheduledTasksRepository;
 }

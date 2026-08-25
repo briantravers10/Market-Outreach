@@ -40,8 +40,22 @@ export interface LinkInBioProvider {
 }
 
 /** Classifies an already-fetched set of links. Shared by mock and future real providers. */
-export function buildProfile(sourceUrl: string, host: string, raw: RawBioLink[]): LinkInBioProfile {
-  const links = raw.map((l) => classifyLink(l.url, l.label));
+export function buildProfile(
+  sourceUrl: string,
+  host: string,
+  raw: RawBioLink[],
+  /**
+   * Optional reachability verdict per link. A real implementation would supply
+   * this from an actual HEAD request; the mock supplies a deterministic one.
+   * Omitted entirely, every link stays `reachable: null` — "not checked" —
+   * rather than being optimistically assumed live.
+   */
+  checkReachable?: (link: RawBioLink) => boolean | null
+): LinkInBioProfile {
+  const links = raw.map((l) => {
+    const classified = classifyLink(l.url, l.label);
+    return checkReachable ? { ...classified, reachable: checkReachable(l) } : classified;
+  });
   return { sourceUrl, host, links, analysis: analyzeLinks(links) };
 }
 
@@ -108,7 +122,18 @@ export class MockLinkInBioProvider implements LinkInBioProvider {
     const seen = new Set<string>();
     const unique = raw.filter((l) => (seen.has(l.url) ? false : (seen.add(l.url), true)));
 
-    return buildProfile(url, host, unique);
+    // Roughly one booking link in eight is dead. This is not decoration: a
+    // business that put a booking link in its bio has already decided it wants
+    // online booking, and a broken one means it is losing every customer who
+    // taps it — the strongest pitch in the whole dataset. Non-booking links are
+    // left unchecked (null) because nothing in the pipeline acts on them.
+    const reachability = (link: RawBioLink): boolean | null => {
+      const classified = classifyLink(link.url, link.label);
+      if (classified.purpose !== "booking") return null;
+      return !chance(makeSeededRandom(`${url}|${link.url}|reachable`), 0.125);
+    };
+
+    return buildProfile(url, host, unique, reachability);
   }
 }
 
