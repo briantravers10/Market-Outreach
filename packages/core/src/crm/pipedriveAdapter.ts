@@ -217,7 +217,13 @@ export function describePipedriveMode(
   env: NodeJS.ProcessEnv = process.env,
   config: PipedriveConfig = getPipedriveConfig()
 ): PipedriveMode {
-  if (env.DEMO_READ_ONLY === "1") {
+  // A database attached means this is somebody's real deployment, whatever
+  // DEMO_READ_ONLY happens to say — the flag is pinned in vercel.json and would
+  // otherwise have this panel announce "public read-only demo" on a private
+  // instance holding real contact details. Live sync is not loosened by this:
+  // it still needs a token AND the explicit live-sync switch below.
+  const isPublicDemo = env.DEMO_READ_ONLY === "1" && !env.DATABASE_URL?.trim();
+  if (isPublicDemo) {
     return {
       live: false,
       reason: "demo-read-only",

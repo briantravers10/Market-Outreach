@@ -14,10 +14,26 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <>
+      {/*
+        This banner has one job: make sure nobody mistakes what they are looking
+        at. It used to say the data was synthetic, which stopped being true the
+        moment the Overture import ran — and a page showing a real person's
+        mobile number under a banner calling it test data is worse than no
+        banner at all. So it now reads the deployment's actual state rather
+        than asserting a phase.
+      */}
       <div className="safety-banner">
-        <strong>Skeleton phase</strong> — every business, contact, and piece of research here is synthetic test
-        data. No live discovery, no scraping, and no outreach of any kind.
-        {isDemoMode && " Public read-only demo: controls are disabled and the snapshot never changes."}
+        {isDemoMode ? (
+          <>
+            <strong>Public demo</strong> — every business here is invented, and the snapshot never changes.
+            Controls are disabled.
+          </>
+        ) : (
+          <>
+            <strong>Research only</strong> — these are real businesses and real contact details, from published
+            open data. Nothing here contacts anyone: outreach is disabled in code, not by policy.
+          </>
+        )}
         {!authConfig.enabled && " No login is configured on this deployment."}
       </div>
       <div className="layout">
