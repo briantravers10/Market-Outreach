@@ -1,13 +1,7 @@
 import Link from "next/link";
-import {
-  buildCampaignProgress,
-  buildOverallSummary,
-  buildProgressByCity,
-  buildProgressByIndustry,
-  getIndustries,
-  summarizeAllAgents,
-} from "@market-outreach/core";
+import { getIndustries, summarizeAllAgents } from "@market-outreach/core";
 import { getRepos } from "../../../lib/data";
+import { bucketsFor, leadCountsByCampaign } from "../../../lib/leadStats";
 import { KpiTile } from "../../../components/KpiTile";
 import { AgentStatusBadge } from "../../../components/AgentStatusBadge";
 import { LiveRefresh } from "../../../components/LiveRefresh";
@@ -16,14 +10,27 @@ export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
   const repos = getRepos();
-  const leads = await repos.leads.list();
   const jobs = await repos.jobs.list();
   const campaigns = await repos.campaigns.list();
-
-  const summary = buildOverallSummary(leads, jobs);
-  const byCity = buildProgressByCity(leads);
-  const byIndustry = buildProgressByIndustry(leads);
   const industryLabels = new Map(getIndustries().map((i) => [i.id, i.label]));
+
+  // Aggregates, not rows. This page polls itself every few seconds, and at
+  // seventy-seven thousand leads pulling the table each time is what emptied
+  // the connection pool.
+  const stats = await repos.leads.summaryStats();
+  const byCity = await bucketsFor(repos.leads, "city", { limit: 12 });
+  const byIndustry = await bucketsFor(repos.leads, "industry", { labels: industryLabels });
+  const campaignLeads = await leadCountsByCampaign(repos.leads);
+
+  const summary = {
+    businessesDiscovered: stats.total,
+    businessesResearched: stats.researched,
+    highPriorityLeads: stats.highPriority,
+    averageProspectScore: stats.averageScore,
+    jobsPending: jobs.filter((j) => j.status === "pending").length,
+    jobsFailedOrRetry: jobs.filter((j) => j.status === "failed" || j.status === "retry").length,
+    jobsHumanReview: jobs.filter((j) => j.status === "human_review").length,
+  };
   const agents = await summarizeAllAgents(repos.agentActivity, repos.humanReview);
   const activeCampaigns = campaigns.filter((c) => c.status === "running");
 
@@ -32,13 +39,13 @@ export default async function OverviewPage() {
       <LiveRefresh />
       <div className="page-header">
         <h1>Overview</h1>
-        <p>Fake-data snapshot across all campaigns, cities, and industries.</p>
+        <p>Every business found so far, across all campaigns, cities and industries.</p>
       </div>
 
       <div className="kpi-grid">
         <KpiTile label="Businesses Discovered" value={summary.businessesDiscovered} />
         <KpiTile label="Businesses Researched" value={summary.businessesResearched} />
-        <KpiTile label="Leads Scored" value={leads.filter((l) => l.prospectScore !== null).length} />
+        <KpiTile label="Leads Scored" value={stats.scored} />
         <KpiTile label="High-Priority Leads" value={summary.highPriorityLeads} />
         <KpiTile label="Avg Prospect Score" value={summary.averageProspectScore ?? "—"} />
         <KpiTile label="Active Campaigns" value={activeCampaigns.length} />
@@ -54,7 +61,13 @@ export default async function OverviewPage() {
             <p className="empty-state">No campaigns running right now. Assign one from Campaigns.</p>
           ) : (
             activeCampaigns.map((c) => {
-              const progress = buildCampaignProgress(c, jobs, leads);
+              const campaignJobs = jobs.filter((j) => j.campaignId === c.id);
+              const completeJobs = campaignJobs.filter((j) => j.status === "complete").length;
+              const progress = {
+                leadsDiscovered: campaignLeads.total.get(c.id) ?? 0,
+                leadsQualified: campaignLeads.qualified.get(c.id) ?? 0,
+                completionPct: campaignJobs.length === 0 ? 0 : Math.round((completeJobs / campaignJobs.length) * 100),
+              };
               return (
                 <div key={c.id} style={{ marginBottom: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>

@@ -298,10 +298,14 @@ const listLeads: ManagerTool = {
   describe: () => "Pull the top leads from the database.",
   async run(params, ctx) {
     const limit = Math.min(25, Math.max(1, num(params.limit, 5)));
+    // Ranked and bounded in SQL. The tool shows at most 25; pulling the whole
+    // table to sort it in memory was fine on mock data and is not on real data.
     const all = await ctx.repos.leads.list({
       city: str(params.city) || undefined,
       industry: str(params.industry) || undefined,
       minScore: params.minScore === undefined ? undefined : num(params.minScore, 0),
+      orderBy: "score",
+      limit: 500,
     });
 
     const explicitPeriod = str(params.period) ? parsePeriod(str(params.period), ctx.now()) : null;
@@ -343,7 +347,11 @@ const explainLead: ManagerTool = {
     const query = raw.toLowerCase();
     if (!query) return { speech: "Which business did you mean?" };
 
-    const all = await ctx.repos.leads.list();
+    // Ask the database for candidates by name rather than scanning every lead.
+    // The sentence case below still needs a pool to match against, so a bounded
+    // top-scoring set backs it up.
+    const byName = await ctx.repos.leads.list({ nameContains: query, orderBy: "score", limit: 200 });
+    const all = byName.length ? byName : await ctx.repos.leads.list({ orderBy: "score", limit: 500 });
     const lead =
       all.find((l) => l.id === raw) ??
       all.find((l) => l.businessName.toLowerCase() === query) ??

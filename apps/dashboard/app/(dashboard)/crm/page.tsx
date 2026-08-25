@@ -11,10 +11,12 @@ export default async function CrmPage() {
 
   // Preview against a real lead — the best-scoring one, since that's the case
   // that produces every object type (organization + person + deal).
-  const leads = await repos.leads.list({});
+  // The best-scoring lead, asked for as such. This used to pull every lead and
+  // sort in memory, which was harmless at a thousand rows and is not at
+  // seventy-seven thousand.
   const sample =
-    leads.filter((l) => l.qualificationStatus === "HIGH_PRIORITY").sort((a, b) => (b.prospectScore ?? 0) - (a.prospectScore ?? 0))[0] ??
-    leads[0];
+    (await repos.leads.list({ qualificationStatus: "HIGH_PRIORITY", orderBy: "score", limit: 1 }))[0] ??
+    (await repos.leads.list({ orderBy: "score", limit: 1 }))[0];
   const handoff = sample ? getCrmHandoff(sample) : null;
 
   const mappedCount = config.organization.customFields.filter((f) => f.customFieldKey).length;

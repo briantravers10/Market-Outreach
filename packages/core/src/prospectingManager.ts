@@ -318,7 +318,9 @@ export class ProspectingManager {
       });
 
       let leadsCreated = 0;
-      const existingLeadsInCity = await this.deps.repos.leads.list({ city: job.city });
+      // Bounded: a real city holds thousands of leads, and the duplicate check
+      // only ever compares against recent ones from the same city.
+      const existingLeadsInCity = await this.deps.repos.leads.list({ city: job.city, limit: 2000 });
 
       // Loaded once per job rather than per lead: they cannot change mid-batch,
       // and against Postgres a per-lead read would be a round-trip each time.

@@ -11,6 +11,7 @@ import {
   type PipelineStageName,
 } from "@market-outreach/core";
 import { getRepos } from "../../../lib/data";
+import { breakdownFor, leadCountsByCampaign, stageCounts } from "../../../lib/leadStats";
 import { StatusBadge } from "../../../components/Badges";
 import { KpiTile } from "../../../components/KpiTile";
 import { BreakdownBars } from "../../../components/BreakdownBars";
@@ -32,26 +33,50 @@ export default async function AnalyticsPage() {
 
   const campaigns = await repos.campaigns.list();
   const jobs = await repos.jobs.list();
-  const leads = await repos.leads.list();
   const activity = await repos.agentActivity.list({ limit: 5000 });
   const outreachAttempts = await repos.outreach.list();
 
-  const summary = buildOverallSummary(leads, jobs);
+  // Every distribution on this page is a GROUP BY. It used to be a full table
+  // scan in JavaScript, which stopped being viable at seventy-seven thousand
+  // leads.
+  const stats = await repos.leads.summaryStats();
+  const qualificationRows = await repos.leads.groupCount("qualification_status");
+  const byStatus = new Map(qualificationRows.map((row) => [row.value ?? "", row.count]));
   const qualificationCounts = {
-    UNQUALIFIED: leads.filter((l) => l.qualificationStatus === "UNQUALIFIED").length,
-    QUALIFIED: leads.filter((l) => l.qualificationStatus === "QUALIFIED").length,
-    HIGH_PRIORITY: leads.filter((l) => l.qualificationStatus === "HIGH_PRIORITY").length,
-    DISQUALIFIED: leads.filter((l) => l.qualificationStatus === "DISQUALIFIED").length,
+    UNQUALIFIED: byStatus.get("UNQUALIFIED") ?? 0,
+    QUALIFIED: byStatus.get("QUALIFIED") ?? 0,
+    HIGH_PRIORITY: byStatus.get("HIGH_PRIORITY") ?? 0,
+    DISQUALIFIED: byStatus.get("DISQUALIFIED") ?? 0,
   };
-  const count80Plus = leads.filter((l) => (l.prospectScore ?? 0) >= 80).length;
-  const count90Plus = leads.filter((l) => (l.prospectScore ?? 0) >= 90).length;
+  const count80Plus = await repos.leads.count({ minScore: 80 });
+  const count90Plus = await repos.leads.count({ minScore: 90 });
   const failedJobs = jobs.filter((j) => j.status === "failed");
 
-  const websiteBreakdown = buildWebsiteStatusBreakdown(leads);
-  const bookingBreakdown = buildBookingStatusBreakdown(leads);
-  const providerBreakdown = buildBookingProviderBreakdown(leads);
-  const confidenceBreakdown = buildConfidenceBreakdown(leads);
+  const summary = {
+    businessesDiscovered: stats.total,
+    businessesResearched: stats.researched,
+    qualifiedLeads: stats.qualified,
+    highPriorityLeads: stats.highPriority,
+    averageProspectScore: stats.averageScore,
+    jobsPending: jobs.filter((j) => j.status === "pending").length,
+    jobsRunning: jobs.filter((j) => j.status === "running").length,
+    jobsFailedOrRetry: jobs.filter((j) => j.status === "failed" || j.status === "retry").length,
+    jobsHumanReview: jobs.filter((j) => j.status === "human_review").length,
+  };
+
+  const websiteBreakdown = await breakdownFor(repos.leads, "website_status");
+  const bookingBreakdown = await breakdownFor(repos.leads, "online_booking_status");
+  const providerBreakdown = await breakdownFor(repos.leads, "booking_provider", { skipNull: true, limit: 12 });
+  const confidenceBreakdown = await breakdownFor(repos.leads, "data_confidence");
   const throughput = buildAgentThroughput(activity);
+  const industryBreakdown = (await breakdownFor(repos.leads, "industry")).map((row) => ({
+    ...row,
+    key: industryLabels.get(row.key) ?? row.key,
+  }));
+  // Florida alone has 714 towns; the chart shows the ones that matter.
+  const cityBreakdown = await breakdownFor(repos.leads, "city", { limit: 15 });
+  const stageTotals = await stageCounts(repos.leads);
+  const campaignLeads = await leadCountsByCampaign(repos.leads);
 
   return (
     <div>
@@ -72,22 +97,11 @@ export default async function AnalyticsPage() {
       <div className="grid-2">
         <div className="panel">
           <h2>Lead Distribution by Industry</h2>
-          <BreakdownBars items={Object.entries(
-            leads.reduce<Record<string, number>>((acc, l) => {
-              const label = industryLabels.get(l.industry) ?? l.industry;
-              acc[label] = (acc[label] ?? 0) + 1;
-              return acc;
-            }, {})
-          ).map(([key, count]) => ({ key, count, pct: 0 })).sort((a, b) => b.count - a.count)} />
+          <BreakdownBars items={industryBreakdown} />
         </div>
         <div className="panel">
           <h2>Lead Distribution by City</h2>
-          <BreakdownBars items={Object.entries(
-            leads.reduce<Record<string, number>>((acc, l) => {
-              acc[l.city] = (acc[l.city] ?? 0) + 1;
-              return acc;
-            }, {})
-          ).map(([key, count]) => ({ key, count, pct: 0 })).sort((a, b) => b.count - a.count)} />
+          <BreakdownBars items={cityBreakdown} />
         </div>
       </div>
 
@@ -137,7 +151,7 @@ export default async function AnalyticsPage() {
               {STAGES.map((s) => (
                 <tr key={s.key}>
                   <td>{s.label}</td>
-                  <td>{leads.filter((l) => l.stagesCompleted.includes(s.key)).length}/{leads.length}</td>
+                  <td>{(stageTotals.get(s.key) ?? 0).toLocaleString()}/{stats.total.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -179,7 +193,16 @@ export default async function AnalyticsPage() {
           </thead>
           <tbody>
             {campaigns.map((c) => {
-              const progress = buildCampaignProgress(c, jobs, leads);
+              const campaignJobs = jobs.filter((j) => j.campaignId === c.id);
+              const completeJobs = campaignJobs.filter((j) => j.status === "complete").length;
+              const progress = {
+                totalJobs: campaignJobs.length,
+                completeJobs,
+                failedJobs: campaignJobs.filter((j) => j.status === "failed" || j.status === "retry").length,
+                leadsDiscovered: campaignLeads.total.get(c.id) ?? 0,
+                leadsQualified: campaignLeads.qualified.get(c.id) ?? 0,
+                completionPct: campaignJobs.length === 0 ? 0 : Math.round((completeJobs / campaignJobs.length) * 100),
+              };
               return (
                 <tr key={c.id}>
                   <td>{c.city} — {industryLabels.get(c.industry) ?? c.industry}</td>

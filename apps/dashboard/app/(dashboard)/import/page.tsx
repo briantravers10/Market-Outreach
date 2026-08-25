@@ -14,9 +14,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function ImportPage() {
   const repos = getRepos();
-  const florida = await repos.leads.list({ state: "FL", limit: 1_000_000 });
-  const noWebsite = florida.filter((lead) => lead.websiteStatus === "NONE").length;
-  const withPhone = florida.filter((lead) => lead.phone).length;
+  // Counted in SQL. Loading seventy-seven thousand leads to display three
+  // numbers is how this page used to work, and it was slow enough to matter.
+  const stats = await repos.leads.summaryStats({ state: "FL" });
 
   return (
     <div>
@@ -44,15 +44,15 @@ export default async function ImportPage() {
         <div className="kpi-grid">
           <div className="kpi-tile">
             <span className="label">Florida businesses</span>
-            <span className="value">{florida.length.toLocaleString()}</span>
+            <span className="value">{stats.total.toLocaleString()}</span>
           </div>
           <div className="kpi-tile">
             <span className="label">No website at all</span>
-            <span className="value">{noWebsite.toLocaleString()}</span>
+            <span className="value">{stats.noWebsite.toLocaleString()}</span>
           </div>
           <div className="kpi-tile">
             <span className="label">With a phone number</span>
-            <span className="value">{withPhone.toLocaleString()}</span>
+            <span className="value">{stats.withPhone.toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -66,7 +66,7 @@ export default async function ImportPage() {
           &ldquo;not checked&rdquo; and scores nothing either way.
         </p>
         <p className="muted">
-          What you can act on today is the <strong>no website</strong> cohort: {noWebsite.toLocaleString()} Florida
+          What you can act on today is the <strong>no website</strong> cohort: {stats.noWebsite.toLocaleString()} Florida
           businesses with no website at all, almost all with a phone number. Sort the Leads page by score and
           they are at the top.
         </p>

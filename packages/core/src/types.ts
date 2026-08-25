@@ -422,6 +422,18 @@ export interface LeadsRepository {
   upsertManyByExternalId(leads: Lead[]): Promise<number>;
   /** Row count matching a filter, without hydrating the rows. */
   count(filter?: LeadFilter): Promise<number>;
+  /**
+   * Counts grouped by one column, computed in SQL.
+   *
+   * Exists because the dashboards were reducing the entire leads table in
+   * JavaScript to render a handful of tiles. That is fine at a thousand rows
+   * and fatal at seventy-seven thousand: several pages poll every few seconds,
+   * and each poll was pulling the whole table across a connection pooler until
+   * the pool ran out. A GROUP BY returns a dozen rows instead.
+   */
+  groupCount(column: LeadGroupColumn, filter?: LeadFilter): Promise<LeadGroupCount[]>;
+  /** Headline aggregates for the Overview and Analytics pages, in one round trip. */
+  summaryStats(filter?: LeadFilter): Promise<LeadSummaryStats>;
   getById(id: string): Promise<Lead | null>;
   list(filter?: LeadFilter): Promise<Lead[]>;
   findPossibleDuplicates(lead: Pick<Lead, "businessName" | "address" | "phone" | "city">): Promise<Lead[]>;
@@ -458,6 +470,57 @@ export interface LeadFilter {
   orderBy?: "score" | "discovered" | "name";
   /** Only leads that have a website nobody has read yet — the work queue for the Website Analyst. */
   awaitingWebsiteCheck?: boolean;
+  /** ISO timestamps bounding when the lead was discovered. A report over "yesterday" must not read the whole table to find yesterday. */
+  discoveredSince?: string;
+  discoveredBefore?: string;
+  /** Case-insensitive substring of the business name, matched in SQL rather than by scanning every lead. */
+  nameContains?: string;
+  /** true for leads folded into another, false for leads standing on their own. Reporting counts them separately. */
+  isDuplicate?: boolean;
+  /**
+   * Only leads that have completed a given pipeline stage.
+   *
+   * Matched with LIKE against the stored JSON array rather than by parsing it.
+   * The stage names are distinct enough that a quoted substring cannot collide,
+   * and it keeps the check in the database where the counting happens.
+   */
+  hasStage?: PipelineStageName;
+}
+
+/** Columns the dashboard groups by. A closed list because it is interpolated into SQL. */
+export type LeadGroupColumn =
+  | "city"
+  | "state"
+  | "industry"
+  | "campaign_id"
+  | "website_status"
+  | "website_quality"
+  | "online_booking_status"
+  | "booking_provider"
+  | "booking_method"
+  | "data_confidence"
+  | "qualification_status"
+  | "research_status"
+  // The raw JSON array. Only a handful of distinct values exist, so grouping on
+  // it answers "how many reached each stage" in one pass instead of one
+  // unindexable LIKE scan per stage.
+  | "stages_completed";
+
+export interface LeadGroupCount {
+  value: string | null;
+  count: number;
+}
+
+export interface LeadSummaryStats {
+  total: number;
+  scored: number;
+  researched: number;
+  qualified: number;
+  highPriority: number;
+  noWebsite: number;
+  withPhone: number;
+  bookingUnchecked: number;
+  averageScore: number | null;
 }
 
 export interface JobsRepository {

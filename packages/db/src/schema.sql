@@ -96,6 +96,8 @@ CREATE INDEX IF NOT EXISTS idx_leads_qualification ON leads(qualification_status
 CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_external_id ON leads(external_id) WHERE external_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_leads_state ON leads(state);
 CREATE INDEX IF NOT EXISTS idx_leads_zip ON leads(zip);
+-- Reports are always scoped to a period, so every one of them filters on this.
+CREATE INDEX IF NOT EXISTS idx_leads_discovered ON leads(date_discovered);
 -- The Website Analyst's work queue: sites nobody has read, best prospects first.
 CREATE INDEX IF NOT EXISTS idx_leads_awaiting_check ON leads(website_checked_at, prospect_score);
 

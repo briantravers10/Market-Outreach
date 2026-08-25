@@ -30,7 +30,17 @@ export default async function CampaignsPage({
 
   const campaigns = await repos.campaigns.list();
   const allJobs = await repos.jobs.list();
-  const allLeads = await repos.leads.list();
+  // Lead counts per campaign, computed in SQL. Pulling every lead to count
+  // them per campaign is what exhausted the connection pool when this page
+  // started polling against a real dataset.
+  const leadCounts = new Map(
+    (await repos.leads.groupCount("campaign_id")).map((row) => [row.value ?? "", row.count])
+  );
+  const qualifiedCounts = new Map(
+    (await repos.leads.groupCount("campaign_id", { qualificationStatus: "QUALIFIED" })).map(
+      (row) => [row.value ?? "", row.count]
+    )
+  );
 
   return (
     <div>
@@ -113,7 +123,18 @@ export default async function CampaignsPage({
           </thead>
           <tbody>
             {campaigns.map((c) => {
-              const progress = buildCampaignProgress(c, allJobs, allLeads);
+              const campaignJobs = allJobs.filter((j) => j.campaignId === c.id);
+              const completeJobs = campaignJobs.filter((j) => j.status === "complete").length;
+              const progress = {
+                totalJobs: campaignJobs.length,
+                pendingJobs: campaignJobs.filter((j) => j.status === "pending").length,
+                runningJobs: campaignJobs.filter((j) => j.status === "running").length,
+                completeJobs,
+                failedJobs: campaignJobs.filter((j) => j.status === "failed" || j.status === "retry").length,
+                leadsDiscovered: leadCounts.get(c.id) ?? 0,
+                leadsQualified: qualifiedCounts.get(c.id) ?? 0,
+                completionPct: campaignJobs.length === 0 ? 0 : Math.round((completeJobs / campaignJobs.length) * 100),
+              };
               return (
                 <tr key={c.id}>
                   <td>

@@ -1,5 +1,12 @@
 import type { SqlClient } from "../sqlClient";
-import type { Lead, LeadFilter, LeadsRepository } from "@market-outreach/core";
+import type {
+  Lead,
+  LeadFilter,
+  LeadGroupColumn,
+  LeadGroupCount,
+  LeadSummaryStats,
+  LeadsRepository,
+} from "@market-outreach/core";
 
 interface LeadRow {
   id: string;
@@ -206,6 +213,25 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
   if (filter.researchStatus) { clauses.push("research_status = @researchStatus"); params.researchStatus = filter.researchStatus; }
   if (filter.qualificationStatus) { clauses.push("qualification_status = @qualificationStatus"); params.qualificationStatus = filter.qualificationStatus; }
   if (filter.campaignId) { clauses.push("campaign_id = @campaignId"); params.campaignId = filter.campaignId; }
+  if (filter.discoveredSince) {
+    clauses.push("date_discovered >= @discoveredSince");
+    params.discoveredSince = filter.discoveredSince;
+  }
+  if (filter.discoveredBefore) {
+    clauses.push("date_discovered < @discoveredBefore");
+    params.discoveredBefore = filter.discoveredBefore;
+  }
+  if (filter.nameContains) {
+    clauses.push("LOWER(business_name) LIKE @nameContains");
+    params.nameContains = `%${filter.nameContains.toLowerCase()}%`;
+  }
+  if (filter.isDuplicate !== undefined) {
+    clauses.push(filter.isDuplicate ? "is_duplicate_of IS NOT NULL" : "is_duplicate_of IS NULL");
+  }
+  if (filter.hasStage) {
+    clauses.push("stages_completed LIKE @stagePattern");
+    params.stagePattern = `%"${filter.hasStage}"%`;
+  }
   if (filter.awaitingWebsiteCheck) {
     clauses.push("website IS NOT NULL AND website_checked_at IS NULL AND online_booking_status = 'UNKNOWN'");
   }
@@ -353,6 +379,80 @@ export class SqliteLeadsRepository implements LeadsRepository {
       .prepare(`SELECT COUNT(*) AS n FROM leads ${where}`)
       .get(params)) as { n: number | string } | undefined;
     return Number(row?.n ?? 0);
+  }
+
+
+  /**
+   * The set of columns this will group by, as a lookup rather than a check.
+   *
+   * The column name is interpolated into the statement — it cannot be bound as
+   * a parameter — so it must never come from a caller unchecked. Matching
+   * against a fixed map means an unexpected value throws instead of reaching
+   * SQL.
+   */
+  private static readonly GROUPABLE: Record<LeadGroupColumn, string> = {
+    city: "city",
+    state: "state",
+    industry: "industry",
+    campaign_id: "campaign_id",
+    website_status: "website_status",
+    website_quality: "website_quality",
+    online_booking_status: "online_booking_status",
+    booking_provider: "booking_provider",
+    booking_method: "booking_method",
+    data_confidence: "data_confidence",
+    qualification_status: "qualification_status",
+    research_status: "research_status",
+    stages_completed: "stages_completed",
+  };
+
+  async groupCount(column: LeadGroupColumn, filter: LeadFilter = {}): Promise<LeadGroupCount[]> {
+    const safeColumn = SqliteLeadsRepository.GROUPABLE[column];
+    if (!safeColumn) throw new Error(`Not a groupable column: ${column}`);
+    const { where, params } = buildWhere(filter);
+    const rows = (await this.db
+      .prepare(
+        `SELECT ${safeColumn} AS value, COUNT(*) AS n FROM leads ${where}
+         GROUP BY ${safeColumn} ORDER BY n DESC`
+      )
+      .all(params)) as { value: string | null; n: number | string }[];
+    return rows.map((row) => ({ value: row.value, count: Number(row.n) }));
+  }
+
+  async summaryStats(filter: LeadFilter = {}): Promise<LeadSummaryStats> {
+    const { where, params } = buildWhere(filter);
+    // One round trip rather than nine. COUNT(expr) counts non-null results, so
+    // a CASE returning NULL is how each conditional count is expressed in a
+    // form both SQLite and Postgres accept — FILTER is Postgres-only.
+    const row = (await this.db
+      .prepare(
+        `SELECT
+           COUNT(*) AS total,
+           COUNT(prospect_score) AS scored,
+           COUNT(CASE WHEN research_status IN ('ANALYZED','SCORED','COMPLETE') THEN 1 END) AS researched,
+           COUNT(CASE WHEN qualification_status IN ('QUALIFIED','HIGH_PRIORITY') THEN 1 END) AS qualified,
+           COUNT(CASE WHEN qualification_status = 'HIGH_PRIORITY' THEN 1 END) AS high_priority,
+           COUNT(CASE WHEN website_status = 'NONE' THEN 1 END) AS no_website,
+           COUNT(phone) AS with_phone,
+           COUNT(CASE WHEN online_booking_status = 'UNKNOWN' THEN 1 END) AS booking_unchecked,
+           AVG(prospect_score) AS average_score
+         FROM leads ${where}`
+      )
+      .get(params)) as Record<string, number | string | null> | undefined;
+
+    const num = (key: string) => Number(row?.[key] ?? 0);
+    const average = row?.average_score;
+    return {
+      total: num("total"),
+      scored: num("scored"),
+      researched: num("researched"),
+      qualified: num("qualified"),
+      highPriority: num("high_priority"),
+      noWebsite: num("no_website"),
+      withPhone: num("with_phone"),
+      bookingUnchecked: num("booking_unchecked"),
+      averageScore: average === null || average === undefined ? null : Math.round(Number(average)),
+    };
   }
 
   async getById(id: string): Promise<Lead | null> {

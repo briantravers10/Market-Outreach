@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Lead, Repositories } from "../types";
+import type { LeadFilter, Repositories } from "../types";
 import type { Period } from "./periods";
 import { previousPeriodOf, withinPeriod } from "./periods";
 import type { PeriodComparison, Report, ReportMetrics, ReportType } from "./types";
@@ -21,28 +21,24 @@ import type { PeriodComparison, Report, ReportMetrics, ReportType } from "./type
 // Metrics
 // ---------------------------------------------------------------------------
 
-/** Leads whose discovery timestamp falls in the period. */
-function leadsIn(leads: Lead[], period: Period): Lead[] {
-  return leads.filter((l) => withinPeriod(l.dateDiscovered, period));
-}
-
-function averageScore(leads: Lead[]): number | null {
-  const scored = leads.filter((l) => l.prospectScore !== null);
-  if (scored.length === 0) return null;
-  const total = scored.reduce((sum, l) => sum + (l.prospectScore ?? 0), 0);
-  return Math.round((total / scored.length) * 10) / 10;
-}
-
-function comparisonFor(leads: Lead[], period: Period): PeriodComparison {
-  const inPeriod = leadsIn(leads, period);
+async function comparisonFor(repos: Repositories, period: Period): Promise<PeriodComparison> {
+  // Counted with its own query rather than by filtering the current period's
+  // rows. Once the fetch was bounded to the period being reported on, the old
+  // approach could only ever have found nothing in the period before it.
+  const stats = await repos.leads.summaryStats(periodFilter(period));
   return {
     periodStart: period.start,
     periodEnd: period.end,
-    businessesDiscovered: inPeriod.length,
-    qualifiedLeads: inPeriod.filter((l) => l.qualificationStatus === "QUALIFIED" || l.qualificationStatus === "HIGH_PRIORITY").length,
-    highPriorityLeads: inPeriod.filter((l) => l.qualificationStatus === "HIGH_PRIORITY").length,
-    averageScore: averageScore(inPeriod),
+    businessesDiscovered: stats.total,
+    qualifiedLeads: stats.qualified,
+    highPriorityLeads: stats.highPriority,
+    averageScore: stats.averageScore,
   };
+}
+
+/** The period expressed as a lead filter, so counting and listing agree on its bounds. */
+function periodFilter(period: Period): LeadFilter {
+  return { discoveredSince: period.start, discoveredBefore: period.end };
 }
 
 /**
@@ -56,15 +52,24 @@ export async function computeMetrics(
   period: Period,
   opts: { includeComparison?: boolean } = {}
 ): Promise<ReportMetrics> {
-  const [leads, jobs, activity, humanReview, instructions] = await Promise.all([
-    repos.leads.list(),
-    repos.jobs.list(),
-    repos.agentActivity.list({ limit: 5000 }),
-    repos.humanReview.list({ status: "open" }),
-    repos.instructions.list({ since: period.start, limit: 500 }),
-  ]);
+  const scope = periodFilter(period);
+  const [stats, analyzed, rejected, duplicates, topCandidates, jobs, activity, humanReview, instructions] =
+    await Promise.all([
+      // Counts, not rows. Everything below except the top-five list is an
+      // aggregate, and hydrating tens of thousands of leads to reduce them in
+      // JavaScript is what made this page slow enough to time out.
+      repos.leads.summaryStats(scope),
+      repos.leads.count({ ...scope, hasStage: "website_analysis" }),
+      repos.leads.count({ ...scope, qualificationStatus: "DISQUALIFIED", isDuplicate: false }),
+      repos.leads.count({ ...scope, isDuplicate: true }),
+      // A few more than five, because disqualified ones are dropped below.
+      repos.leads.list({ ...scope, orderBy: "score", limit: 20 }),
+      repos.jobs.list(),
+      repos.agentActivity.list({ limit: 5000 }),
+      repos.humanReview.list({ status: "open" }),
+      repos.instructions.list({ since: period.start, limit: 500 }),
+    ]);
 
-  const periodLeads = leadsIn(leads, period);
   const periodActivity = activity.filter((a) => withinPeriod(a.createdAt, period));
   // Jobs are counted by when they last changed state, which is the only
   // timestamp that tracks completion — created_at would count work that was
@@ -80,28 +85,28 @@ export async function computeMetrics(
     }))
     .sort((a, b) => b.actions - a.actions);
 
-  const topLeads = [...periodLeads]
+  const topLeads = topCandidates
     .filter((l) => l.prospectScore !== null && l.qualificationStatus !== "DISQUALIFIED")
-    .sort((a, b) => (b.prospectScore ?? 0) - (a.prospectScore ?? 0))
     .slice(0, 5)
     .map((l) => ({ id: l.id, businessName: l.businessName, city: l.city, score: l.prospectScore }));
 
   return {
-    businessesDiscovered: periodLeads.length,
-    businessesResearched: periodLeads.filter((l) => l.researchStatus === "COMPLETE" || l.researchStatus === "ANALYZED").length,
-    businessesAnalyzed: periodLeads.filter((l) => l.stagesCompleted.includes("website_analysis")).length,
-    qualifiedLeads: periodLeads.filter((l) => l.qualificationStatus === "QUALIFIED" || l.qualificationStatus === "HIGH_PRIORITY").length,
-    highPriorityLeads: periodLeads.filter((l) => l.qualificationStatus === "HIGH_PRIORITY").length,
-    rejectedLeads: periodLeads.filter((l) => l.qualificationStatus === "DISQUALIFIED" && !l.isDuplicateOf).length,
-    duplicatesRemoved: periodLeads.filter((l) => l.isDuplicateOf !== null).length,
+    businessesDiscovered: stats.total,
+    businessesResearched: stats.researched,
+    businessesAnalyzed: analyzed,
+    qualifiedLeads: stats.qualified,
+    highPriorityLeads: stats.highPriority,
+    rejectedLeads: rejected,
+    duplicatesRemoved: duplicates,
     jobsCompleted: periodJobs.filter((j) => j.status === "complete").length,
     jobsFailed: periodJobs.filter((j) => j.status === "failed" || j.status === "retry").length,
     openHumanReviewItems: humanReview.length,
-    averageScore: averageScore(periodLeads),
+    averageScore: stats.averageScore,
     topLeads,
     agentActivityCounts,
     instructionsChanged: instructions.filter((i) => withinPeriod(i.createdAt, period)).length,
-    previousPeriod: opts.includeComparison === false ? null : comparisonFor(leads, previousPeriodOf(period)),
+    previousPeriod:
+      opts.includeComparison === false ? null : await comparisonFor(repos, previousPeriodOf(period)),
   };
 }
 

@@ -11,7 +11,8 @@ export default async function HighPriorityPage({ searchParams }: { searchParams:
   const repos = getRepos();
   const industryLabels = new Map(getIndustries().map((i) => [i.id, i.label]));
 
-  const highPriority = await repos.leads.list({ minScore: 80 });
+  // Bounded: the presets filter in memory, so this is what the page can hold.
+  const highPriority = await repos.leads.list({ minScore: 80, orderBy: "score", limit: 1000 });
   const preset = findLeadPreset(params.preset);
   const leads = preset ? highPriority.filter(preset.test) : highPriority;
 
