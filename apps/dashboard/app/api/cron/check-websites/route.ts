@@ -28,8 +28,14 @@ export const maxDuration = 60;
  * How many leads to pull off the queue. Not how many get done — the deadline
  * below decides that. Pulling generously means a fast run is not artificially
  * capped, and pulling more than can be finished costs one query.
+ *
+ * Raised from 400 on evidence rather than optimism: the first healthy run did
+ * 400 sites in 19.8s of a 42s budget, averaging 49ms each. 800 should land
+ * around 40s, and if a batch turns out to be full of slow hosts the deadline
+ * stops it early and leaves the remainder queued — which is the whole reason
+ * the budget is a deadline and not a count.
  */
-const DEFAULT_BATCH = 400;
+const DEFAULT_BATCH = 800;
 
 /** Leaves the invocation room to write results and answer before its 60s limit. */
 const WORK_DEADLINE_MS = 42_000;
