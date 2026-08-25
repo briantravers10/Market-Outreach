@@ -67,6 +67,10 @@ const EVALUATORS: Record<string, FactorEvaluator> = {
       reason: `${lead.rating ?? "?"} rating across ${lead.reviewCount ?? 0} reviews — proven demand.`,
     };
   },
+  "social-presence-no-website": (lead) => ({
+    applies: lead.websiteStatus === "NONE" && Boolean(lead.instagram || lead.facebook),
+    reason: "Has a social profile but no website — the audience exists with nowhere to book.",
+  }),
   "active-social-presence": (lead) => ({
     applies: lead.socialActivity === "ACTIVE",
     reason: "Active on social media but lacking a way to convert that traffic to bookings.",
@@ -108,10 +112,16 @@ export function computeDataConfidence(
   for (const field of keyFields) {
     const leadKey = fieldToLeadKey[field];
     const value = leadKey ? leadRecord[leadKey] : undefined;
+    // "UNKNOWN" is excluded alongside "NONE" deliberately. They mean opposite
+    // things about the business and the same thing about us: we do not have a
+    // usable value. Counting UNKNOWN as resolved would let a lead nobody has
+    // researched report HIGH confidence purely because the field was populated
+    // with a placeholder.
     const isResolved =
       value !== null &&
       value !== undefined &&
       value !== "NONE" &&
+      value !== "UNKNOWN" &&
       !(typeof value === "string" && value.trim() === "");
     if (isResolved) resolved += 1;
   }

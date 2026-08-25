@@ -17,6 +17,8 @@
     "create-user": "npx tsx scripts/create-user.ts",
     "test-crm": "npx tsx scripts/test-crm.ts",
     "test-export": "npx tsx scripts/test-export.ts",
+    "test-import": "npx tsx scripts/test-import.ts",
+    "import-overture": "npx tsx scripts/import-overture.ts",
     "setup-crm": "npx tsx scripts/setup-crm.ts",
     "test-manager": "npx tsx scripts/test-manager.ts"
   },

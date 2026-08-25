@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/team", label: "Team" },
   { href: "/campaigns", label: "Campaigns" },
   { href: "/leads", label: "Leads" },
+  { href: "/import", label: "Import" },
   { href: "/analytics", label: "Analytics" },
   { href: "/settings", label: "Settings" },
 ];

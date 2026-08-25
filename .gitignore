@@ -3,9 +3,16 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 !data/demo.db
+# Compressed Overture extracts ship with the repo so the deployed app can
+# import them; the uncompressed NDJSON does not.
+data/*.ndjson
+!data/*.ndjson.gz
 .next/
 dist/
 *.log
 *.tsbuildinfo
 .env
 .env.local
+
+__pycache__/
+*.pyc

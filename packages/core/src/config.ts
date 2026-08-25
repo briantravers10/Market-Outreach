@@ -32,12 +32,27 @@ function readJson<T>(relativePath: string): T {
   return JSON.parse(fs.readFileSync(full, "utf-8")) as T;
 }
 
+/**
+ * A unit of sales territory.
+ *
+ * `city` holds the territory's name, which is not always a city: at national
+ * scale there are tens of thousands of towns and maintaining a config row per
+ * town is not a plan. A territory is therefore whatever granularity you are
+ * actually working at — usually a whole state — and `scope` says which, so the
+ * name can be read honestly. The real city and ZIP of each business live on the
+ * lead, where they came from the data rather than from a list someone typed.
+ */
 export interface Territory {
   id: string;
   city: string;
   state: string;
+  scope?: TerritoryScope;
+  /** IANA zone, e.g. "America/New_York". Needed before any call-window rules can be enforced. */
+  timezone?: string;
   active: boolean;
 }
+
+export type TerritoryScope = "city" | "metro" | "state";
 
 /**
  * How a business in this industry relates to a physical location.

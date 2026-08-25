@@ -66,6 +66,10 @@ CREATE TABLE IF NOT EXISTS leads (
   score_reason TEXT,
   data_confidence TEXT NOT NULL,
   discovery_source TEXT NOT NULL,
+  external_id TEXT,
+  source_confidence REAL,
+  latitude REAL,
+  longitude REAL,
   date_discovered TEXT NOT NULL,
   date_last_researched TEXT,
   research_status TEXT NOT NULL,
@@ -86,6 +90,11 @@ CREATE INDEX IF NOT EXISTS idx_leads_campaign ON leads(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_leads_city_industry ON leads(city, industry);
 CREATE INDEX IF NOT EXISTS idx_leads_score ON leads(prospect_score);
 CREATE INDEX IF NOT EXISTS idx_leads_qualification ON leads(qualification_status);
+-- Re-importing a source must update rather than duplicate, and that lookup runs
+-- once per row across tens of thousands of rows.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_external_id ON leads(external_id) WHERE external_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_leads_state ON leads(state);
+CREATE INDEX IF NOT EXISTS idx_leads_zip ON leads(zip);
 
 CREATE TABLE IF NOT EXISTS mock_crm_records (
   id TEXT PRIMARY KEY,

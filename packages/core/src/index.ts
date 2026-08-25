@@ -158,3 +158,6 @@ export type { LeadsCsvOptions } from "./export/leadsCsv";
 
 export { LEAD_PRESETS, findLeadPreset } from "./leadPresets";
 export type { LeadPreset } from "./leadPresets";
+
+export { observationToLead, normalizePhone, realWebsite, OVERTURE_SOURCE, OVERTURE_STAGES } from "./providers/overturePlaces";
+export type { OvertureObservation, ObservationContext } from "./providers/overturePlaces";

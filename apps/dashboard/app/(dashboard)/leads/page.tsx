@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { getIndustries, getTerritories, type LeadFilter } from "@market-outreach/core";
+import { getIndustries, type LeadFilter } from "@market-outreach/core";
 import { getRepos } from "../../../lib/data";
 import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../components/Badges";
 import { ExportCsvLink } from "../../../components/ExportCsvLink";
 
 interface LeadsSearchParams {
   q?: string;
+  state?: string;
   city?: string;
+  zip?: string;
   industry?: string;
   minScore?: string;
   websiteStatus?: string;
@@ -16,19 +18,33 @@ interface LeadsSearchParams {
   dataConfidence?: string;
   researchStatus?: string;
   qualificationStatus?: string;
+  sort?: string;
+  page?: string;
 }
 
 export const dynamic = "force-dynamic";
 
+/**
+ * A statewide import is tens of thousands of leads, so this page is paged
+ * rather than complete. 200 is a deliberate compromise: enough that scrolling
+ * beats clicking on a normal filtered view, few enough that the table stays
+ * responsive on a phone.
+ */
+const PAGE_SIZE = 200;
+
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<LeadsSearchParams> }) {
   const params = await searchParams;
   const repos = getRepos();
-  const territories = getTerritories();
   const industries = getIndustries();
   const industryLabels = new Map(industries.map((i) => [i.id, i.label]));
 
+  const page = Math.max(1, Number(params.page) || 1);
+  const sort = params.sort === "discovered" || params.sort === "name" ? params.sort : "score";
+
   const filter: LeadFilter = {
+    state: params.state?.toUpperCase() || undefined,
     city: params.city || undefined,
+    zip: params.zip || undefined,
     industry: params.industry || undefined,
     minScore: params.minScore ? Number(params.minScore) : undefined,
     websiteStatus: (params.websiteStatus as LeadFilter["websiteStatus"]) || undefined,
@@ -38,19 +54,38 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     dataConfidence: (params.dataConfidence as LeadFilter["dataConfidence"]) || undefined,
     researchStatus: (params.researchStatus as LeadFilter["researchStatus"]) || undefined,
     qualificationStatus: (params.qualificationStatus as LeadFilter["qualificationStatus"]) || undefined,
+    orderBy: sort,
   };
 
-  let leads = await repos.leads.list(filter);
+  // The name search has no SQL column behind it, so it filters what this page
+  // fetched. Asking for one row more than we show is how the pager knows there
+  // is a next page without counting the whole table.
+  let leads = await repos.leads.list({ ...filter, limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE });
+  const hasNextPage = leads.length > PAGE_SIZE;
+  leads = leads.slice(0, PAGE_SIZE);
   if (params.q) {
     const q = params.q.toLowerCase();
     leads = leads.filter((l) => l.businessName.toLowerCase().includes(q));
   }
 
+  // Paging must preserve every filter and change only the page number.
+  const pageHref = (target: number) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value && key !== "page") query.set(key, value);
+    }
+    query.set("page", String(target));
+    return `/leads?${query.toString()}`;
+  };
+
   return (
     <div>
       <div className="page-header">
         <h1>Leads</h1>
-        <p>All researched businesses across every campaign. Fake data only. Filter, then download the CSV to review in Excel or Numbers.</p>
+        <p>
+          Real businesses from the Overture Maps open dataset. Filter by state, city or ZIP, then download the
+          CSV to review in Excel or Numbers.
+        </p>
       </div>
 
       <form className="filter-bar" method="get">
@@ -59,11 +94,16 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <input type="text" name="q" placeholder="Business name…" defaultValue={params.q || ""} />
         </div>
         <div className="filter-field">
+          <label>State</label>
+          <input type="text" name="state" placeholder="FL" maxLength={2} defaultValue={params.state || ""} />
+        </div>
+        <div className="filter-field">
           <label>City</label>
-          <select name="city" defaultValue={params.city || ""}>
-            <option value="">All</option>
-            {territories.map((t) => <option key={t.id} value={t.city}>{t.city}</option>)}
-          </select>
+          <input type="text" name="city" placeholder="Miami" defaultValue={params.city || ""} />
+        </div>
+        <div className="filter-field">
+          <label>ZIP</label>
+          <input type="text" name="zip" placeholder="33139" maxLength={5} defaultValue={params.zip || ""} />
         </div>
         <div className="filter-field">
           <label>Industry</label>
@@ -88,18 +128,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <label>Booking Status</label>
           <select name="onlineBookingStatus" defaultValue={params.onlineBookingStatus || ""}>
             <option value="">All</option>
+            <option value="UNKNOWN">Not checked yet</option>
             <option value="NONE">No Online Booking</option>
             <option value="THIRD_PARTY_BOOKING_SYSTEM">Third-Party</option>
             <option value="INTEGRATED_BOOKING_SYSTEM">Integrated</option>
           </select>
-        </div>
-        <div className="filter-field">
-          <label>Booking Provider</label>
-          <input type="text" name="bookingProvider" placeholder="e.g. Vagaro" defaultValue={params.bookingProvider || ""} />
-        </div>
-        <div className="filter-field">
-          <label>Min Staff</label>
-          <input type="number" name="minStaffCount" min={0} defaultValue={params.minStaffCount || ""} />
         </div>
         <div className="filter-field">
           <label>Data Confidence</label>
@@ -108,14 +141,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             <option value="HIGH">High</option>
             <option value="MEDIUM">Medium</option>
             <option value="LOW">Low</option>
-          </select>
-        </div>
-        <div className="filter-field">
-          <label>Research Status</label>
-          <select name="researchStatus" defaultValue={params.researchStatus || ""}>
-            <option value="">All</option>
-            <option value="ANALYZED">Analyzed</option>
-            <option value="COMPLETE">Complete</option>
           </select>
         </div>
         <div className="filter-field">
@@ -128,24 +153,34 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             <option value="DISQUALIFIED">Disqualified</option>
           </select>
         </div>
+        <div className="filter-field">
+          <label>Sort By</label>
+          <select name="sort" defaultValue={sort}>
+            <option value="score">Highest score</option>
+            <option value="discovered">Most recent</option>
+            <option value="name">Business name</option>
+          </select>
+        </div>
         <button className="btn btn-secondary" type="submit">Apply Filters</button>
-        <ExportCsvLink params={{ ...params }} count={leads.length} />
+        <ExportCsvLink params={{ ...params }} />
         <Link href="/high-priority" className="btn-ghost" style={{ display: "inline-flex", alignItems: "center" }}>80+ only →</Link>
       </form>
 
       <div className="panel">
-        <h2>Leads <small>({leads.length})</small></h2>
+        <h2>
+          Leads <small>(showing {leads.length}{page > 1 || hasNextPage ? ` — page ${page}` : ""})</small>
+        </h2>
         <table>
           <thead>
             <tr>
               <th>Business</th>
               <th>City</th>
+              <th>ZIP</th>
               <th>Industry</th>
               <th>Score</th>
               <th>Confidence</th>
               <th>Website</th>
               <th>Booking</th>
-              <th>Stages</th>
               <th>Qualification</th>
             </tr>
           </thead>
@@ -154,12 +189,16 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               <tr key={lead.id}>
                 <td><Link href={`/leads/${lead.id}`}>{lead.businessName}</Link></td>
                 <td>{lead.city}</td>
+                <td className="muted">{lead.zip}</td>
                 <td>{industryLabels.get(lead.industry) ?? lead.industry}</td>
                 <td><ScorePill score={lead.prospectScore} /></td>
                 <td><ConfidenceBadge level={lead.dataConfidence} /></td>
-                <td className="muted">{lead.websiteStatus === "NONE" ? "No website" : lead.websiteQuality}</td>
-                <td className="muted">{lead.bookingMethod.replace(/_/g, " ")}</td>
-                <td className="muted">{lead.stagesCompleted.length}/5</td>
+                <td className="muted">{lead.websiteStatus === "NONE" ? "No website" : "Has website"}</td>
+                <td className="muted">
+                  {lead.onlineBookingStatus === "UNKNOWN"
+                    ? "Not checked"
+                    : lead.bookingMethod.replace(/_/g, " ").toLowerCase()}
+                </td>
                 <td><QualificationBadge status={lead.qualificationStatus} /></td>
               </tr>
             ))}
@@ -168,6 +207,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             )}
           </tbody>
         </table>
+
+        {(page > 1 || hasNextPage) && (
+          <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem", alignItems: "center" }}>
+            {page > 1 && <Link className="btn btn-secondary" href={pageHref(page - 1)}>← Previous</Link>}
+            {hasNextPage && <Link className="btn btn-secondary" href={pageHref(page + 1)}>Next →</Link>}
+          </div>
+        )}
       </div>
     </div>
   );

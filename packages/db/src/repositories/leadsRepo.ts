@@ -31,6 +31,10 @@ interface LeadRow {
   score_reason: string | null;
   data_confidence: string;
   discovery_source: string;
+  external_id: string | null;
+  source_confidence: number | null;
+  latitude: number | null;
+  longitude: number | null;
   date_discovered: string;
   date_last_researched: string | null;
   research_status: string;
@@ -79,6 +83,10 @@ function rowToLead(row: LeadRow): Lead {
     scoreReason: row.score_reason,
     dataConfidence: row.data_confidence as Lead["dataConfidence"],
     discoverySource: row.discovery_source,
+    externalId: row.external_id,
+    sourceConfidence: row.source_confidence,
+    latitude: row.latitude,
+    longitude: row.longitude,
     dateDiscovered: row.date_discovered,
     dateLastResearched: row.date_last_researched,
     researchStatus: row.research_status as Lead["researchStatus"],
@@ -97,6 +105,83 @@ function rowToLead(row: LeadRow): Lead {
   };
 }
 
+
+/**
+ * The physical column order, in one place.
+ *
+ * `upsert` and `upsertMany` both build statements from this, so adding a
+ * column cannot leave one write path silently dropping it — which is exactly
+ * the bug that would show up months later as "some leads have no latitude".
+ */
+const LEAD_COLUMNS = [
+  "id", "business_name", "industry", "address", "city", "state", "zip", "phone", "email", "website",
+  "website_status", "website_quality", "online_booking_status", "booking_provider", "booking_method",
+  "staff_count", "staff_count_confidence", "rating", "review_count", "instagram", "facebook",
+  "social_activity", "location_count", "services", "prospect_score", "score_breakdown", "score_reason",
+  "data_confidence", "discovery_source", "external_id", "source_confidence", "latitude", "longitude",
+  "date_discovered", "date_last_researched", "research_status", "qualification_status", "pipeline_stage",
+  "campaign_id", "job_id", "is_duplicate_of", "stages_completed", "link_in_bio_url", "detected_links",
+  "service_area", "location_confidence", "location_evidence", "notes",
+] as const;
+
+/** Everything except the identity and provenance of the original discovery. */
+const UPDATABLE_COLUMNS = LEAD_COLUMNS.filter(
+  (column) => !["id", "external_id", "discovery_source", "date_discovered", "campaign_id", "job_id"].includes(column)
+);
+
+function leadToRow(lead: Lead): Record<string, unknown> {
+  return {
+    id: lead.id,
+    business_name: lead.businessName,
+    industry: lead.industry,
+    address: lead.address,
+    city: lead.city,
+    state: lead.state,
+    zip: lead.zip,
+    phone: lead.phone,
+    email: lead.email,
+    website: lead.website,
+    website_status: lead.websiteStatus,
+    website_quality: lead.websiteQuality,
+    online_booking_status: lead.onlineBookingStatus,
+    booking_provider: lead.bookingProvider,
+    booking_method: lead.bookingMethod,
+    staff_count: lead.staffCount,
+    staff_count_confidence: lead.staffCountConfidence,
+    rating: lead.rating,
+    review_count: lead.reviewCount,
+    instagram: lead.instagram,
+    facebook: lead.facebook,
+    social_activity: lead.socialActivity,
+    location_count: lead.locationCount,
+    services: JSON.stringify(lead.services),
+    prospect_score: lead.prospectScore,
+    score_breakdown: JSON.stringify(lead.scoreBreakdown),
+    score_reason: lead.scoreReason,
+    data_confidence: lead.dataConfidence,
+    discovery_source: lead.discoverySource,
+    external_id: lead.externalId,
+    source_confidence: lead.sourceConfidence,
+    latitude: lead.latitude,
+    longitude: lead.longitude,
+    date_discovered: lead.dateDiscovered,
+    date_last_researched: lead.dateLastResearched,
+    research_status: lead.researchStatus,
+    qualification_status: lead.qualificationStatus,
+    pipeline_stage: lead.pipelineStage,
+    campaign_id: lead.campaignId,
+    job_id: lead.jobId,
+    is_duplicate_of: lead.isDuplicateOf,
+    stages_completed: JSON.stringify(lead.stagesCompleted),
+    link_in_bio_url: lead.linkInBioUrl,
+    detected_links: JSON.stringify(lead.detectedLinks),
+    service_area: lead.serviceArea,
+    location_confidence: lead.locationConfidence,
+    location_evidence: JSON.stringify(lead.locationEvidence),
+    notes: lead.notes,
+  };
+}
+
 export class SqliteLeadsRepository implements LeadsRepository {
   constructor(private readonly db: SqlClient) {}
 
@@ -108,7 +193,8 @@ export class SqliteLeadsRepository implements LeadsRepository {
           website_status, website_quality, online_booking_status, booking_provider, booking_method,
           staff_count, staff_count_confidence, rating, review_count, instagram, facebook,
           social_activity, location_count, services, prospect_score, score_breakdown, score_reason,
-          data_confidence, discovery_source, date_discovered, date_last_researched, research_status,
+          data_confidence, discovery_source, external_id, source_confidence, latitude, longitude,
+          date_discovered, date_last_researched, research_status,
           qualification_status, pipeline_stage, campaign_id, job_id, is_duplicate_of, stages_completed,
           link_in_bio_url, detected_links, service_area, location_confidence, location_evidence, notes
         ) VALUES (
@@ -116,7 +202,8 @@ export class SqliteLeadsRepository implements LeadsRepository {
           @websiteStatus, @websiteQuality, @onlineBookingStatus, @bookingProvider, @bookingMethod,
           @staffCount, @staffCountConfidence, @rating, @reviewCount, @instagram, @facebook,
           @socialActivity, @locationCount, @services, @prospectScore, @scoreBreakdown, @scoreReason,
-          @dataConfidence, @discoverySource, @dateDiscovered, @dateLastResearched, @researchStatus,
+          @dataConfidence, @discoverySource, @externalId, @sourceConfidence, @latitude, @longitude,
+          @dateDiscovered, @dateLastResearched, @researchStatus,
           @qualificationStatus, @pipelineStage, @campaignId, @jobId, @isDuplicateOf, @stagesCompleted,
           @linkInBioUrl, @detectedLinks, @serviceArea, @locationConfidence, @locationEvidence, @notes
         )
@@ -130,7 +217,9 @@ export class SqliteLeadsRepository implements LeadsRepository {
           social_activity=excluded.social_activity, location_count=excluded.location_count,
           services=excluded.services, prospect_score=excluded.prospect_score,
           score_breakdown=excluded.score_breakdown, score_reason=excluded.score_reason,
-          data_confidence=excluded.data_confidence, date_last_researched=excluded.date_last_researched,
+          data_confidence=excluded.data_confidence, source_confidence=excluded.source_confidence,
+          latitude=excluded.latitude, longitude=excluded.longitude,
+          date_last_researched=excluded.date_last_researched,
           research_status=excluded.research_status, qualification_status=excluded.qualification_status,
           pipeline_stage=excluded.pipeline_stage, is_duplicate_of=excluded.is_duplicate_of,
           stages_completed=excluded.stages_completed, link_in_bio_url=excluded.link_in_bio_url,
@@ -152,6 +241,42 @@ export class SqliteLeadsRepository implements LeadsRepository {
     return lead;
   }
 
+
+  /**
+   * Bulk upsert, chunked.
+   *
+   * Both backends limit how many bound parameters one statement may carry
+   * (Postgres 65535, SQLite lower still), and this table is wide — so the
+   * chunk size is derived from the column count rather than guessed, and stays
+   * correct if a column is added later.
+   */
+  async upsertMany(leads: Lead[]): Promise<number> {
+    if (leads.length === 0) return 0;
+    const columns = LEAD_COLUMNS;
+    const perChunk = Math.max(1, Math.floor(900 / columns.length));
+
+    let written = 0;
+    for (let start = 0; start < leads.length; start += perChunk) {
+      const chunk = leads.slice(start, start + perChunk);
+      const placeholders = chunk
+        .map(() => `(${columns.map(() => "?").join(", ")})`)
+        .join(", ");
+      const values: unknown[] = [];
+      for (const lead of chunk) {
+        const row = leadToRow(lead);
+        for (const column of columns) values.push(row[column]);
+      }
+      await this.db
+        .prepare(
+          `INSERT INTO leads (${columns.join(", ")}) VALUES ${placeholders}
+           ON CONFLICT(id) DO UPDATE SET ${UPDATABLE_COLUMNS.map((c) => `${c}=excluded.${c}`).join(", ")}`
+        )
+        .run(...values);
+      written += chunk.length;
+    }
+    return written;
+  }
+
   async getById(id: string): Promise<Lead | null> {
     const row = await this.db.prepare("SELECT * FROM leads WHERE id = ?").get(id) as LeadRow | undefined;
     return row ? rowToLead(row) : null;
@@ -162,6 +287,8 @@ export class SqliteLeadsRepository implements LeadsRepository {
     const params: Record<string, unknown> = {};
 
     if (filter.city) { clauses.push("city = @city"); params.city = filter.city; }
+    if (filter.state) { clauses.push("state = @state"); params.state = filter.state; }
+    if (filter.zip) { clauses.push("zip = @zip"); params.zip = filter.zip; }
     if (filter.industry) { clauses.push("industry = @industry"); params.industry = filter.industry; }
     if (filter.minScore !== undefined) { clauses.push("prospect_score >= @minScore"); params.minScore = filter.minScore; }
     if (filter.maxScore !== undefined) { clauses.push("prospect_score <= @maxScore"); params.maxScore = filter.maxScore; }
@@ -176,7 +303,24 @@ export class SqliteLeadsRepository implements LeadsRepository {
     if (filter.campaignId) { clauses.push("campaign_id = @campaignId"); params.campaignId = filter.campaignId; }
 
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-    const rows = await this.db.prepare(`SELECT * FROM leads ${where} ORDER BY date_discovered DESC`).all(params) as LeadRow[];
+    // NULLS LAST on score: an unscored lead is not a zero-scoring lead, and
+    // burying them under every scored one is wrong when you are checking an
+    // import. Both dialects spell it the same way here.
+    const order =
+      filter.orderBy === "score"
+        ? "prospect_score DESC NULLS LAST, business_name ASC"
+        : filter.orderBy === "name"
+          ? "business_name ASC"
+          : "date_discovered DESC";
+    // The limit is interpolated rather than bound because SQLite and Postgres
+    // disagree about parameterising LIMIT; it is coerced to an integer first so
+    // nothing from a query string can reach the statement.
+    const limit = Number.isFinite(filter.limit) ? Math.max(0, Math.floor(filter.limit as number)) : null;
+    const offset = Number.isFinite(filter.offset) ? Math.max(0, Math.floor(filter.offset as number)) : 0;
+    const paging = limit === null ? "" : ` LIMIT ${limit} OFFSET ${offset}`;
+    const rows = await this.db
+      .prepare(`SELECT * FROM leads ${where} ORDER BY ${order}${paging}`)
+      .all(params) as LeadRow[];
     return rows.map(rowToLead);
   }
 

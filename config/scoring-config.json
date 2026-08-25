@@ -1,8 +1,11 @@
 {
   "version": 1,
-  "description": "Editable prospect-scoring configuration. The ScoringEngine (packages/core/src/scoring/scoringEngine.ts) reads this file at runtime — change points, thresholds, or enabled flags here without touching code. Each factor's evaluation logic lives in a small named function in the engine, keyed by `id`; params here tune that function's thresholds. Score estimates fit for WEBSITE + INTEGRATED BOOKING, not general business quality.",
+  "description": "Editable prospect-scoring configuration. The ScoringEngine (packages/core/src/scoring/scoringEngine.ts) reads this file at runtime \u2014 change points, thresholds, or enabled flags here without touching code. Each factor's evaluation logic lives in a small named function in the engine, keyed by `id`; params here tune that function's thresholds. Score estimates fit for WEBSITE + INTEGRATED BOOKING, not general business quality.",
   "baseScore": 35,
-  "scoreRange": { "min": 0, "max": 100 },
+  "scoreRange": {
+    "min": 0,
+    "max": 100
+  },
   "factors": [
     {
       "id": "no-website",
@@ -74,7 +77,9 @@
       "category": "business-signals",
       "points": 10,
       "enabled": true,
-      "params": { "minStaff": 3 },
+      "params": {
+        "minStaff": 3
+      },
       "appliesWhen": "staff_count >= params.minStaff"
     },
     {
@@ -83,8 +88,19 @@
       "category": "business-signals",
       "points": 8,
       "enabled": true,
-      "params": { "minRating": 4.4, "minReviewCount": 40 },
+      "params": {
+        "minRating": 4.4,
+        "minReviewCount": 40
+      },
       "appliesWhen": "rating >= params.minRating and review_count >= params.minReviewCount"
+    },
+    {
+      "id": "social-presence-no-website",
+      "label": "Social profile but no website",
+      "category": "business-signals",
+      "points": 8,
+      "enabled": true,
+      "appliesWhen": "website_status = NONE and (instagram or facebook) is present"
     },
     {
       "id": "active-social-presence",
@@ -100,7 +116,9 @@
       "category": "business-signals",
       "points": 6,
       "enabled": true,
-      "params": { "minLocations": 2 },
+      "params": {
+        "minLocations": 2
+      },
       "appliesWhen": "location_count >= params.minLocations"
     },
     {

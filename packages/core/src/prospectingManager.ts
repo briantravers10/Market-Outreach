@@ -383,6 +383,13 @@ export class ProspectingManager {
           scoreReason: null,
           dataConfidence: "LOW",
           discoverySource: seed.discoverySource,
+          // The mock pipeline invents its businesses, so there is no upstream
+          // record to point back at and no third party whose confidence we
+          // could report. Real importers fill these in.
+          externalId: null,
+          sourceConfidence: null,
+          latitude: null,
+          longitude: null,
           dateDiscovered: nowIso(),
           dateLastResearched: null,
           researchStatus: "ANALYZED",

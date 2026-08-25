@@ -1,0 +1,24 @@
+{
+  "description": "Maps Overture Maps place categories onto our industry ids. Read by both scripts/fetch-overture.py (extraction) and packages/core (import), so the two can never disagree about what a barber is. Overture's taxonomy is finer than ours in places and coarser in others; every decision below is a judgement call and is meant to be argued with.",
+  "notes": {
+    "beauty_salon": "Overture's largest beauty category and deliberately vague — it covers shops that would call themselves a hair salon, a nail bar, or both. Given its own industry rather than folded into hair-salons, because guessing would quietly corrupt the per-industry numbers you make decisions from. Merge it later if the calls tell you it is really hair.",
+    "medical_spa": "Excluded. A med-aesthetics clinic with injectables is a different business, a different buyer and a different regulatory world from a day spa. Add it deliberately if you decide to sell there.",
+    "tanning_salon": "Excluded for now — appointment-based, so arguably a fit, but a different enough trade that it deserves your call rather than mine.",
+    "hair_supply_stores": "Excluded. Retail, not a service business taking bookings."
+  },
+  "industryByOvertureCategory": {
+    "barbers": ["barber", "barbershop", "hair_stylist"],
+    "hair-salons": ["hair_salon", "kids_hair_salon", "hair_extensions", "hair_replacement", "hair_loss_center"],
+    "beauty-salons": ["beauty_salon"],
+    "nail-salons": ["nail_salon"],
+    "day-spas": ["spas", "day_spa", "health_spa"],
+    "dog-groomers": ["pet_groomer", "pet_grooming"],
+    "lash-brow-studios": ["eyelash_service", "eyebrow_service", "permanent_makeup"],
+    "estheticians": ["aesthetician", "esthetician", "skin_care", "laser_hair_removal", "hair_removal"],
+    "massage-therapists": ["massage_therapy", "massage"],
+    "personal-trainers": ["fitness_trainer", "personal_trainer"],
+    "tattoo-studios": ["tattoo_and_piercing", "tattoo", "tattoo_parlor"],
+    "car-detailers": ["auto_detailing", "car_wash_and_detail"],
+    "makeup-artists": ["makeup_artist"]
+  }
+}

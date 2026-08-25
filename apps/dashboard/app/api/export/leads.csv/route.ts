@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
   const text = (key: string) => params.get(key) || undefined;
 
   const filter: LeadFilter = {
+    state: params.get("state")?.toUpperCase() || undefined,
+    zip: text("zip"),
     city: text("city"),
     industry: text("industry"),
     minScore: num("minScore"),
@@ -38,6 +40,11 @@ export async function GET(request: NextRequest) {
     dataConfidence: text("dataConfidence") as LeadFilter["dataConfidence"],
     researchStatus: text("researchStatus") as LeadFilter["researchStatus"],
     qualificationStatus: text("qualificationStatus") as LeadFilter["qualificationStatus"],
+    orderBy: "score",
+    // The page is paged; the file is not — downloading the first 200 of 77,000
+    // would be a quietly wrong export. The ceiling exists only so a single
+    // request cannot try to serialise an entire national database.
+    limit: 100_000,
   };
 
   const repos = getRepos();

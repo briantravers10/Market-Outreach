@@ -11,6 +11,10 @@ const nextConfig = {
   // tracing did not reliably include it as a raw file.)
   outputFileTracingIncludes: {
     "/**": ["../../config/*.json", "../../packages/db/src/schema.sql"],
+    // The import route streams a gzipped Overture extract off disk. It is
+    // scoped to that one route rather than "/**" because the file is several
+    // megabytes and every other function would otherwise carry it for nothing.
+    "/api/admin/import": ["../../data/*.ndjson.gz"],
   },
 };
 

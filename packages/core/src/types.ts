@@ -30,11 +30,30 @@ import type {
 export type WebsiteStatus = "NONE" | "EXISTS";
 export type WebsiteQuality = "POOR" | "AVERAGE" | "GOOD" | "EXCELLENT" | "UNKNOWN";
 
-/** What booking capability exists, if any. */
-export type OnlineBookingStatus = "NONE" | "THIRD_PARTY_BOOKING_SYSTEM" | "INTEGRATED_BOOKING_SYSTEM";
+/**
+ * What booking capability exists, if any.
+ *
+ * UNKNOWN is not a rounding of NONE — it means nobody has looked yet. A
+ * business we found in a map dataset but whose website we have not fetched has
+ * an unknown booking status, and scoring it as "no online booking" would be
+ * awarding points for a finding we never made. The scoring evaluators check
+ * for NONE specifically, so UNKNOWN quietly scores nothing until the Website
+ * Analyst has actually been.
+ */
+export type OnlineBookingStatus =
+  | "UNKNOWN"
+  | "NONE"
+  | "THIRD_PARTY_BOOKING_SYSTEM"
+  | "INTEGRATED_BOOKING_SYSTEM";
 
-/** How a customer actually books, spanning both online and offline. */
-export type BookingMethod = "NONE" | "PHONE_ONLY" | "SOCIAL_DM" | "ONLINE_THIRD_PARTY" | "ONLINE_INTEGRATED";
+/** How a customer actually books, spanning both online and offline. UNKNOWN means unchecked — see OnlineBookingStatus. */
+export type BookingMethod =
+  | "UNKNOWN"
+  | "NONE"
+  | "PHONE_ONLY"
+  | "SOCIAL_DM"
+  | "ONLINE_THIRD_PARTY"
+  | "ONLINE_INTEGRATED";
 
 export type ConfidenceLevel = "HIGH" | "MEDIUM" | "LOW";
 export type SocialActivity = "ACTIVE" | "MODERATE" | "INACTIVE" | "UNKNOWN";
@@ -133,6 +152,17 @@ export interface Lead {
   dataConfidence: ConfidenceLevel;
 
   discoverySource: string;
+  /**
+   * The source's own identifier for this business — an Overture place id, a
+   * licence number, a Google place id. Carrying it makes re-importing the same
+   * dataset an update rather than a duplicate, which is what lets the lead
+   * database be refreshed on a schedule instead of rebuilt.
+   */
+  externalId: string | null;
+  /** The source's own confidence in the record, 0-1, where it publishes one. Distinct from our dataConfidence, which is about how much we managed to research. */
+  sourceConfidence: number | null;
+  latitude: number | null;
+  longitude: number | null;
   dateDiscovered: string; // ISO timestamp
   dateLastResearched: string | null;
   researchStatus: ResearchStatus;
@@ -357,6 +387,15 @@ export interface ScoreResultRecord {
 
 export interface LeadsRepository {
   upsert(lead: Lead): Promise<Lead>;
+  /**
+   * Writes many leads in one round trip.
+   *
+   * A statewide import is tens of thousands of rows, and one INSERT each over
+   * a connection pooler turns a forty-second job into an hour. Implementations
+   * must chunk internally — both backends cap how many bound parameters a
+   * single statement may carry.
+   */
+  upsertMany(leads: Lead[]): Promise<number>;
   getById(id: string): Promise<Lead | null>;
   list(filter?: LeadFilter): Promise<Lead[]>;
   findPossibleDuplicates(lead: Pick<Lead, "businessName" | "address" | "phone" | "city">): Promise<Lead[]>;
@@ -364,6 +403,10 @@ export interface LeadsRepository {
 
 export interface LeadFilter {
   city?: string;
+  /** Two-letter state code. The top of the geographic hierarchy once this goes national. */
+  state?: string;
+  /** Five-digit ZIP. A filter and a clustering key, deliberately not the organising spine — ZIPs are postal routes and do not nest inside cities. */
+  zip?: string;
   industry?: string;
   minScore?: number;
   maxScore?: number;
@@ -376,6 +419,17 @@ export interface LeadFilter {
   researchStatus?: ResearchStatus;
   qualificationStatus?: QualificationStatus;
   campaignId?: string;
+  /**
+   * Maximum rows to return.
+   *
+   * Not optional in spirit: a statewide import is tens of thousands of leads,
+   * and a page that renders all of them is a page that times out. Callers that
+   * genuinely need everything (the CSV export) pass a high limit knowingly.
+   */
+  limit?: number;
+  offset?: number;
+  /** Highest score first is what you want when working a call list; newest first is what you want when checking an import. */
+  orderBy?: "score" | "discovered" | "name";
 }
 
 export interface JobsRepository {
