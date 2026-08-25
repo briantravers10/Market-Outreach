@@ -21,6 +21,16 @@ export async function middleware(request: NextRequest) {
   const config = getAuthConfig();
   const { pathname, search } = request.nextUrl;
 
+  // Machine endpoints authenticate themselves and must bypass the session
+  // check entirely. Vercel Cron sends a Bearer token and no cookie, so without
+  // this it would be redirected to /login and every scheduled report would
+  // silently never run — the failure would look exactly like "nothing was due".
+  // These routes are NOT unprotected: /api/cron/* requires CRON_SECRET and
+  // refuses outright when it isn't set (see app/api/cron/run-scheduled/route.ts).
+  if (pathname.startsWith("/api/cron/")) {
+    return NextResponse.next();
+  }
+
   // A real deployment with no auth configured serves nothing at all.
   if (isMisconfigured(config)) {
     return new NextResponse(

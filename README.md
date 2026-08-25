@@ -291,6 +291,100 @@ row rather than silently failing.
 - `batchSize` on a campaign bounds job size; the DB-backed queue is designed so multiple
   worker processes could later claim jobs concurrently.
 
+## The AI Manager
+
+You talk to the Manager; it coordinates the team. There's a floating button in
+the bottom-right of every dashboard page, and a dedicated **Manager** area with
+Overview, Employees, Activity, Instructions, Reports, Scheduled and Memory.
+
+### Where the competence actually lives
+
+The Manager's abilities are eighteen typed **tools** (`packages/core/src/manager/tools.ts`).
+Each one is ordinary code that really queries or changes the platform. None
+returns invented data and none is a placeholder.
+
+A language model, when one is configured, does exactly one job: choose which
+tool to run and with what arguments. That separation is deliberate — it means
+the Manager works with or without an API key, and a key improves *how requests
+are understood*, never *what can be done*.
+
+| Brain | Needs | Handles |
+|---|---|---|
+| `RuleBasedManagerBrain` | nothing | The request shapes the product is built around. Says plainly when it doesn't understand rather than guessing. |
+| `ClaudeManagerBrain` | `ANTHROPIC_API_KEY` | Arbitrary phrasing, via real Anthropic tool-use. |
+
+`selectBrain()` picks from the environment and the Manager page displays which
+one answered, so you always know what you're talking to.
+
+### Instructions: enforced or advisory, never pretend
+
+An instruction either changes behaviour or is labelled advisory. There is no
+third state where the system implies it did something and didn't.
+
+Four effects are genuinely enforced:
+
+| Effect | Employee | What it does |
+|---|---|---|
+| `exclude_name_patterns` | Scout | Drops candidates whose name matches — this is how "no chains" works |
+| `restrict_cities` | Scout | Limits discovery to named territories |
+| `score_adjust` | Qualifier | Adds/subtracts points when a real condition holds |
+| `min_score_threshold` | Qualifier | Treats anything below as unqualified |
+
+Anything else is stored, versioned, shown on the employee's page and quoted back
+on request — but marked **Advisory** everywhere it appears.
+
+Enforced score adjustments appear in the lead's breakdown as ordinary factors,
+so the total always equals the sum of its visible parts.
+
+**Permanent vs temporary.** "From now on" is permanent and stands until revoked
+or superseded. "For today's search" is temporary and expires tonight, or when
+its campaign ends. Ambiguous phrasing defaults to **temporary** on purpose: a
+rule that quietly became permanent is much harder to notice than one that
+quietly expired.
+
+Contradictory permanent rules of the same kind supersede each other rather than
+stacking, with full version history. Nothing is ever deleted.
+
+### Safety
+
+Read-only tools run immediately. Anything that changes behaviour or moves work
+states what it intends to do and waits for you. Approvals and rejections are
+both recorded with who decided and when.
+
+### Memory
+
+Six tables — conversations, messages, instructions, actions, reports, schedules.
+Your message is written before anything else can fail, so a crash mid-turn still
+leaves the request on the record. "What did I tell the Scout last week" is a
+database query, not a model recalling.
+
+### Voice
+
+The browser's own Web Speech API: recognition in, synthesis out. No key, no
+per-minute cost, no audio leaving the device. Recognition needs Chrome, Edge or
+Safari; in Firefox the microphone is visibly unavailable and the panel works as
+text chat rather than showing a button that does nothing.
+
+The microphone opens only when you click it and closes after one utterance.
+There is no always-listening mode and no wake word. `startListening` is the
+single entry point, so adding an opt-in wake word later means calling it from a
+detector, not loosening anything.
+
+### Scheduling
+
+"Every morning at 9" becomes a row in `scheduled_tasks`, not a promise.
+`/api/cron/run-scheduled` runs what's due and archives the result. It requires
+`CRON_SECRET` and refuses outright when unset. Times are UTC — see
+NEEDS_OWNER_INPUT.md.
+
+### Testing
+
+`npm run test-manager` — 138 assertions against a real database. The instruction
+tests check *consequences*: a campaign runs with chain-exclusion active and no
+chain-named business reaches the leads table; the rule is revoked, a second
+campaign runs, and chains reappear — proving the filter did the work rather than
+the generator never producing one.
+
 ## Storage
 
 One switch decides the backend, and it is just an environment variable:
