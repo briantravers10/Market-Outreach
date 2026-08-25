@@ -14,6 +14,23 @@ import { scoreLead, qualificationStatusForScore } from "../scoring/scoringEngine
  * cannot decide for itself is whether the network cooperated.
  */
 
+/**
+ * How many leads a run should pull, given an optional override.
+ *
+ * Exists as a named function because getting it wrong cost a day of throughput:
+ * `Number(searchParams.get("batch"))` on an absent parameter is `Number(null)`,
+ * which is 0 — a perfectly finite number. `Number.isFinite` therefore said yes,
+ * the clamp floored it to 1, and every scheduled run checked exactly one
+ * website while reporting complete success. Absent and zero are different
+ * things, and only an explicit positive number is an override.
+ */
+export function resolveBatchSize(raw: string | null, fallback: number, max: number): number {
+  if (raw === null || raw.trim() === "") return fallback;
+  const requested = Number(raw);
+  if (!Number.isFinite(requested) || requested <= 0) return fallback;
+  return Math.min(Math.floor(requested), max);
+}
+
 export interface WebsiteCheckResult {
   lead: Lead;
   /** What changed, in one line, for the activity log. */

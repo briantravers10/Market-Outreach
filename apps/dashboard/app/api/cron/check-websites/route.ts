@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   checkWebsites,
+  resolveBatchSize,
   HttpSiteFetcher,
   MockReasoningProvider,
   getScoringConfig,
@@ -48,8 +49,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "The demo database is a read-only snapshot." }, { status: 403 });
   }
 
-  const requested = Number(request.nextUrl.searchParams.get("batch"));
-  const batchSize = Number.isFinite(requested) ? Math.min(Math.max(1, requested), 1000) : DEFAULT_BATCH;
+  const batchSize = resolveBatchSize(request.nextUrl.searchParams.get("batch"), DEFAULT_BATCH, 1000);
 
   const repos = getRepos();
   // Timed in three parts. The first run of this checked two sites in a window

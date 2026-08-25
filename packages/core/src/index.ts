@@ -167,5 +167,5 @@ export type { SiteFetcher, FetchedPage } from "./enrichment/siteFetcher";
 export { analyzeSite, assessQuality, extractAnchors, needsWebsiteAnalysis } from "./enrichment/websiteAnalyzer";
 export type { SiteAnalysis } from "./enrichment/websiteAnalyzer";
 
-export { checkWebsite, checkWebsites } from "./workers/websiteCheckWorker";
+export { checkWebsite, checkWebsites, resolveBatchSize } from "./workers/websiteCheckWorker";
 export type { WebsiteCheckResult } from "./workers/websiteCheckWorker";

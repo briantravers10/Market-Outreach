@@ -14,6 +14,7 @@ import {
   extractAnchors,
   checkWebsite,
   checkWebsites,
+  resolveBatchSize,
   scoreLead,
   isFetchableUrl,
   StubSiteFetcher,
@@ -190,6 +191,19 @@ async function main() {
   check("stamped as checked", dead.lead.websiteCheckedAt === deps.now);
   check("but booking is still unanswered", dead.lead.onlineBookingStatus === "UNKNOWN");
   check("and website analysis is NOT claimed", !dead.lead.stagesCompleted.includes("website_analysis"));
+
+  section("Batch size from a query parameter");
+  // The bug this guards: an absent parameter parsed as 0, which is finite, so
+  // the clamp produced a batch of one and every scheduled run checked a single
+  // website while reporting success.
+  check("an absent parameter uses the default", resolveBatchSize(null, 400, 1000) === 400, String(resolveBatchSize(null, 400, 1000)));
+  check("an empty parameter uses the default", resolveBatchSize("", 400, 1000) === 400);
+  check("zero is not an override", resolveBatchSize("0", 400, 1000) === 400);
+  check("a negative number is not an override", resolveBatchSize("-5", 400, 1000) === 400);
+  check("nonsense is not an override", resolveBatchSize("lots", 400, 1000) === 400);
+  check("an explicit number is honoured", resolveBatchSize("25", 400, 1000) === 25);
+  check("and is capped", resolveBatchSize("99999", 400, 1000) === 1000);
+  check("a fractional number is floored", resolveBatchSize("12.9", 400, 1000) === 12);
 
   section("Batching");
   const many = Array.from({ length: 12 }, (_, i) =>
