@@ -39,14 +39,22 @@ const SOURCES: Record<string, { file: string; state: string; stateName: string }
 const MAX_CHUNK = 4000;
 
 function extractPath(file: string): string | null {
-  // The repo root is two levels up from the dashboard in the workspace, but on
-  // Vercel the traced file lands relative to the function's working directory.
-  // Both are checked rather than assumed.
-  const candidates = [
-    path.join(process.cwd(), "data", file),
-    path.join(process.cwd(), "..", "..", "data", file),
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+  // Walks up from both the compiled module and the working directory, the same
+  // way config loading does. Vercel's output tracing preserves the repo's
+  // relative layout but the function's working directory is not guaranteed to
+  // be the repo root, and hard-coding one guess is how this breaks in
+  // production while working locally.
+  for (const start of [__dirname, process.cwd()]) {
+    let dir = start;
+    for (let depth = 0; depth < 8; depth++) {
+      const candidate = path.join(dir, "data", file);
+      if (fs.existsSync(candidate)) return candidate;
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -69,7 +77,7 @@ export async function POST(request: NextRequest) {
 
   const filePath = extractPath(source.file);
   if (!filePath) {
-    return NextResponse.json({ error: `Extract ${source.file} is not deployed with this build.` }, { status: 500 });
+    return NextResponse.json({ error: `Extract ${source.file} was not found in this deployment (searched upward from ${process.cwd()}).` }, { status: 500 });
   }
 
   const offset = Math.max(0, Math.floor(body.offset ?? 0));
