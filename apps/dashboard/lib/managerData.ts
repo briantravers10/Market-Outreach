@@ -6,6 +6,7 @@ import {
   type BrainDescription,
 } from "@market-outreach/core";
 import { getManager, getRepos } from "./data";
+import { isDemoMode } from "./demo";
 
 /**
  * Server-only wiring for the AI Manager.
@@ -20,6 +21,9 @@ export function getAiManager(): AiManager {
     brain: selectBrain().brain,
     manager: getManager(),
     commandParser: new DeterministicCommandParser(),
+    // The demo's database is a read-only snapshot, so the Manager answers
+    // questions but records nothing and refuses to change anything.
+    persist: !isDemoMode,
   });
 }
 

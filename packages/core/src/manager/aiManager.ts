@@ -31,6 +31,17 @@ export interface AiManagerDeps {
   commandParser: CommandParser;
   /** Injectable so tests and scheduled runs are deterministic. */
   now?: () => Date;
+  /**
+   * Set false where the database cannot be written to — the public demo opens
+   * a read-only snapshot.
+   *
+   * In that mode the Manager still answers questions properly, because reading
+   * is all those need. What it does NOT do is record the conversation or run
+   * anything consequential; it says so instead. Without this the demo fails on
+   * the very first turn, since the owner's message is written before the
+   * request is even looked at.
+   */
+  persist?: boolean;
 }
 
 export interface TurnResult {
@@ -44,9 +55,11 @@ export interface TurnResult {
 
 export class AiManager {
   private readonly now: () => Date;
+  private readonly persist: boolean;
 
   constructor(private readonly deps: AiManagerDeps) {
     this.now = deps.now ?? (() => new Date());
+    this.persist = deps.persist !== false;
   }
 
   // -------------------------------------------------------------------------
@@ -63,11 +76,13 @@ export class AiManager {
       lastMessageAt: ts,
       endedAt: null,
     };
+    if (!this.persist) return conversation;
     return this.deps.repos.conversations.create(conversation);
   }
 
   /** The most recent open conversation, or a new one. */
   async currentConversation(): Promise<Conversation> {
+    if (!this.persist) return this.startConversation();
     const [latest] = await this.deps.repos.conversations.list(1);
     if (latest && !latest.endedAt) return latest;
     return this.startConversation();
@@ -90,7 +105,7 @@ export class AiManager {
       toolCalls: extra.toolCalls ?? [],
       createdAt: this.now().toISOString(),
     };
-    await this.deps.repos.conversations.addMessage(message);
+    if (this.persist) await this.deps.repos.conversations.addMessage(message);
     return message;
   }
 
@@ -99,14 +114,17 @@ export class AiManager {
   // -------------------------------------------------------------------------
 
   async handle(text: string, conversationId?: string): Promise<TurnResult> {
-    const conversation = conversationId
-      ? (await this.deps.repos.conversations.getById(conversationId)) ?? (await this.currentConversation())
-      : await this.currentConversation();
+    const conversation =
+      conversationId && this.persist
+        ? (await this.deps.repos.conversations.getById(conversationId)) ?? (await this.currentConversation())
+        : await this.currentConversation();
 
     // Recorded before anything can fail.
     const ownerMessage = await this.record(conversation.id, "owner", text);
 
-    const priorMessages = await this.deps.repos.conversations.listMessages(conversation.id, 40);
+    const priorMessages = this.persist
+      ? await this.deps.repos.conversations.listMessages(conversation.id, 40)
+      : [];
     const history = priorMessages
       .filter((m) => m.id !== ownerMessage.id && (m.role === "owner" || m.role === "manager"))
       .slice(-10)
@@ -142,7 +160,7 @@ export class AiManager {
 
     if (plan.setFocusAgentId !== undefined) {
       conversation.focusAgentId = plan.setFocusAgentId;
-      await this.deps.repos.conversations.update(conversation);
+      if (this.persist) await this.deps.repos.conversations.update(conversation);
       ctx.focusAgentId = plan.setFocusAgentId;
     }
 
@@ -175,10 +193,22 @@ export class AiManager {
       finishedAt: null,
     };
 
+    // Nothing consequential can complete against a read-only database, so say
+    // that up front rather than asking for an approval that would then fail.
+    if (!this.persist && requiresApproval(plan.tool)) {
+      const managerMessage = await this.record(
+        conversation.id,
+        "manager",
+        `${action.intentSummary} — but this is the read-only demo, so I can't actually change anything here.`,
+        { intent: plan.intent, brain: this.deps.brain.name }
+      );
+      return { conversation, ownerMessage, managerMessage, pendingAction: null };
+    }
+
     // Consequential work stops here and waits. The Manager states exactly what
     // it intends to do; nothing happens until the owner says yes.
     if (requiresApproval(plan.tool)) {
-      await this.deps.repos.managerActions.create(action);
+      if (this.persist) await this.deps.repos.managerActions.create(action);
       const managerMessage = await this.record(
         conversation.id,
         "manager",
@@ -194,7 +224,7 @@ export class AiManager {
     }
 
     action.startedAt = this.now().toISOString();
-    await this.deps.repos.managerActions.create(action);
+    if (this.persist) await this.deps.repos.managerActions.create(action);
     const { message: managerMessage, data } = await this.execute(action, plan.tool.name, ctx, {
       intent: plan.intent,
       brain: this.deps.brain.name,
@@ -213,12 +243,14 @@ export class AiManager {
   ): Promise<{ message: ConversationMessage; data?: unknown }> {
     const tool = findTool(toolName);
     if (!tool) {
-      await this.deps.repos.managerActions.update({
-        ...action,
-        status: "failed",
-        error: `Unknown tool ${toolName}`,
-        finishedAt: this.now().toISOString(),
-      });
+      if (this.persist) {
+        await this.deps.repos.managerActions.update({
+          ...action,
+          status: "failed",
+          error: `Unknown tool ${toolName}`,
+          finishedAt: this.now().toISOString(),
+        });
+      }
       const message = await this.record(action.conversationId!, "manager", `I don't have a "${toolName}" capability.`, {
         intent: meta.intent,
         brain: meta.brain,
@@ -230,21 +262,25 @@ export class AiManager {
     let toolStatus: ToolCallRecord["status"] = "succeeded";
     try {
       result = await tool.run(action.params, ctx);
-      await this.deps.repos.managerActions.update({
-        ...action,
-        status: "succeeded",
-        resultSummary: result.speech.slice(0, 500),
-        finishedAt: this.now().toISOString(),
-      });
+      if (this.persist) {
+        await this.deps.repos.managerActions.update({
+          ...action,
+          status: "succeeded",
+          resultSummary: result.speech.slice(0, 500),
+          finishedAt: this.now().toISOString(),
+        });
+      }
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       toolStatus = "failed";
-      await this.deps.repos.managerActions.update({
-        ...action,
-        status: "failed",
-        error: detail,
-        finishedAt: this.now().toISOString(),
-      });
+      if (this.persist) {
+        await this.deps.repos.managerActions.update({
+          ...action,
+          status: "failed",
+          error: detail,
+          finishedAt: this.now().toISOString(),
+        });
+      }
       // Reported as a failure rather than swallowed — a tool that silently did
       // nothing while the Manager said "done" is the exact failure mode this
       // whole design is trying to avoid.
@@ -253,7 +289,7 @@ export class AiManager {
 
     // Every consequential action also lands on the Manager's own activity feed,
     // so the existing team/activity views show Manager work alongside pipeline work.
-    if (tool.risk !== "low") {
+    if (tool.risk !== "low" && this.persist) {
       await logActivity(this.deps.repos.agentActivity, {
         agentId: "manager",
         action: tool.name,
@@ -334,6 +370,7 @@ export class AiManager {
   }
 
   private async touch(conversation: Conversation): Promise<void> {
+    if (!this.persist) return;
     await this.deps.repos.conversations.update({ ...conversation, lastMessageAt: this.now().toISOString() });
   }
 }

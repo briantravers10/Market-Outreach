@@ -5,9 +5,9 @@ import { summarizeAgent, summarizeAllAgents } from "../agents/agentRegistry";
 import type { ProspectingManager } from "../prospectingManager";
 import type { CommandParser } from "../nlp/commandParser";
 import { describeEffect, parseInstructionEffect } from "./instructionEffects";
-import { generateReport } from "./reporting";
+import { computeMetrics, generateReport, writeSummary } from "./reporting";
 import { nextRunAt, parsePeriod, parseSchedule, rollingWeek, today, yesterday, withinPeriod, type Period } from "./periods";
-import type { ActionRisk, AgentInstruction, ReportType, ScheduledTask } from "./types";
+import type { ActionRisk, AgentInstruction, Report, ReportType, ScheduledTask } from "./types";
 
 /**
  * The Manager's tools.
@@ -212,8 +212,18 @@ const getBriefing: ManagerTool = {
   async run(params, ctx) {
     const period = periodFrom(params, ctx, yesterday);
     // A briefing is archived like any other report, so "show me this morning's
-    // briefing" works later.
-    const report = await generateReport(ctx.repos, { type: "briefing", period, now: ctx.now() });
+    // briefing" works later. Where the database is read-only (the public demo)
+    // the figures are still computed and reported — only the archiving is
+    // skipped, because a briefing that refuses to speak because it couldn't
+    // file itself would be absurd.
+    const metrics = await computeMetrics(ctx.repos, period);
+    const summary = writeSummary(metrics, period, "briefing");
+    let report: Report | null = null;
+    try {
+      report = await generateReport(ctx.repos, { type: "briefing", period, now: ctx.now() });
+    } catch {
+      report = null;
+    }
     const summaries = await summarizeAllAgents(ctx.repos.agentActivity, ctx.repos.humanReview);
     // The Manager is always "working" while answering — it just logged the
     // request. Counting itself as busy staff would be noise in a briefing.
@@ -222,13 +232,13 @@ const getBriefing: ManagerTool = {
     const hour = ctx.now().getHours();
     const greeting = hour < 12 ? "Good morning." : hour < 18 ? "Good afternoon." : "Good evening.";
 
-    const lines = [greeting, report.summary];
+    const lines = [greeting, report?.summary ?? summary];
     lines.push(
       working.length
         ? `${working.length} employee${working.length === 1 ? " is" : "s are"} working right now: ${working.map((w) => w.name).join(", ")}.`
         : "No employees are working right now."
     );
-    return { speech: lines.join("\n"), data: { report } };
+    return { speech: lines.join("\n"), data: { report, metrics } };
   },
 };
 

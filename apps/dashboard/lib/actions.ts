@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { logActivity, type AgentId } from "@market-outreach/core";
+import { randomUUID } from "node:crypto";
+import { getTerritories, logActivity, parseInstructionEffect, type AgentId } from "@market-outreach/core";
 import { getCommandParser, getManager, getRepos } from "./data";
 import { isDemoMode } from "./demo";
 
@@ -120,22 +121,70 @@ export async function assignTaskAction(formData: FormData) {
 }
 
 /**
- * Direct per-agent instruction box. Logged as agent_activity so it's
- * visible on that agent's page — this phase it's informational (the
- * instruction is recorded, not yet parsed into a behavior change), which
- * the UI states plainly rather than pretending otherwise.
+ * Direct per-agent instruction box.
+ *
+ * Goes through the same instruction system the Manager uses, so an order given
+ * here is a real, versioned instruction — enforced if it maps to a pipeline
+ * effect, advisory otherwise — rather than a note on an activity feed. Having
+ * two different meanings for "give this employee an instruction" depending on
+ * which box you typed into would be a trap.
+ *
+ * Scope defaults to permanent here, unlike in conversation: this box is on the
+ * employee's own page under the heading "Standing instruction", so the intent
+ * is unambiguous in a way a spoken sentence isn't.
  */
 export async function sendAgentCommandAction(agentId: AgentId, formData: FormData) {
   if (isDemoMode) return;
   const text = String(formData.get("command") || "").trim();
   if (!text) return;
 
-  logActivity(getRepos().agentActivity, {
+  const repos = getRepos();
+  const now = new Date();
+  const effect = parseInstructionEffect(text, { knownCities: getTerritories().map((t) => t.city) });
+
+  // Same supersede-don't-stack rule the Manager applies, so a contradictory
+  // order given here can't sit alongside one given in conversation.
+  const conflicting = effect
+    ? (await repos.instructions.list({ agentId, scope: "permanent", status: "active" })).filter(
+        (i) => i.effect?.kind === effect.kind
+      )
+    : [];
+
+  const instruction = {
+    id: randomUUID(),
     agentId,
-    action: "direct_command",
-    summary: `Instruction received: "${text}"`,
+    instruction: text,
+    scope: "permanent" as const,
+    status: "active" as const,
+    effect,
+    effectKind: effect?.kind ?? null,
+    rationale: null,
+    source: "agent_page",
+    conversationId: null,
+    messageId: null,
+    createdBy: "owner",
+    version: conflicting.length ? Math.max(...conflicting.map((c) => c.version)) + 1 : 1,
+    supersedesId: conflicting[0]?.id ?? null,
+    supersededById: null,
+    campaignId: null,
+    expiresAt: null,
+    createdAt: now.toISOString(),
+    revokedAt: null,
+    revokedReason: null,
+  };
+  await repos.instructions.create(instruction);
+  for (const old of conflicting) {
+    await repos.instructions.update({ ...old, status: "superseded", supersededById: instruction.id });
+  }
+
+  await logActivity(repos.agentActivity, {
+    agentId,
+    action: "direct_instruction",
+    summary: `Instruction from you: "${text}" — ${effect ? "enforced" : "advisory"}.`,
     level: "info",
   });
   revalidatePath(`/team/${agentId}`);
   revalidatePath("/team");
+  revalidatePath("/manager/instructions");
+  revalidatePath("/manager/employees");
 }

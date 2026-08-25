@@ -66,14 +66,16 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
         </div>
 
         <div className="panel">
-          <h2>Direct Instruction</h2>
+          <h2>Standing instruction</h2>
           {agent.disabled ? (
             <p className="disabled-banner">This agent isn't active this phase — no instructions to give it yet.</p>
           ) : (
             <>
               <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
-                Recorded on this agent's activity log. This phase, direct instructions are logged for visibility —
-                they don't yet change how mock discovery/research runs.
+                Becomes a permanent instruction, same as telling the Manager. If it matches something the
+                pipeline can enforce it takes effect immediately; otherwise it&apos;s recorded as advisory
+                and shown here. Either way you&apos;ll see which on the{" "}
+                <Link href="/manager/instructions">instructions page</Link>.
               </p>
               <CommandBox
                 action={sendAgentCommandAction.bind(null, agent.id)}
