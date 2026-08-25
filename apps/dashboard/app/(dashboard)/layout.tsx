@@ -1,4 +1,5 @@
 import { Sidebar } from "../../components/Sidebar";
+import { ManagerAssistant } from "../../components/manager/ManagerAssistant";
 import { isDemoMode } from "../../lib/demo";
 import { getCurrentUser } from "../../lib/authActions";
 import { getAuthConfig } from "../../lib/authConfig";
@@ -23,6 +24,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Sidebar userEmail={user?.email ?? null} />
         <main className="content">{children}</main>
       </div>
+      {/* Available on every dashboard page — the Manager is the primary interface,
+          not a page you have to navigate to. */}
+      <ManagerAssistant demoMode={isDemoMode} />
     </>
   );
 }

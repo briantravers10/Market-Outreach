@@ -242,11 +242,18 @@ const ROUTES: Route[] = [
 
 /** Strips the addressing preamble so the stored instruction reads as the order itself. */
 function cleanInstruction(text: string): string {
-  return text
+  const stripped = text
     .replace(/^\s*(manager|hey|ok(ay)?|please)[,\s]+/i, "")
-    .replace(/^\s*tell\s+(the\s+)?[a-z\s-]{3,20}?\s+(that\s+)?/i, "")
+    .replace(/^\s*tell\s+(the\s+)?[a-z\s-]{3,20}?\s+(that\s+|to\s+)?/i, "")
     .replace(/^\s*instruct\s+(the\s+)?[a-z\s-]{3,20}?\s+(to\s+)?/i, "")
     .trim();
+  // Removing the addressing clause can leave a dangling infinitive
+  // ("tell the Scout to stop X" -> "to stop X"). Read back, the instruction
+  // should be the order itself.
+  const deInfinitived = stripped.replace(/^to\s+/i, "");
+  const result = deInfinitived.charAt(0).toUpperCase() + deInfinitived.slice(1);
+  // Never return an empty instruction just because the cleanup was too greedy.
+  return result.trim() || text.trim();
 }
 
 function extractQuoted(text: string): string | null {

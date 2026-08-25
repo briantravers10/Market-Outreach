@@ -109,6 +109,14 @@ export async function computeMetrics(
 // Summary prose
 // ---------------------------------------------------------------------------
 
+/**
+ * Reads a period label into a sentence. "yesterday" and "today" are already
+ * adverbs, so "in yesterday" would be wrong; everything else takes "in".
+ */
+function inWords(label: string): string {
+  return /^(yesterday|today)$/i.test(label) ? label : `in ${label}`;
+}
+
 function delta(current: number, previous: number): string {
   const diff = current - previous;
   if (diff === 0) return "level with the period before";
@@ -127,7 +135,7 @@ export function writeSummary(metrics: ReportMetrics, period: Period, type: Repor
   const prev = metrics.previousPeriod;
 
   if (metrics.businessesDiscovered === 0 && metrics.jobsCompleted === 0) {
-    lines.push(`Nothing ran in ${period.label}. No businesses were discovered and no jobs completed.`);
+    lines.push(`Nothing ran ${inWords(period.label)}. No businesses were discovered and no jobs completed.`);
     if (metrics.openHumanReviewItems > 0) {
       lines.push(`${metrics.openHumanReviewItems} item${metrics.openHumanReviewItems === 1 ? "" : "s"} still need${metrics.openHumanReviewItems === 1 ? "s" : ""} your attention from earlier.`);
     }
@@ -135,7 +143,7 @@ export function writeSummary(metrics: ReportMetrics, period: Period, type: Repor
   }
 
   lines.push(
-    `The Scout discovered ${metrics.businessesDiscovered} business${metrics.businessesDiscovered === 1 ? "" : "es"} in ${period.label}` +
+    `The Scout discovered ${metrics.businessesDiscovered} business${metrics.businessesDiscovered === 1 ? "" : "es"} ${inWords(period.label)}` +
       (prev ? `, ${delta(metrics.businessesDiscovered, prev.businessesDiscovered)}.` : ".")
   );
 

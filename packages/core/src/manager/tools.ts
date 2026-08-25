@@ -215,7 +215,9 @@ const getBriefing: ManagerTool = {
     // briefing" works later.
     const report = await generateReport(ctx.repos, { type: "briefing", period, now: ctx.now() });
     const summaries = await summarizeAllAgents(ctx.repos.agentActivity, ctx.repos.humanReview);
-    const working = summaries.filter((s) => s.status === "working");
+    // The Manager is always "working" while answering — it just logged the
+    // request. Counting itself as busy staff would be noise in a briefing.
+    const working = summaries.filter((s) => s.status === "working" && s.id !== "manager");
 
     const hour = ctx.now().getHours();
     const greeting = hour < 12 ? "Good morning." : hour < 18 ? "Good afternoon." : "Good evening.";
@@ -516,9 +518,20 @@ const giveInstruction: ManagerTool = {
     },
     required: ["agent", "instruction", "scope"],
   },
-  describe(params) {
+  describe(params, ctx) {
     const scope = str(params.scope) === "permanent" ? "a permanent standing rule" : "a temporary instruction";
-    return `Give the ${agentName(str(params.agent))} ${scope}: "${str(params.instruction)}"`;
+    const text = str(params.instruction).trim();
+    // The `agent` param often arrives as the owner's whole sentence, so resolve
+    // it the same way run() will rather than printing it raw. Falls back to the
+    // effect-based inference so the confirmation names the employee that will
+    // actually receive it — approving "give the <entire sentence> a rule" tells
+    // the owner nothing about what they are agreeing to.
+    const resolved =
+      resolveAgentId(params.agent) ??
+      ctx.focusAgentId ??
+      agentForEffect(parseInstructionEffect(text, { knownCities: getTerritories().map((t) => t.city) }));
+    const who = resolved ? `the ${agentName(resolved)}` : "an employee";
+    return `Give ${who} ${scope}: "${text}"`;
   },
   async run(params, ctx) {
     const text = str(params.instruction).trim();
