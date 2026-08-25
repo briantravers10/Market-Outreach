@@ -85,14 +85,8 @@ async function main() {
     process.exit(1);
   }
 
-  // Everything already imported for this state, so a re-run updates in place.
-  // One read up front beats one lookup per row by a wide margin, and on a fresh
-  // database it costs nothing because there is nothing to read.
-  const existing = new Map<string, string>();
-  for (const lead of await repos.leads.list({ state: args.state, limit: 1_000_000 })) {
-    if (lead.externalId) existing.set(lead.externalId, lead.id);
-  }
-  console.log(`${existing.size} leads already on file for ${args.state}\n`);
+  const before = await repos.leads.count({ state: args.state });
+  console.log(`${before} leads already on file for ${args.state}\n`);
 
   // Campaigns and jobs are created lazily, so an extract containing no
   // massage therapists does not leave an empty campaign behind.
@@ -157,7 +151,6 @@ async function main() {
 
   let read = 0;
   let written = 0;
-  let updated = 0;
   const scores: number[] = [];
   const byIndustry = new Map<string, number>();
   const started = Date.now();
@@ -171,11 +164,9 @@ async function main() {
     if (observation.state !== args.state) continue;
 
     const { campaign, job } = await containerFor(observation.industry);
-    const existingId = existing.get(observation.overtureId);
     const lead: Lead = observationToLead(observation, {
       campaignId: campaign.id,
       jobId: job.id,
-      existingId,
       now: nowIso(),
     });
 
@@ -191,30 +182,31 @@ async function main() {
     if (!args.dryRun) {
       batch.push(lead);
       if (batch.length >= BATCH_SIZE) {
-        await repos.leads.upsertMany(batch);
+        await repos.leads.upsertManyByExternalId(batch);
         batch.length = 0;
       }
     }
 
-    if (existingId) updated += 1;
-    else written += 1;
+    written += 1;
     scores.push(result.score);
     byIndustry.set(observation.industry, (byIndustry.get(observation.industry) ?? 0) + 1);
 
-    if ((written + updated) % 5000 === 0) {
+    if (written % 5000 === 0) {
       const seconds = (Date.now() - started) / 1000;
-      console.log(`  ${written + updated} imported (${seconds.toFixed(0)}s)`);
+      console.log(`  ${written} processed (${seconds.toFixed(0)}s)`);
     }
   }
 
-  if (!args.dryRun && batch.length) await repos.leads.upsertMany(batch);
+  if (!args.dryRun && batch.length) await repos.leads.upsertManyByExternalId(batch);
 
   const average = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
   const band = (min: number, max: number) => scores.filter((s) => s >= min && s <= max).length;
 
   console.log(`\nRead ${read} rows in ${((Date.now() - started) / 1000).toFixed(0)}s`);
-  console.log(`  new leads:     ${written}`);
-  console.log(`  updated leads: ${updated}`);
+  const after = await repos.leads.count({ state: args.state });
+  console.log(`  processed:  ${written}`);
+  console.log(`  net new:    ${after - before}`);
+  console.log(`  on file now: ${after}`);
   console.log(`  average score: ${average.toFixed(1)}`);
   console.log(`  80+: ${band(80, 100)}   60-79: ${band(60, 79)}   40-59: ${band(40, 59)}   under 40: ${band(0, 39)}`);
   console.log(`\nBy industry:`);

@@ -131,119 +131,51 @@ These have been open a while. None of them blocks anything.
 
 ---
 
-## 6. The big one: the data is still synthetic — and what real costs
+## 6. The businesses are real now — here is what to do next
 
-Not a credential — a decision.
+**Status:** ready for you. Nothing blocking.
 
-Every business in the system is invented. The machine around them is real: the
-pipeline, the scoring, the Manager, the instructions, the reports, the audit
-trail. The businesses are not.
+Florida is loaded: **77,325 real businesses** from the Overture Maps open
+dataset, across 714 towns and cities, all scored. 21,577 of them have no website
+at all, and almost all of those have a phone number. No API key, no bill, and a
+licence that lets us keep the data.
 
-Below is the costing you asked for. **Read the caching problem first** — it is
-the part that changes the shape of the build, not just the bill.
+### Load it into your live database
 
-### What Google Places would cost
+Go to **Import** in the sidebar and press **Import Florida**. It runs in the
+browser and takes a few minutes; leave the tab open. Safe to run twice — a
+second run refreshes rather than duplicating.
 
-Pricing is per *call*, and one Text Search call returns up to 20 businesses, so
-the useful unit is cost-per-business, not cost-per-call.
+### Why nothing says "Qualified" yet
 
-| | |
-|---|---|
-| Text Search, with phone + website + rating in the field mask | **$35 per 1,000 calls** |
-| Businesses per call | up to **20** (max 3 pages, so **60 per query**) |
-| Cost per business | **$0.0018 – $0.0023** |
-| Free every month | conservatively **1,000 calls** (~15,000–20,000 businesses) |
+That is correct rather than broken, and it is worth understanding before you
+judge the list.
 
-Google bills a call at the highest tier of any field asked for. Name and address
-alone is the cheaper "Pro" rate; the moment we ask for phone, website or review
-count it re-prices to "Enterprise" at $35. That $3 difference per 1,000 calls is
-not worth optimising — we need those fields.
+The single biggest factor in the score is whether a business already takes
+bookings online. Finding that out means fetching their website and reading it,
+which has not happened yet. Rather than guess, the system records "not checked"
+and awards no points either way. So the scores are compressed and nothing
+crosses the Qualified line.
 
-**At your current territory list, this is free.** Three cities x eleven
-industries x three pages is 99 calls. The free allowance is around 1,000 calls a
-month. You would have to grow to roughly thirty cities, swept at full depth every
-month, before Google charges you anything at all.
+**What you can act on today** is the no-website cohort: sort Leads by score and
+they are at the top. A salon with no website and an active Instagram is the
+strongest signal available without visiting a single page.
 
-Past that: **about $2 per 1,000 businesses found.** Ten thousand businesses is
-around $20.
+### The next real step
 
-### The 60-result ceiling
+Fetching each business's website and detecting their booking setup. That is what
+unlocks the rest of the score, and the link classifier for it is already built
+and tested (`config/link-signals.json`). It costs nothing per business — just
+our own requests. Say the word.
 
-Any one query returns at most 60 results, however many businesses actually exist.
-"Every barber in Miami" is not one query — it is a grid of smaller searches by
-area, deduplicated by place ID. That is engineering work, not extra cost (each
-grid cell is still a call, and calls are what is free).
+### Still open
 
-### The caching problem — the real constraint
-
-Google's Places policy does not let you warehouse what it returns. Place IDs can
-be stored indefinitely. Business names, phone numbers, websites and ratings
-cannot be kept in a permanent database — they are meant to be fetched live and
-shown with attribution.
-
-Our entire product is a permanent lead database you review in a spreadsheet. So
-the naive version — "call Places, save the row, export to CSV" — is not something
-I am willing to build without you knowing that is what it is.
-
-The version that works:
-
-> **Places tells us who exists and where. Their own website tells us everything
-> we keep.**
-
-We store the place ID and our own derived findings. Phone, email, socials,
-services and the booking signal come from fetching the business's own site,
-which we are entitled to keep. The CSV you download is then our research, not
-Google's data re-sold.
-
-That is also the better product. Which brings us to the thing Places cannot
-answer at all.
-
-### What Places does not give you
-
-Places returns: name, address, phone, website, rating, review count, category.
-
-Places does **not** return: email, Instagram or Facebook, staff count, website
-quality, link-in-bio — or **whether they already book online, and with whom**.
-
-That last one is the entire scoring model. Places cannot tell us the one thing we
-most need to know. It comes from fetching the site and reading the links, which
-is work we are already half-way through: `config/link-signals.json` and
-`packages/core/src/enrichment/linkClassifier.ts` already know what a GlossGenius,
-Vagaro or Square booking link looks like. That path costs nothing per business —
-just our own HTTP requests.
-
-Optional on top: an LLM judging the fetched page for quality. Roughly $5 per
-1,000 businesses with a small model — more than Places itself. Better used only
-on the ambiguous cases the deterministic classifier can't call.
-
-### Makeup artists stay unsolved
-
-They are `social-first` for a reason: they are not on Maps. Places will not find
-them, and Instagram has no clean, permitted way to search for businesses you do
-not own. That industry needs its own decision and its own answer — it is not part
-of this price.
-
-### What it costs in work, not money
-
-1. `GooglePlacesDiscoveryProvider` — the seam already exists, so this drops into
-   `DiscoveryProvider` with no changes anywhere else. Grid partitioning,
-   pagination, place-ID dedup.
-2. `WebsiteEnrichmentProvider` — the larger half. Fetch the site, find the
-   contact page, extract phone/email/socials, run the existing link classifier
-   for the booking signal.
-3. A hard spend cap in config with a kill switch, so a runaway campaign cannot
-   quietly spend your money. Non-negotiable, given whose card it is.
-4. Both behind an env var, falling back to the mocks when no key is set — so
-   nothing breaks and you can compare the two side by side.
-
-### Before I build any of it
-
-- **Check Google's own pricing page.** This environment blocks
-  `developers.google.com`, so the figures above come from secondary sources. The
-  structure is right; verify the rate.
-- **Read the Places policy on caching yourself**, or have someone who should.
-  I am not a lawyer and I could not fetch the primary text from here. The
-  place-ID-plus-own-research design above is built to stay inside it, but that is
-  my reading, not a ruling.
-
-Until then the correct mental model is: a finished machine running on fake fuel.
+- **Which states next.** I would sequence by market size and register quality;
+  you may have commercial reasons that beat both.
+- **`beauty-salons` and `day-spas`** are new industries, added because Overture
+  has 15,464 and 10,593 of them in Florida and folding them into hair salons
+  would have quietly corrupted the per-industry numbers. Merge them later if the
+  calls tell you they are really the same trade.
+- **Excluded on purpose:** medical spas (different buyer, different regulation),
+  tanning salons, and beauty retail. All one line in
+  `config/overture-categories.json` if you disagree.

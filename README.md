@@ -12,8 +12,10 @@ the one place it earns its keep this phase: interpreting natural-language comman
 
 ## What this is NOT
 
-- No live business discovery, web search, or scraping.
-- No real leads — every business in this system is synthetically generated.
+- No live business discovery or scraping. Discovery reads a published open
+  dataset (Overture Maps) rather than crawling anyone's site.
+- No outreach of any kind — see below. Finding and scoring businesses is the
+  whole of what this does.
 - No outreach. `packages/core/src/outreach/outreachService.ts` never sends email or SMS —
   every attempt is logged with `status: "DISABLED"`. Resend/Twilio are not installed as
   dependencies anywhere in this repo. The Outreach agent and `/outreach` page are visibly
@@ -478,6 +480,67 @@ only touch the local SQLite file — see `apps/dashboard/lib/actions.ts`. Pages 
 benefit from feeling "alive" (Overview, Team, Campaigns) poll `router.refresh()` every
 few seconds via `LiveRefresh.tsx` — no websockets, since this is a low-frequency
 single-process internal tool.
+
+## Real businesses — the Overture import
+
+Discovery is the [Overture Maps](https://docs.overturemaps.org/) open places
+dataset: ~61M businesses worldwide, published as GeoParquet on public S3 under
+CDLA Permissive v2.0. Free, commercial use allowed, and — unlike Google Places —
+**we are permitted to keep what we read**, which matters when the product is a
+lead database you review in a spreadsheet.
+
+Florida alone is **77,325 businesses across 714 towns and cities**: 95% carry a
+phone number, 72% a social profile, and **21,577 have no website at all**.
+
+Two halves, deliberately separate:
+
+- `scripts/fetch-overture.py` — extraction. Reads remote parquet over HTTP range
+  requests rather than downloading 10GB: the files are spatially sorted with
+  per-row-group bounding boxes, so a state-sized box touches about a fifth of
+  them. Florida took 73 seconds. Emits NDJSON and knows nothing about leads.
+- `packages/core/src/providers/overturePlaces.ts` + `scripts/import-overture.ts`
+  — mapping, scoring and storage. Testable against a fixture with no network.
+
+`config/overture-categories.json` maps Overture's categories onto our
+industries, and is read by both halves so they cannot disagree about what a
+barber is.
+
+### What the importer refuses to invent
+
+Overture knows whether a business has a website. It does not know whether that
+site takes bookings, how many staff work there, or whether anyone still posts to
+the Instagram account. `OnlineBookingStatus` and `BookingMethod` therefore carry
+an `UNKNOWN` member, which is **not** a rounding of `NONE` — it means nobody has
+looked. Scoring an unchecked business as "no online booking" would award 16
+points for a finding that was never made.
+
+The visible consequence is that **nothing reaches Qualified on discovery data
+alone**, because the largest factor in the score has not been checked. That is
+correct, not broken. What is actionable today is the no-website cohort.
+
+### Refreshing
+
+Re-importing is an update, not a duplicate: leads carry the source's own id in
+`external_id`, and the bulk upsert conflicts on it. That means the database
+resolves a refresh without the importer first reading every existing lead —
+which is what keeps the last chunk of a state as cheap as the first.
+
+### Running it from the dashboard
+
+`/import` runs the whole thing from a browser. The extract ships gzipped in the
+repo and `/api/admin/import` imports it in resumable chunks, because no
+serverless invocation finishes 77,000 rows and a stopped import should lose
+nothing. Closing the tab is safe; starting again carries on.
+
+### Organisation, at national scale
+
+State is the unit you expand by, industry the unit you sell to, and **city and
+ZIP are filters on the lead, not the filing system**. A campaign per city does
+not survive 714 of them in one state, so campaigns are per (state, industry) —
+"Florida — Barbers" — and `Territory` carries a `scope` so calling a state a
+"city" is no longer a quiet lie. ZIP is deliberately a filter rather than the
+spine: ZIPs are postal routes, they do not nest inside cities, and there are
+about 41,000 of them.
 
 ## Spreadsheet export
 

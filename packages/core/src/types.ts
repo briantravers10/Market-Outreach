@@ -396,6 +396,23 @@ export interface LeadsRepository {
    * single statement may carry.
    */
   upsertMany(leads: Lead[]): Promise<number>;
+  /**
+   * Bulk upsert keyed on the source's own id rather than ours.
+   *
+   * This is what makes a re-import cheap. Matching on our primary key would
+   * mean loading every existing lead first to discover which ids to reuse —
+   * work that grows with the table, so importing the last chunk of a state
+   * would cost more than importing the first. Letting the database resolve the
+   * conflict on external_id removes that read entirely, and the existing row
+   * keeps its id, so anything already pointing at the lead still resolves.
+   *
+   * Leads without an externalId are rejected rather than silently inserted:
+   * they would every one of them conflict with nothing and pile up as
+   * duplicates on the next run.
+   */
+  upsertManyByExternalId(leads: Lead[]): Promise<number>;
+  /** Row count matching a filter, without hydrating the rows. */
+  count(filter?: LeadFilter): Promise<number>;
   getById(id: string): Promise<Lead | null>;
   list(filter?: LeadFilter): Promise<Lead[]>;
   findPossibleDuplicates(lead: Pick<Lead, "businessName" | "address" | "phone" | "city">): Promise<Lead[]>;

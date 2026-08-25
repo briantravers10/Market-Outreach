@@ -44,12 +44,12 @@ export function ImportRunner({ source, label, expected }: { source: string; labe
           throw new Error(body.error ?? `Import failed with status ${response.status}`);
         }
         const result = (await response.json()) as {
-          imported: number;
-          updated: number;
+          processed: number;
           nextOffset: number;
           done: boolean;
+          totalInDatabase: number;
         };
-        total += result.imported + result.updated;
+        total += result.processed;
         offset = result.nextOffset;
         setDone(total);
         if (result.done) {

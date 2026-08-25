@@ -182,6 +182,31 @@ function leadToRow(lead: Lead): Record<string, unknown> {
   };
 }
 
+
+/** The WHERE clause shared by list() and count(), so a filtered count can never disagree with the rows it counts. */
+function buildWhere(filter: LeadFilter): { where: string; params: Record<string, unknown> } {
+  const clauses: string[] = [];
+  const params: Record<string, unknown> = {};
+
+  if (filter.city) { clauses.push("city = @city"); params.city = filter.city; }
+  if (filter.state) { clauses.push("state = @state"); params.state = filter.state; }
+  if (filter.zip) { clauses.push("zip = @zip"); params.zip = filter.zip; }
+  if (filter.industry) { clauses.push("industry = @industry"); params.industry = filter.industry; }
+  if (filter.minScore !== undefined) { clauses.push("prospect_score >= @minScore"); params.minScore = filter.minScore; }
+  if (filter.maxScore !== undefined) { clauses.push("prospect_score <= @maxScore"); params.maxScore = filter.maxScore; }
+  if (filter.websiteStatus) { clauses.push("website_status = @websiteStatus"); params.websiteStatus = filter.websiteStatus; }
+  if (filter.onlineBookingStatus) { clauses.push("online_booking_status = @onlineBookingStatus"); params.onlineBookingStatus = filter.onlineBookingStatus; }
+  if (filter.bookingProvider) { clauses.push("booking_provider = @bookingProvider"); params.bookingProvider = filter.bookingProvider; }
+  if (filter.minStaffCount !== undefined) { clauses.push("staff_count >= @minStaffCount"); params.minStaffCount = filter.minStaffCount; }
+  if (filter.minReviewCount !== undefined) { clauses.push("review_count >= @minReviewCount"); params.minReviewCount = filter.minReviewCount; }
+  if (filter.dataConfidence) { clauses.push("data_confidence = @dataConfidence"); params.dataConfidence = filter.dataConfidence; }
+  if (filter.researchStatus) { clauses.push("research_status = @researchStatus"); params.researchStatus = filter.researchStatus; }
+  if (filter.qualificationStatus) { clauses.push("qualification_status = @qualificationStatus"); params.qualificationStatus = filter.qualificationStatus; }
+  if (filter.campaignId) { clauses.push("campaign_id = @campaignId"); params.campaignId = filter.campaignId; }
+
+  return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
+}
+
 export class SqliteLeadsRepository implements LeadsRepository {
   constructor(private readonly db: SqlClient) {}
 
@@ -277,32 +302,60 @@ export class SqliteLeadsRepository implements LeadsRepository {
     return written;
   }
 
+
+  async upsertManyByExternalId(leads: Lead[]): Promise<number> {
+    if (leads.length === 0) return 0;
+    const missing = leads.find((lead) => !lead.externalId);
+    if (missing) {
+      throw new Error(
+        `upsertManyByExternalId requires an externalId on every lead; "${missing.businessName}" has none.`
+      );
+    }
+
+    const columns = LEAD_COLUMNS;
+    const perChunk = Math.max(1, Math.floor(900 / columns.length));
+    // id is excluded from the update so a refreshed lead keeps the identity
+    // anything else already refers to.
+    const updatable = UPDATABLE_COLUMNS;
+
+    let written = 0;
+    for (let start = 0; start < leads.length; start += perChunk) {
+      const chunk = leads.slice(start, start + perChunk);
+      const placeholders = chunk.map(() => `(${columns.map(() => "?").join(", ")})`).join(", ");
+      const values: unknown[] = [];
+      for (const lead of chunk) {
+        const row = leadToRow(lead);
+        for (const column of columns) values.push(row[column]);
+      }
+      await this.db
+        .prepare(
+          `INSERT INTO leads (${columns.join(", ")}) VALUES ${placeholders}
+           ON CONFLICT (external_id) WHERE external_id IS NOT NULL DO UPDATE SET ${updatable
+             .map((c) => `${c}=excluded.${c}`)
+             .join(", ")}`
+        )
+        .run(...values);
+      written += chunk.length;
+    }
+    return written;
+  }
+
+  async count(filter: LeadFilter = {}): Promise<number> {
+    const { where, params } = buildWhere(filter);
+    const row = (await this.db
+      .prepare(`SELECT COUNT(*) AS n FROM leads ${where}`)
+      .get(params)) as { n: number | string } | undefined;
+    return Number(row?.n ?? 0);
+  }
+
   async getById(id: string): Promise<Lead | null> {
     const row = await this.db.prepare("SELECT * FROM leads WHERE id = ?").get(id) as LeadRow | undefined;
     return row ? rowToLead(row) : null;
   }
 
   async list(filter: LeadFilter = {}): Promise<Lead[]> {
-    const clauses: string[] = [];
-    const params: Record<string, unknown> = {};
+    const { where, params } = buildWhere(filter);
 
-    if (filter.city) { clauses.push("city = @city"); params.city = filter.city; }
-    if (filter.state) { clauses.push("state = @state"); params.state = filter.state; }
-    if (filter.zip) { clauses.push("zip = @zip"); params.zip = filter.zip; }
-    if (filter.industry) { clauses.push("industry = @industry"); params.industry = filter.industry; }
-    if (filter.minScore !== undefined) { clauses.push("prospect_score >= @minScore"); params.minScore = filter.minScore; }
-    if (filter.maxScore !== undefined) { clauses.push("prospect_score <= @maxScore"); params.maxScore = filter.maxScore; }
-    if (filter.websiteStatus) { clauses.push("website_status = @websiteStatus"); params.websiteStatus = filter.websiteStatus; }
-    if (filter.onlineBookingStatus) { clauses.push("online_booking_status = @onlineBookingStatus"); params.onlineBookingStatus = filter.onlineBookingStatus; }
-    if (filter.bookingProvider) { clauses.push("booking_provider = @bookingProvider"); params.bookingProvider = filter.bookingProvider; }
-    if (filter.minStaffCount !== undefined) { clauses.push("staff_count >= @minStaffCount"); params.minStaffCount = filter.minStaffCount; }
-    if (filter.minReviewCount !== undefined) { clauses.push("review_count >= @minReviewCount"); params.minReviewCount = filter.minReviewCount; }
-    if (filter.dataConfidence) { clauses.push("data_confidence = @dataConfidence"); params.dataConfidence = filter.dataConfidence; }
-    if (filter.researchStatus) { clauses.push("research_status = @researchStatus"); params.researchStatus = filter.researchStatus; }
-    if (filter.qualificationStatus) { clauses.push("qualification_status = @qualificationStatus"); params.qualificationStatus = filter.qualificationStatus; }
-    if (filter.campaignId) { clauses.push("campaign_id = @campaignId"); params.campaignId = filter.campaignId; }
-
-    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     // NULLS LAST on score: an unscored lead is not a zero-scoring lead, and
     // burying them under every scored one is wrong when you are checking an
     // import. Both dialects spell it the same way here.

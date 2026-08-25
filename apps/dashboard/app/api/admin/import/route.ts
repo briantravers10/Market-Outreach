@@ -80,12 +80,10 @@ export async function POST(request: NextRequest) {
   const reasoning = new MockReasoningProvider();
   const industryLabels = new Map(getIndustries().map((i) => [i.id, i.label]));
 
-  // Existing ids for this state, so a re-run refreshes rather than duplicates.
-  const existing = new Map<string, string>();
-  for (const lead of await repos.leads.list({ state: source.state, limit: 1_000_000 })) {
-    if (lead.externalId) existing.set(lead.externalId, lead.id);
-  }
-
+  // No pre-read of existing leads. The database resolves a re-import by
+  // conflicting on the source id, which is what keeps the last chunk of a
+  // state as cheap as the first — loading every existing lead per chunk made
+  // the import quadratic and would have crawled by the end.
   const campaigns = await repos.campaigns.list();
   const containers = new Map<string, { campaignId: string; jobId: string }>();
 
@@ -143,7 +141,6 @@ export async function POST(request: NextRequest) {
   const batch: Lead[] = [];
   let lineNumber = 0;
   let imported = 0;
-  let updated = 0;
   let reachedEnd = true;
 
   for await (const line of stream) {
@@ -151,7 +148,7 @@ export async function POST(request: NextRequest) {
     // skipping lines is far cheaper than the database round trips, and it keeps
     // the extract a plain file rather than something needing an index.
     if (lineNumber++ < offset) continue;
-    if (imported + updated >= count) {
+    if (imported >= count) {
       reachedEnd = false;
       break;
     }
@@ -161,9 +158,8 @@ export async function POST(request: NextRequest) {
     if (observation.state !== source.state) continue;
 
     const { campaignId, jobId } = await containerFor(observation.industry);
-    const existingId = existing.get(observation.overtureId);
     const now = new Date().toISOString();
-    const lead = observationToLead(observation, { campaignId, jobId, existingId, now });
+    const lead = observationToLead(observation, { campaignId, jobId, now });
 
     const result = await scoreLead(lead, scoringConfig, reasoning);
     lead.prospectScore = result.score;
@@ -176,22 +172,22 @@ export async function POST(request: NextRequest) {
 
     batch.push(lead);
     if (batch.length >= 500) {
-      await repos.leads.upsertMany(batch);
+      await repos.leads.upsertManyByExternalId(batch);
       batch.length = 0;
     }
-    if (existingId) updated += 1;
-    else imported += 1;
+    imported += 1;
   }
   stream.close();
-  if (batch.length) await repos.leads.upsertMany(batch);
+  if (batch.length) await repos.leads.upsertManyByExternalId(batch);
 
-  const nextOffset = offset + imported + updated;
   return NextResponse.json({
     source: body.source,
-    imported,
-    updated,
-    nextOffset,
+    // Insert and update are indistinguishable once the database resolves the
+    // conflict, so this reports what was processed rather than pretending to
+    // know which. The total below is the number that actually matters.
+    processed: imported,
+    nextOffset: offset + imported,
     done: reachedEnd,
-    totalInDatabase: existing.size + imported,
+    totalInDatabase: await repos.leads.count({ state: source.state }),
   });
 }
