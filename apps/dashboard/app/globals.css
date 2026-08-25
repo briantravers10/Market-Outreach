@@ -1178,3 +1178,53 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
 .tag-permanent { color: var(--accent); border-color: var(--accent-line); }
 .tag-temporary { color: var(--info); border-color: rgba(111, 159, 196, 0.4); }
 .tag-inactive { color: var(--text-faint); }
+
+/* --------------------------------------------------------------------------
+   Narrow screens
+   --------------------------------------------------------------------------
+   The sidebar is a fixed 232px column, which below roughly 720px leaves too
+   little room for a table and pushes the page wider than the viewport. That
+   horizontal overflow also put the floating Manager button out of reach, which
+   matters more than the layout itself — the Manager is the primary way into
+   this app, so it has to be reachable on the smallest screen someone uses.
+
+   Below the breakpoint the nav becomes a horizontally-scrollable strip across
+   the top and the content takes the full width.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .layout { flex-direction: column; }
+
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+    padding: 8px 10px;
+    /* Keeps the nav reachable without scrolling back to the top of a long page. */
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+
+  .sidebar-brand { padding: 0 10px 0 2px; flex-shrink: 0; }
+  .sidebar-section { display: flex; flex-direction: row; gap: 4px; flex-shrink: 0; }
+  .sidebar-link { white-space: nowrap; padding: 6px 10px; }
+  /* The "Not live" caption and the signed-in footer are both vertical-layout
+     furniture with nowhere sensible to go in a single row. */
+  .sidebar-heading, .sidebar-foot { display: none; }
+
+  .content { padding: 18px 14px 90px; }
+  .page-header { margin-bottom: 18px; }
+
+  /* Tables are the one thing that genuinely cannot reflow, so let them scroll
+     inside their own panel rather than widening the page. */
+  .panel { overflow-x: auto; }
+
+  .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+  .filter-bar { overflow-x: auto; }
+}
