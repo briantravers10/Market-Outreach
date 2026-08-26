@@ -28,10 +28,12 @@ const EVALUATORS: Record<string, FactorEvaluator> = {
     applies: lead.websiteStatus === "EXISTS" && lead.websiteQuality === "POOR",
     reason: "Website exists but was assessed as poor/outdated.",
   }),
-  "excellent-website": (lead) => ({
-    applies: lead.websiteStatus === "EXISTS" && lead.websiteQuality === "EXCELLENT",
-    reason: "Website is already excellent — less urgency to switch.",
-  }),
+  // No "excellent-website" evaluator: the factor was removed from
+  // scoring-config.json because the real analyzer cannot produce
+  // websiteQuality = EXCELLENT from page markup, so it had never fired on a
+  // real lead. Only the synthetic-data worker emits that value, which means
+  // keeping the factor would have scored demo leads and never real ones —
+  // worse than not having it. See the note in scoring-config.json.
   "no-online-booking": (lead) => ({
     applies: lead.onlineBookingStatus === "NONE",
     reason: "No online booking capability detected.",

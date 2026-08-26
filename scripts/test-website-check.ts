@@ -191,6 +191,14 @@ async function main() {
   check("stamped as checked", dead.lead.websiteCheckedAt === deps.now);
   check("but booking is still unanswered", dead.lead.onlineBookingStatus === "UNKNOWN");
   check("and website analysis is NOT claimed", !dead.lead.stagesCompleted.includes("website_analysis"));
+  // The gap this closes: a failed fetch used to write nothing but the
+  // timestamp, leaving websiteStatus reading EXISTS. Nineteen thousand leads
+  // sat in that state, indistinguishable from never-tried and impossible to
+  // retry as a group.
+  check("the site is recorded as unreachable", dead.lead.websiteStatus === "UNREACHABLE", dead.lead.websiteStatus);
+  check("which is not the same as having no website", dead.lead.websiteStatus !== "NONE");
+  check("and the summary says how many URL forms were tried", dead.summary.includes("URL form"), dead.summary);
+  check("research status is not upgraded on a site nobody read", dead.lead.researchStatus !== "ANALYZED");
 
   section("Batch size from a query parameter");
   // The bug this guards: an absent parameter parsed as 0, which is finite, so

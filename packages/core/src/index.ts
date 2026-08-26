@@ -172,9 +172,25 @@ export type { LeadPreset } from "./leadPresets";
 export { observationToLead, normalizePhone, realWebsite, OVERTURE_SOURCE, OVERTURE_STAGES } from "./providers/overturePlaces";
 export type { OvertureObservation, ObservationContext } from "./providers/overturePlaces";
 
-export { HttpSiteFetcher, StubSiteFetcher, isFetchableUrl, USER_AGENT, MAX_BYTES, TIMEOUT_MS } from "./enrichment/siteFetcher";
+export {
+  HttpSiteFetcher,
+  StubSiteFetcher,
+  fetchWithFallback,
+  isFetchableUrl,
+  urlVariants,
+  USER_AGENT,
+  MAX_BYTES,
+  TIMEOUT_MS,
+} from "./enrichment/siteFetcher";
 export type { SiteFetcher, FetchedPage } from "./enrichment/siteFetcher";
-export { analyzeSite, assessQuality, extractAnchors, needsWebsiteAnalysis } from "./enrichment/websiteAnalyzer";
+export {
+  analyzeSite,
+  analyzeSiteDeep,
+  assessQuality,
+  extractAnchors,
+  needsWebsiteAnalysis,
+  pickInnerPages,
+} from "./enrichment/websiteAnalyzer";
 export type { SiteAnalysis } from "./enrichment/websiteAnalyzer";
 
 export { checkWebsite, checkWebsites, resolveBatchSize } from "./workers/websiteCheckWorker";

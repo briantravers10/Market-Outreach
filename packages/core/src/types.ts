@@ -28,7 +28,16 @@ import type {
   ScheduledTasksRepository,
 } from "./manager/types";
 
-export type WebsiteStatus = "NONE" | "EXISTS";
+/**
+ * NONE and UNREACHABLE are different findings and must not be collapsed.
+ *
+ * NONE means the business has no website — a strong buying signal. UNREACHABLE
+ * means they have one and it did not answer, which is a different sales
+ * conversation and, until retried, might just be our own bad luck. Before this
+ * distinction existed, a failed fetch left the lead reading EXISTS with an
+ * UNKNOWN booking status, indistinguishable from one nobody had looked at.
+ */
+export type WebsiteStatus = "NONE" | "EXISTS" | "UNREACHABLE";
 export type WebsiteQuality = "POOR" | "AVERAGE" | "GOOD" | "EXCELLENT" | "UNKNOWN";
 
 /**
@@ -471,6 +480,15 @@ export interface LeadFilter {
   orderBy?: "score" | "discovered" | "name";
   /** Only leads that have a website nobody has read yet — the work queue for the Website Analyst. */
   awaitingWebsiteCheck?: boolean;
+  /**
+   * Leads whose site did not answer, last tried before this ISO timestamp.
+   *
+   * The retry queue, and deliberately time-bounded: a domain that was down an
+   * hour ago is usually still down, while one that failed a week ago is worth
+   * another look. Without the bound a retry pass would just re-fail the same
+   * dead domains on every run and never reach the recoverable ones.
+   */
+  unreachableCheckedBefore?: string;
   /** ISO timestamps bounding when the lead was discovered. A report over "yesterday" must not read the whole table to find yesterday. */
   discoveredSince?: string;
   discoveredBefore?: string;

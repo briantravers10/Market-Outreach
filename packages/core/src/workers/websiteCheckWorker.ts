@@ -1,8 +1,8 @@
 import type { Lead, PipelineStageName } from "../types";
 import type { ScoringConfig } from "../config";
 import type { ReasoningProvider } from "../reasoning/reasoningProvider";
-import type { SiteFetcher } from "../enrichment/siteFetcher";
-import { analyzeSite } from "../enrichment/websiteAnalyzer";
+import { fetchWithFallback, type SiteFetcher } from "../enrichment/siteFetcher";
+import { analyzeSiteDeep } from "../enrichment/websiteAnalyzer";
 import { scoreLead, qualificationStatusForScore } from "../scoring/scoringEngine";
 
 /**
@@ -52,6 +52,8 @@ export async function checkWebsite(
     scoringConfig: ScoringConfig;
     reasoning: ReasoningProvider;
     now: string;
+    /** How many inner pages to try when the homepage shows no booking. */
+    maxInnerPages?: number;
   }
 ): Promise<WebsiteCheckResult> {
   const scoreBefore = lead.prospectScore;
@@ -62,8 +64,15 @@ export async function checkWebsite(
     return { lead, summary: "No website to read.", reachable: false, scoreBefore, scoreAfter: scoreBefore };
   }
 
-  const page = await deps.fetcher.fetchPage(lead.website);
-  const analysis = analyzeSite(page, { hasSocialProfile: Boolean(lead.instagram || lead.facebook) });
+  const { page, attempts } = await fetchWithFallback(deps.fetcher, lead.website);
+  const analysis = await analyzeSiteDeep(
+    page,
+    (url) => deps.fetcher.fetchPage(url),
+    {
+      hasSocialProfile: Boolean(lead.instagram || lead.facebook),
+      maxInnerPages: deps.maxInnerPages,
+    }
+  );
 
   const updated: Lead = {
     ...lead,
@@ -73,7 +82,22 @@ export async function checkWebsite(
     dateLastResearched: deps.now,
   };
 
-  if (!analysis.unreachable) {
+  if (analysis.unreachable) {
+    // Say so on the lead itself.
+    //
+    // This used to write nothing but the timestamp, which left websiteStatus
+    // reading EXISTS and booking reading UNKNOWN — identical to a lead nobody
+    // had tried yet. Nineteen thousand leads ended up in that state, invisible
+    // as a category and impossible to retry deliberately. A site we could not
+    // reach is a finding, and a different sales conversation from one that
+    // loads fine and has no booking button.
+    updated.websiteStatus = "UNREACHABLE";
+    // Deliberately NOT marked as website_analysis complete, and researchStatus
+    // is left alone: nothing was read, so claiming the stage would put a tick
+    // against work that did not happen. The lead is kept out of the queue by
+    // websiteCheckedAt above, not by pretending it was analysed.
+  } else {
+    updated.websiteStatus = "EXISTS";
     updated.websiteQuality = analysis.websiteQuality;
     updated.onlineBookingStatus = analysis.onlineBookingStatus;
     updated.bookingProvider = analysis.bookingProvider;
@@ -96,7 +120,7 @@ export async function checkWebsite(
   updated.stagesCompleted = withStage(updated.stagesCompleted, "qualification");
 
   const summary = analysis.unreachable
-    ? `${lead.businessName}: site did not respond — ${analysis.evidence[0] ?? "no detail"}`
+    ? `${lead.businessName}: site did not respond after ${attempts.length} URL form${attempts.length === 1 ? "" : "s"} — ${analysis.evidence[0] ?? "no detail"}`
     : `${lead.businessName}: ${analysis.onlineBookingStatus === "NONE" ? "no online booking" : `books via ${analysis.bookingProvider ?? "an unrecognised tool"}`}, score ${scoreBefore ?? "?"} → ${result.score}`;
 
   return { lead: updated, summary, reachable: !analysis.unreachable, scoreBefore, scoreAfter: result.score };

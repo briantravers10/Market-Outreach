@@ -235,6 +235,10 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
   if (filter.awaitingWebsiteCheck) {
     clauses.push("website IS NOT NULL AND website_checked_at IS NULL AND online_booking_status = 'UNKNOWN'");
   }
+  if (filter.unreachableCheckedBefore) {
+    clauses.push("website IS NOT NULL AND website_status = 'UNREACHABLE' AND website_checked_at < @unreachableBefore");
+    params.unreachableBefore = filter.unreachableCheckedBefore;
+  }
 
   return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
 }

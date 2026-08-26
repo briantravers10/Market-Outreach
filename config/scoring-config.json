@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Editable prospect-scoring configuration. The ScoringEngine (packages/core/src/scoring/scoringEngine.ts) reads this file at runtime \u2014 change points, thresholds, or enabled flags here without touching code. Each factor's evaluation logic lives in a small named function in the engine, keyed by `id`; params here tune that function's thresholds. Score estimates fit for WEBSITE + INTEGRATED BOOKING, not general business quality.",
+  "description": "Editable prospect-scoring configuration. The ScoringEngine (packages/core/src/scoring/scoringEngine.ts) reads this file at runtime \u2014 change points, thresholds, or enabled flags here without touching code. Each factor's evaluation logic lives in a small named function in the engine, keyed by `id`; params here tune that function's thresholds. Score estimates fit for WEBSITE + INTEGRATED BOOKING, not general business quality. NOTE: an `excellent-website` factor (-12) was removed rather than fixed. It keyed on website_quality = EXCELLENT, a value `assessQuality` has never been able to produce: the signals it reads from markup (viewport tag, HTTPS, copyright year, site builder, page size) can separate POOR from AVERAGE from GOOD, and cannot honestly separate GOOD from EXCELLENT. Adding a tier to satisfy the config would have meant inventing a distinction the evidence does not support. Removing it changed no score, because it had never fired on any of the 77,325 leads. Any factor added here must key on a value some analyzer can actually emit.",
   "baseScore": 35,
   "scoreRange": {
     "min": 0,
@@ -22,14 +22,6 @@
       "points": 10,
       "enabled": true,
       "appliesWhen": "website_status = EXISTS and website_quality = POOR"
-    },
-    {
-      "id": "excellent-website",
-      "label": "Excellent, modern website",
-      "category": "website",
-      "points": -12,
-      "enabled": true,
-      "appliesWhen": "website_status = EXISTS and website_quality = EXCELLENT"
     },
     {
       "id": "no-online-booking",

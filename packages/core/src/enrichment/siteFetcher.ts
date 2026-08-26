@@ -60,6 +60,86 @@ export function isFetchableUrl(raw: string): boolean {
   return true;
 }
 
+/**
+ * The URLs worth trying for one site, best first.
+ *
+ * A third of the sites in this database "failed" on a single attempt, and a
+ * large share of those are not dead — they are `example.com` when the server
+ * only answers on `www.example.com`, or an `https` URL on a host that still
+ * only serves plain `http`. The dataset records whatever the source happened to
+ * have, which is frequently not the shape that resolves.
+ *
+ * Ordered so the least surprising attempt goes first and nothing downgrades
+ * security unless the secure form has already failed. Deduped, because a URL
+ * already carrying `www` would otherwise be tried twice.
+ */
+export function urlVariants(raw: string): string[] {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return [];
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return [];
+
+  const host = url.hostname.toLowerCase();
+  const hosts = host.startsWith("www.") ? [host, host.slice(4)] : [`${host}`, `www.${host}`];
+  // https first, always: trying http first would downgrade sites that are
+  // perfectly reachable over TLS.
+  const schemes = url.protocol === "http:" ? ["https:", "http:"] : ["https:", "http:"];
+
+  const seen = new Set<string>();
+  const variants: string[] = [];
+  for (const scheme of schemes) {
+    for (const candidate of hosts) {
+      const attempt = new URL(url.toString());
+      attempt.protocol = scheme;
+      attempt.hostname = candidate;
+      const value = attempt.toString();
+      if (seen.has(value) || !isFetchableUrl(value)) continue;
+      seen.add(value);
+      variants.push(value);
+    }
+  }
+  return variants;
+}
+
+/**
+ * Fetches a site, trying each plausible URL shape before giving up.
+ *
+ * Returns the first response that actually carries HTML. If every variant
+ * fails, the LAST failure is returned with its error prefixed by how many
+ * shapes were tried — so "unreachable" means "unreachable four ways", which is
+ * a much stronger claim than the single attempt this used to make.
+ */
+export async function fetchWithFallback(
+  fetcher: SiteFetcher,
+  url: string
+): Promise<{ page: FetchedPage; attempts: string[] }> {
+  const variants = urlVariants(url);
+  if (variants.length === 0) {
+    return { page: failure(url, "Not a public http(s) URL"), attempts: [] };
+  }
+
+  const attempts: string[] = [];
+  let last: FetchedPage | null = null;
+
+  for (const variant of variants) {
+    attempts.push(variant);
+    const page = await fetcher.fetchPage(variant);
+    // Content is the test, not the status code: plenty of these hosts answer
+    // 200 with an empty body, or a 404 page that is still the real site.
+    if (!page.error && page.html.trim()) return { page, attempts };
+    last = page;
+  }
+
+  const detail = last?.error ?? "No response";
+  return {
+    page: { ...(last ?? failure(url, detail)), error: `${detail} (tried ${attempts.length} URL forms)` },
+    attempts,
+  };
+}
+
 export class HttpSiteFetcher implements SiteFetcher {
   constructor(
     private readonly timeoutMs = TIMEOUT_MS,

@@ -235,6 +235,132 @@ export function analyzeSite(page: FetchedPage, options: { hasSocialProfile: bool
   };
 }
 
+/** Paths that carry booking on a salon site often enough to be worth a request each. */
+const BOOKING_PATHS = [
+  "/book", "/book-now", "/booking", "/bookings", "/appointment", "/appointments",
+  "/schedule", "/services", "/contact", "/reservations", "/book-online",
+];
+
+/** Never worth fetching as a page: binaries, feeds, and non-http schemes. */
+const NON_PAGE = /\.(pdf|jpe?g|png|gif|svg|webp|mp4|mov|zip|docx?|xlsx?|css|js|xml|ico)(\?|#|$)/i;
+
+/**
+ * Same-host pages worth reading when the homepage shows no booking.
+ *
+ * This is the fix for the single most expensive error the model makes. Plenty
+ * of salons put "Book" one click in — on `/services`, or behind a nav item —
+ * and reading only the homepage marks them "no online booking", which is the
+ * highest-weighted field in the score. That sends the owner to a business that
+ * already has an incumbent, which is the call that destroys trust in the list.
+ *
+ * Ordered by how likely the page is to settle the question, and capped: this
+ * runs across tens of thousands of sites, and four extra requests to a small
+ * business is already at the edge of polite.
+ */
+export function pickInnerPages(html: string, baseUrl: string, max = 4): string[] {
+  const anchors = extractAnchors(html, baseUrl);
+  const scored: { href: string; rank: number }[] = [];
+  const seen = new Set<string>();
+
+  for (const anchor of anchors) {
+    if (!sameHost(anchor.href, baseUrl)) continue;
+    if (NON_PAGE.test(anchor.href)) continue;
+
+    let path: string;
+    let normalised: string;
+    try {
+      const url = new URL(anchor.href);
+      url.hash = "";
+      path = url.pathname.toLowerCase().replace(/\/+$/, "");
+      normalised = url.toString();
+    } catch {
+      continue;
+    }
+    // The homepage itself is already read.
+    if (path === "" || path === "/") continue;
+    if (seen.has(normalised)) continue;
+
+    const text = anchor.text.toLowerCase();
+    // Anchor text is the stronger signal: a "Book Now" button pointing at
+    // /reserve-a-chair matters more than a nav link that happens to say
+    // /services.
+    const textMatch = BOOKING_WORDS.some((word) => text.includes(word));
+    const pathMatch = BOOKING_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+    if (!textMatch && !pathMatch) continue;
+
+    seen.add(normalised);
+    scored.push({ href: normalised, rank: textMatch ? 0 : 1 });
+  }
+
+  return scored.sort((a, b) => a.rank - b.rank).slice(0, max).map((s) => s.href);
+}
+
+/**
+ * A full read of a site: the homepage, plus inner pages when the homepage
+ * leaves the booking question answered "NONE".
+ *
+ * Only escalates on NONE. A homepage that already shows a booking platform has
+ * settled the question, and one that could not be read has nothing to crawl —
+ * spending four more requests on either would be for nothing.
+ */
+export async function analyzeSiteDeep(
+  page: FetchedPage,
+  fetchPage: (url: string) => Promise<FetchedPage>,
+  options: { hasSocialProfile: boolean; maxInnerPages?: number } = { hasSocialProfile: false }
+): Promise<SiteAnalysis & { pagesRead: number }> {
+  const shallow = analyzeSite(page, options);
+  if (shallow.unreachable || shallow.onlineBookingStatus !== "NONE") {
+    return { ...shallow, pagesRead: 1 };
+  }
+
+  const inner = pickInnerPages(page.html, page.finalUrl, options.maxInnerPages ?? 4);
+  let pagesRead = 1;
+
+  for (const url of inner) {
+    const innerPage = await fetchPage(url);
+    pagesRead += 1;
+    if (innerPage.error || !innerPage.html.trim()) continue;
+
+    const innerAnalysis = analyzeSite(innerPage, options);
+    if (innerAnalysis.onlineBookingStatus === "NONE" || innerAnalysis.unreachable) continue;
+
+    // Found booking one click in. The homepage's quality read still stands —
+    // it is the page their customers land on — but the booking answer comes
+    // from here, and the evidence says exactly where so it can be checked.
+    const path = (() => {
+      try {
+        return new URL(url).pathname;
+      } catch {
+        return url;
+      }
+    })();
+
+    return {
+      ...shallow,
+      onlineBookingStatus: innerAnalysis.onlineBookingStatus,
+      bookingProvider: innerAnalysis.bookingProvider,
+      bookingMethod: innerAnalysis.bookingMethod,
+      detectedLinks: [...shallow.detectedLinks, ...innerAnalysis.detectedLinks],
+      evidence: [
+        // Drop the homepage's "no booking anywhere" line: it is now false, and
+        // leaving a contradicted claim on the lead is worse than saying less.
+        ...shallow.evidence.filter((line) => !line.startsWith("No booking link")),
+        `Booking found on ${path}, not the homepage — ${innerAnalysis.bookingProvider ?? "an unrecognised tool"}.`,
+      ],
+      pagesRead,
+    };
+  }
+
+  return {
+    ...shallow,
+    evidence:
+      inner.length > 0
+        ? [...shallow.evidence, `Checked ${inner.length} inner page${inner.length === 1 ? "" : "s"} too — still no booking.`]
+        : shallow.evidence,
+    pagesRead,
+  };
+}
+
 /**
  * A business with no website is deliberately NOT analysed here.
  *
