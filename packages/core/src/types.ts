@@ -19,6 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import type { DetectedLink } from "./enrichment/linkClassifier";
+import type { CommunicationsRepository } from "./comms/types";
 import type {
   ConversationsRepository,
   InstructionsRepository,
@@ -581,4 +582,5 @@ export interface Repositories {
   managerActions: ManagerActionsRepository;
   reports: ReportsRepository;
   scheduledTasks: ScheduledTasksRepository;
+  communications: CommunicationsRepository;
 }

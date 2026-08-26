@@ -373,3 +373,56 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_scheduled_active ON scheduled_tasks(active, next_run_at);
+
+-- ===========================================================================
+-- Communications Centre. A tool the Manager uses, not another agent.
+--
+-- Deliberately TEXT/INTEGER only, like the manager tables above, so one body
+-- is valid in both SQLite and Postgres and the two can never drift.
+--
+-- Nothing in here may reach `sent` without `approved_at` being set first. That
+-- is enforced in code (packages/core/src/comms/commsService.ts) rather than by
+-- a constraint, because the useful failure is a clear refusal with a reason,
+-- not a constraint violation the owner has to interpret.
+-- ===========================================================================
+CREATE TABLE IF NOT EXISTS communications (
+  id TEXT PRIMARY KEY,
+  channel TEXT NOT NULL,
+  direction TEXT NOT NULL DEFAULT 'outbound',
+  status TEXT NOT NULL,
+
+  contact_name TEXT,
+  business_name TEXT,
+  destination TEXT NOT NULL,
+  sender TEXT,
+
+  subject TEXT,
+  body TEXT NOT NULL,
+
+  approved_at TEXT,
+  approved_by TEXT,
+  scheduled_for TEXT,
+  sent_at TEXT,
+  provider_message_id TEXT,
+  provider TEXT,
+  error TEXT,
+
+  conversation_id TEXT,
+  action_id TEXT,
+  lead_id TEXT,
+  pipedrive_person_id INTEGER,
+  pipedrive_org_id INTEGER,
+  pipedrive_deal_id INTEGER,
+  pipedrive_activity_id INTEGER,
+  in_reply_to_id TEXT,
+
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_comms_status ON communications(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_comms_channel ON communications(channel, created_at);
+CREATE INDEX IF NOT EXISTS idx_comms_destination ON communications(destination);
+CREATE INDEX IF NOT EXISTS idx_comms_lead ON communications(lead_id);
+CREATE INDEX IF NOT EXISTS idx_comms_conversation ON communications(conversation_id);
+-- Delivery and reply webhooks arrive knowing only the provider's own id.
+CREATE INDEX IF NOT EXISTS idx_comms_provider_message ON communications(provider_message_id);

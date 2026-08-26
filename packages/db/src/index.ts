@@ -3,6 +3,7 @@ import { getDb, closeDb } from "./client";
 import { defaultDbPath } from "./paths";
 import { createPostgresClient, createSqliteClient, type SqlClient } from "./sqlClient";
 import { SqliteLeadsRepository } from "./repositories/leadsRepo";
+import { SqlCommunicationsRepository } from "./repositories/commsRepo";
 import { SqliteJobsRepository } from "./repositories/jobsRepo";
 import { SqliteCampaignsRepository } from "./repositories/campaignsRepo";
 import { SqliteCrmRepository } from "./repositories/crmRepo";
@@ -78,5 +79,7 @@ export function createRepositories(dbPath?: string): Repositories {
     managerActions: createManagerActionsRepo(db),
     reports: createReportsRepo(db),
     scheduledTasks: createScheduledTasksRepo(db),
+    communications: new SqlCommunicationsRepository(db),
   };
 }
+export { SqlCommunicationsRepository } from "./repositories/commsRepo";

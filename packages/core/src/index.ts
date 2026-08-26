@@ -169,3 +169,41 @@ export type { SiteAnalysis } from "./enrichment/websiteAnalyzer";
 
 export { checkWebsite, checkWebsites, resolveBatchSize } from "./workers/websiteCheckWorker";
 export type { WebsiteCheckResult } from "./workers/websiteCheckWorker";
+
+// --- Communications Centre (a Manager tool, not an agent) -------------------
+export { CommsService, approvalFingerprint } from "./comms/commsService";
+export type { CommsDeps, DraftInput, SendOutcome } from "./comms/commsService";
+export {
+  ResendEmailProvider,
+  TwilioSmsProvider,
+  RecordingEmailProvider,
+  RecordingSmsProvider,
+} from "./comms/providers";
+export type { HttpTransport } from "./comms/providers";
+export { ContactResolver, describeCandidate } from "./comms/contactResolver";
+export type { ContactResolverDeps } from "./comms/contactResolver";
+export type {
+  Communication,
+  CommunicationChannel,
+  CommunicationDirection,
+  CommunicationStatus,
+  CommunicationFilter,
+  CommunicationsRepository,
+  EmailProvider,
+  SmsProvider,
+  ProviderReadiness,
+  SendResult,
+  ContactCandidate,
+  ContactResolution,
+} from "./comms/types";
+
+export { PipedriveReader } from "./crm/pipedriveReader";
+export type {
+  PipedrivePerson,
+  PipedriveOrganization,
+  PipedriveDeal,
+  PipedriveActivity,
+  PipedriveNote,
+  PipedriveTransport,
+  PipedriveReaderOptions,
+} from "./crm/pipedriveReader";
