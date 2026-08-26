@@ -85,30 +85,49 @@ export async function GET(request: NextRequest) {
    * which every lead now fails. Without a second queue, improving the analyser
    * could never reach the leads the old one already decided.
    */
-  const recheck = request.nextUrl.searchParams.get("mode") === "recheck";
   // Everything checked before this moment was read by the older analysis.
-  // Passed explicitly so a run cannot re-select the leads it just wrote, which
+  // Fixed per run so a run cannot re-select the leads it just wrote, which
   // would loop forever on the same slice.
   const recheckBefore = request.nextUrl.searchParams.get("before") ?? new Date().toISOString();
-  const queueFilter = recheck
-    ? { needsWebsiteRecheck: recheckBefore }
-    : { awaitingWebsiteCheck: true };
 
   const repos = getRepos();
-  // Timed in three parts. The first run of this checked two sites in a window
-  // sized for hundreds, and without knowing which part ate the budget any fix
-  // would have been a guess.
   const startedAt = Date.now();
-  const queue = await repos.leads.list({
-    ...queueFilter,
-    orderBy: "score",
-    limit: batchSize,
-  });
+
+  /**
+   * Two queues, drained in order, with no query parameter needed.
+   *
+   * This used to require `?mode=recheck` to reach the second queue — and the
+   * scheduled cron calls this route with no parameters at all. Since every
+   * lead now carries a checked-at stamp, the first queue matches nothing, so
+   * the schedule found an empty queue, reported success, and did nothing.
+   * Every ten minutes. The 39,000 leads waiting to be re-read were reachable
+   * only from a button, and then the button was removed.
+   *
+   * Falling through automatically is what "runs on its own" has to mean: new
+   * leads first because they have never been looked at, then the backlog.
+   */
+  const QUEUES: { mode: string; filter: Parameters<typeof repos.leads.count>[0] }[] = [
+    { mode: "new", filter: { awaitingWebsiteCheck: true } },
+    { mode: "recheck", filter: { needsWebsiteRecheck: recheckBefore } },
+  ];
+
+  let queue: Awaited<ReturnType<typeof repos.leads.list>> = [];
+  let queueFilter = QUEUES[0].filter;
+  let mode = QUEUES[0].mode;
+
+  for (const candidate of QUEUES) {
+    queue = await repos.leads.list({ ...candidate.filter, orderBy: "score", limit: batchSize });
+    queueFilter = candidate.filter;
+    mode = candidate.mode;
+    if (queue.length > 0) break;
+  }
+
   const queueMs = Date.now() - startedAt;
+  const recheck = mode === "recheck";
 
   if (queue.length === 0) {
-    const remaining = await repos.leads.count(queueFilter);
-    return NextResponse.json({ mode: recheck ? "recheck" : "new", checked: 0, remaining, done: true });
+    // Genuinely nothing left in either queue.
+    return NextResponse.json({ mode, checked: 0, remaining: 0, done: true });
   }
 
   const workStartedAt = Date.now();
@@ -169,7 +188,7 @@ export async function GET(request: NextRequest) {
   console.log(`check-websites ${JSON.stringify({ ...timing, checked: results.length })}`);
 
   return NextResponse.json({
-    mode: recheck ? "recheck" : "new",
+    mode,
     ...timing,
     checked: results.length,
     reachable,
