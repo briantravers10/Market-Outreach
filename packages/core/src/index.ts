@@ -195,6 +195,31 @@ export {
 } from "./spend/spendService";
 export type { CostPerLead, SpendSummary } from "./spend/spendService";
 export type { BillingInterval, CostEntry, CostKind, CostRepository } from "./spend/types";
+export {
+  buildSearchQuery,
+  cityMatches,
+  extractCandidatesFromHtml,
+  nameSimilarity,
+  normaliseName,
+  pickMatch,
+  searchUrlFor,
+} from "./enrichment/bookingDirectory";
+export type {
+  DirectoryCandidate,
+  DirectoryLookup,
+  DirectoryOutcome,
+  DirectoryPlatform,
+  MatchOptions,
+} from "./enrichment/bookingDirectory";
+export {
+  DirectDirectoryLookup,
+  SearchApiDirectoryLookup,
+  lookupWithFallback,
+} from "./enrichment/directoryLookups";
+export type { SearchApiResult, SearchApiTransport, SpendGuard } from "./enrichment/directoryLookups";
+export { createBraveTransport, RecordingSpendGuard } from "./enrichment/braveSearch";
+export { lookupBookingDirectories } from "./workers/directoryLookupWorker";
+export type { DirectoryLookupResult } from "./workers/directoryLookupWorker";
 export { ANALYSIS_VERSION, assessReadiness, describeHoldReason } from "./scoring/readiness";
 export type { HoldReason, Readiness } from "./scoring/readiness";
 export {

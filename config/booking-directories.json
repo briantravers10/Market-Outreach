@@ -1,0 +1,59 @@
+{
+  "description": "Booking platforms to look a business up on when their own website cannot answer the question. Answers the single most valuable fact about a prospect: are they already booking online? A business FOUND on one of these is a WORSE prospect — they have an incumbent — so a false positive here costs a good lead, and a false negative costs a wasted phone call.",
+  "verificationNote": "searchUrlTemplate values are UNVERIFIED. They were written without being able to reach these sites, so the first real run must confirm each one before its results are trusted. A template that 404s or redirects is reported as 'unavailable' rather than 'not found', so an unverified pattern cannot quietly mark every business as having no booking.",
+  "matching": {
+    "minimumNameSimilarity": 0.82,
+    "requireCityMatch": true,
+    "notes": "Both conditions must hold. Salon names repeat constantly across a state — there are dozens of 'Hair Studio' listings in Florida alone — so a name match without a city match is not evidence of anything."
+  },
+  "platforms": [
+    {
+      "id": "booksy",
+      "label": "Booksy",
+      "domain": "booksy.com",
+      "searchUrlTemplate": "https://booksy.com/en-us/s/{query}",
+      "profilePathPattern": "/en-us/[0-9]+_",
+      "enabled": true
+    },
+    {
+      "id": "vagaro",
+      "label": "Vagaro",
+      "domain": "vagaro.com",
+      "searchUrlTemplate": "https://www.vagaro.com/search?q={query}",
+      "profilePathPattern": "^/[a-z0-9-]+$",
+      "enabled": true
+    },
+    {
+      "id": "square",
+      "label": "Square Appointments",
+      "domain": "squareup.com",
+      "searchUrlTemplate": "https://squareup.com/appointments/search?q={query}",
+      "profilePathPattern": "/appointments/book/",
+      "enabled": true
+    },
+    {
+      "id": "styleseat",
+      "label": "StyleSeat",
+      "domain": "styleseat.com",
+      "searchUrlTemplate": "https://www.styleseat.com/m/search?q={query}",
+      "profilePathPattern": "^/m/v/",
+      "enabled": true
+    },
+    {
+      "id": "fresha",
+      "label": "Fresha",
+      "domain": "fresha.com",
+      "searchUrlTemplate": "https://www.fresha.com/search?q={query}",
+      "profilePathPattern": "^/a/",
+      "enabled": true
+    },
+    {
+      "id": "glossgenius",
+      "label": "GlossGenius",
+      "domain": "glossgenius.com",
+      "searchUrlTemplate": "https://www.glossgenius.com/search?q={query}",
+      "profilePathPattern": "^/[a-z0-9-]+$",
+      "enabled": false
+    }
+  ]
+}

@@ -204,6 +204,30 @@ export function getIndustries(): Industry[] {
   return industriesCache;
 }
 
+let bookingDirectoriesCache: BookingDirectoriesConfig | null = null;
+
+export interface BookingDirectoriesConfig {
+  description: string;
+  verificationNote: string;
+  matching: { minimumNameSimilarity: number; requireCityMatch: boolean; notes: string };
+  platforms: {
+    id: string;
+    label: string;
+    domain: string;
+    searchUrlTemplate: string;
+    profilePathPattern: string;
+    enabled: boolean;
+  }[];
+}
+
+/** Booking platforms to look a business up on when their own site cannot answer. */
+export function getBookingDirectories(): BookingDirectoriesConfig {
+  if (!bookingDirectoriesCache) {
+    bookingDirectoriesCache = readJson<BookingDirectoriesConfig>("config/booking-directories.json");
+  }
+  return bookingDirectoriesCache;
+}
+
 export function getScoringConfig(): ScoringConfig {
   if (!scoringConfigCache) {
     scoringConfigCache = readJson<ScoringConfig>("config/scoring-config.json");
