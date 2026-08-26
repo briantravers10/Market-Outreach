@@ -19,8 +19,20 @@ export interface AgentSummary {
   humanReviewCount: number;
 }
 
-/** An agent reads as "Working" if it logged something within this window. */
-const WORKING_WINDOW_MS = 20_000;
+/**
+ * How recently an agent must have done something to read as "Working".
+ *
+ * Twenty seconds was right when the pipeline ran continuously in one process.
+ * It is wrong now: the real work is driven by a cron every ten minutes, so a
+ * twenty-second window meant the Website Analyst read "Idle" roughly 97% of
+ * the time while steadily working through tens of thousands of websites. An
+ * agent that is doing its job must not look asleep.
+ *
+ * Fifteen minutes covers the ten-minute schedule plus margin for a long run,
+ * so "Working" means "this is running on schedule" — which is the question
+ * the owner is actually asking when they look at the Team page.
+ */
+const WORKING_WINDOW_MS = 15 * 60_000;
 
 /**
  * Computes an agent's live status/current-task/counters purely from its

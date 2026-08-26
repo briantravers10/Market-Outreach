@@ -5,6 +5,7 @@ import {
   HttpSiteFetcher,
   MockReasoningProvider,
   getScoringConfig,
+  logActivity,
 } from "@market-outreach/core";
 import { getRepos } from "../../../../lib/data";
 import { isDemoMode } from "../../../../lib/demo";
@@ -143,6 +144,26 @@ export async function GET(request: NextRequest) {
   ).length;
 
   const timing = { queueMs, workMs, writeMs, queued: queue.length, perSiteMs: results.length ? Math.round(workMs / results.length) : null };
+
+  // Say what happened, so the Team page can show this agent working.
+  //
+  // Without this the Website Analyst read "Idle" while steadily processing
+  // tens of thousands of sites — the dashboard's only window onto the work
+  // showed nothing happening, which is indistinguishable from broken.
+  const remainingAfter = await repos.leads.count(queueFilter);
+  try {
+    await logActivity(repos.agentActivity, {
+      agentId: "website-analyst",
+      action: recheck ? "website_recheck" : "website_check",
+      summary:
+        `Read ${results.length} site${results.length === 1 ? "" : "s"}` +
+        ` — ${reachable} answered, ${results.length - reachable} did not.` +
+        ` ${remainingAfter.toLocaleString()} still queued.`,
+    });
+  } catch {
+    // Logging is for the dashboard's benefit; failing to log must never lose
+    // the sweep's actual results, which are already written.
+  }
   // One structured line per run, so the next tick explains itself in the logs
   // without anyone having to reproduce it.
   console.log(`check-websites ${JSON.stringify({ ...timing, checked: results.length })}`);
@@ -155,7 +176,7 @@ export async function GET(request: NextRequest) {
     unreachable: results.length - reachable,
     scoreImproved: improved,
     nowQualified,
-    remaining: await repos.leads.count(queueFilter),
+    remaining: remainingAfter,
     done: false,
   });
 }
