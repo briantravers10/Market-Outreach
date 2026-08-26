@@ -200,6 +200,42 @@ async function main() {
   check("and the summary says how many URL forms were tried", dead.summary.includes("URL form"), dead.summary);
   check("research status is not upgraded on a site nobody read", dead.lead.researchStatus !== "ANALYZED");
 
+  section("Progress is saved as it goes, not only at the end");
+  // The bug this guards cost a day of throughput and looked like nothing was
+  // wrong: the cron fetched 800 sites every ten minutes inside a budget that
+  // killed it before the single end-of-run write, so hours of work were
+  // discarded and the queue never moved.
+  {
+    const batch = Array.from({ length: 12 }, (_, i) =>
+      leadFor({ overtureId: `flush-${i}`, name: `Flush ${i}`, websites: [`https://flush${i}.com/`] })
+    );
+    const flushes: number[] = [];
+    const saved: string[] = [];
+    const results = await checkWebsites(batch, {
+      ...deps,
+      fetcher: new StubSiteFetcher({}),
+      concurrency: 2,
+      flushEvery: 5,
+      onFlush: async (chunk) => {
+        flushes.push(chunk.length);
+        saved.push(...chunk.map((r) => r.lead.id));
+      },
+    });
+    check("work is flushed more than once", flushes.length > 1, `${flushes.length} flush(es)`);
+    check("every result is saved exactly once", saved.length === results.length, `${saved.length} vs ${results.length}`);
+    check("no lead is saved twice", new Set(saved).size === saved.length);
+    check(
+      "the trailing partial batch is flushed too",
+      saved.length % 5 !== 0 || flushes[flushes.length - 1] <= 5
+    );
+  }
+  {
+    // No callback must behave exactly as before.
+    const batch = [leadFor({ overtureId: "noflush", name: "No Flush", websites: ["https://x.com/"] })];
+    const results = await checkWebsites(batch, { ...deps, fetcher: new StubSiteFetcher({}) });
+    check("omitting onFlush still returns every result", results.length === 1);
+  }
+
   section("Batch size from a query parameter");
   // The bug this guards: an absent parameter parsed as 0, which is finite, so
   // the clamp produced a batch of one and every scheduled run checked a single

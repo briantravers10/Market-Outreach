@@ -72,11 +72,14 @@ export async function runSweepAction(form: FormData): Promise<void> {
       now: new Date().toISOString(),
       concurrency: 12,
       deadlineMs: UI_DEADLINE_MS,
+      // Saved as they complete, so a click that runs out of time still keeps
+      // what it finished. Only leads actually processed are written; the rest
+      // were never touched and stay queued rather than being stamped as done.
+      flushEvery: 25,
+      onFlush: async (batch) => {
+        await repos.leads.upsertMany(batch.map((r) => r.lead));
+      },
     });
-
-    // Only leads actually processed are written; the rest were never touched
-    // and stay queued rather than being stamped as done.
-    await repos.leads.upsertMany(results.map((r) => r.lead));
 
     outcome = {
       mode: recheck ? "recheck" : "new",

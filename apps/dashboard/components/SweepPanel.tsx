@@ -1,4 +1,5 @@
 import { runSweepAction, type SweepOutcome } from "../lib/sweepActions";
+import { SweepButtons } from "./SweepButtons";
 
 /**
  * Running the website sweep by hand.
@@ -42,13 +43,8 @@ export function SweepPanel({
 
       {outcome && <SweepResult outcome={outcome} />}
 
-      <form action={runSweepAction} className="bulk-push-actions">
-        <button className="btn btn-primary" type="submit" name="mode" value="recheck">
-          Re-read a batch
-        </button>
-        <button className="btn" type="submit" name="mode" value="new">
-          Read unchecked
-        </button>
+      <form action={runSweepAction}>
+        <SweepButtons />
       </form>
 
       <p className="muted" style={{ fontSize: 12, margin: "10px 0 0" }}>

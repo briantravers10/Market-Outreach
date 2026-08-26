@@ -47,12 +47,15 @@ const DEFAULT_BATCH = 800;
 /**
  * Leaves the invocation room to write results and answer before the limit.
  *
- * The margin is generous because writing is the part that overran: upserting a
- * full batch over a connection pooler, plus the remaining-count query, is not
- * instant at this row count, and a run that fetches beautifully and then dies
- * before saving has done nothing at all.
+ * Results are also flushed to the database as they complete rather than in one
+ * write at the end. The end-write alone was catastrophic: a 240s budget inside
+ * a 300s function meant the cron fetched eight hundred sites every ten minutes
+ * and was killed before saving any of them. Hours of activity in the logs,
+ * nothing changed in the database. With incremental flushing a killed run keeps
+ * everything it finished, so the deadline is an optimisation rather than the
+ * only thing standing between a run and total loss.
  */
-const WORK_DEADLINE_MS = 240_000;
+const WORK_DEADLINE_MS = 200_000;
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -108,6 +111,7 @@ export async function GET(request: NextRequest) {
   }
 
   const workStartedAt = Date.now();
+  let writeMs = 0;
   const results = await checkWebsites(queue, {
     // Shorter per-request timeout on a re-check: most of that queue is sites
     // that already failed once, and four URL forms at six seconds each would
@@ -118,15 +122,17 @@ export async function GET(request: NextRequest) {
     now: new Date().toISOString(),
     concurrency: 12,
     deadlineMs: WORK_DEADLINE_MS,
+    // Save as we go. Only leads actually processed are written; the rest of the
+    // slice was never touched and stays queued rather than being stamped.
+    flushEvery: 50,
+    onFlush: async (batch) => {
+      const at = Date.now();
+      await repos.leads.upsertMany(batch.map((result) => result.lead));
+      writeMs += Date.now() - at;
+    },
   });
 
   const workMs = Date.now() - workStartedAt;
-
-  // Only the leads actually processed are written. The rest of the slice was
-  // never touched, so it stays queued rather than being stamped as checked.
-  const writeStartedAt = Date.now();
-  await repos.leads.upsertMany(results.map((result) => result.lead));
-  const writeMs = Date.now() - writeStartedAt;
 
   const reachable = results.filter((r) => r.reachable).length;
   const improved = results.filter(

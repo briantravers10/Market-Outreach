@@ -151,13 +151,38 @@ export async function checkWebsites(
      * through hundreds, slow ones stop early and leave the rest queued.
      */
     deadlineMs?: number;
+    /**
+     * Persist completed work, called every `flushEvery` results.
+     *
+     * Accumulating everything and writing once at the end loses the lot when
+     * the invocation is killed — which is exactly what happened in production:
+     * a 240-second work budget inside a 300-second function meant the cron
+     * fetched eight hundred sites every ten minutes and died before saving a
+     * single one. Nothing advanced for hours while the logs showed activity.
+     *
+     * Flushing as it goes means a run that is killed still keeps everything it
+     * had finished, so progress is monotonic no matter how a run ends.
+     */
+    onFlush?: (batch: WebsiteCheckResult[]) => Promise<void>;
+    flushEvery?: number;
   }
 ): Promise<WebsiteCheckResult[]> {
   const concurrency = Math.max(1, Math.min(deps.concurrency ?? 6, 12));
   const startedAt = Date.now();
   const deadline = deps.deadlineMs ?? Infinity;
   const results: WebsiteCheckResult[] = [];
+  const flushEvery = Math.max(1, deps.flushEvery ?? 50);
   let cursor = 0;
+  let flushed = 0;
+
+  async function maybeFlush(force = false): Promise<void> {
+    if (!deps.onFlush) return;
+    const pending = results.slice(flushed);
+    if (pending.length === 0) return;
+    if (!force && pending.length < flushEvery) return;
+    flushed = results.length;
+    await deps.onFlush(pending);
+  }
 
   async function drain(): Promise<void> {
     for (;;) {
@@ -166,6 +191,7 @@ export async function checkWebsites(
       if (index >= leads.length) return;
       try {
         results.push(await checkWebsite(leads[index], deps));
+        await maybeFlush();
       } catch (caught) {
         // One unparseable page must not abandon the rest of the batch.
         const message = caught instanceof Error ? caught.message : String(caught);
@@ -181,5 +207,7 @@ export async function checkWebsites(
   }
 
   await Promise.all(Array.from({ length: Math.min(concurrency, leads.length) }, drain));
+  // Whatever the last partial batch was, it counts too.
+  await maybeFlush(true);
   return results;
 }
