@@ -183,6 +183,18 @@ export {
   TIMEOUT_MS,
 } from "./enrichment/siteFetcher";
 export type { SiteFetcher, FetchedPage } from "./enrichment/siteFetcher";
+export {
+  costPerLead,
+  describeInterval,
+  formatMoney,
+  formatUnitCost,
+  monthlyAmountMinor,
+  monthsBetween,
+  summarizeSpend,
+  unitCostMinor,
+} from "./spend/spendService";
+export type { CostPerLead, SpendSummary } from "./spend/spendService";
+export type { BillingInterval, CostEntry, CostKind, CostRepository } from "./spend/types";
 export { ANALYSIS_VERSION, assessReadiness, describeHoldReason } from "./scoring/readiness";
 export type { HoldReason, Readiness } from "./scoring/readiness";
 export {

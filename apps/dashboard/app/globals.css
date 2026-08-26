@@ -1373,3 +1373,23 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
 @media (max-width: 900px) {
   .pipeline-board { grid-auto-columns: minmax(220px, 85vw); }
 }
+
+
+/* The denominator behind a ratio, so a per-lead figure cannot be read
+   without knowing what it was divided into. */
+.kpi-note {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+
+.spend-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0 14px;
+  align-items: end;
+}
+
+.spend-form .field-label { display: block; }
+.spend-form .auth-input { width: 100%; margin-bottom: 12px; }
+.spend-form-submit { display: flex; align-items: center; margin-bottom: 12px; }

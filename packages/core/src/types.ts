@@ -20,6 +20,7 @@
 
 import type { DetectedLink } from "./enrichment/linkClassifier";
 import type { CommunicationsRepository } from "./comms/types";
+import type { CostRepository } from "./spend/types";
 import type {
   ConversationsRepository,
   InstructionsRepository,
@@ -641,6 +642,7 @@ export interface Repositories {
   jobs: JobsRepository;
   campaigns: CampaignsRepository;
   crm: CrmRepository;
+  costs: CostRepository;
   outreach: OutreachRepository;
   agentActivity: AgentActivityRepository;
   humanReview: HumanReviewRepository;

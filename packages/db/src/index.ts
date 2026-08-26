@@ -7,6 +7,7 @@ import { SqlCommunicationsRepository } from "./repositories/commsRepo";
 import { SqliteJobsRepository } from "./repositories/jobsRepo";
 import { SqliteCampaignsRepository } from "./repositories/campaignsRepo";
 import { SqliteCrmRepository } from "./repositories/crmRepo";
+import { SqlCostsRepository } from "./repositories/costsRepo";
 import { SqliteOutreachRepository } from "./repositories/outreachRepo";
 import { SqliteAgentActivityRepository } from "./repositories/agentActivityRepo";
 import { SqliteHumanReviewRepository } from "./repositories/humanReviewRepo";
@@ -68,6 +69,7 @@ export function createRepositories(dbPath?: string): Repositories {
     jobs: new SqliteJobsRepository(db),
     campaigns: new SqliteCampaignsRepository(db),
     crm: new SqliteCrmRepository(db),
+    costs: new SqlCostsRepository(db),
     outreach: new SqliteOutreachRepository(db),
     agentActivity: new SqliteAgentActivityRepository(db),
     humanReview: new SqliteHumanReviewRepository(db),

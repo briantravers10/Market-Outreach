@@ -430,3 +430,24 @@ CREATE INDEX IF NOT EXISTS idx_comms_lead ON communications(lead_id);
 CREATE INDEX IF NOT EXISTS idx_comms_conversation ON communications(conversation_id);
 -- Delivery and reply webhooks arrive knowing only the provider's own id.
 CREATE INDEX IF NOT EXISTS idx_comms_provider_message ON communications(provider_message_id);
+
+-- What the operation costs to run: subscriptions and metered usage.
+-- amount_minor is minor units (cents) as an INTEGER, never a float — a spend
+-- total that disagrees with the bank statement by a penny is worthless.
+CREATE TABLE IF NOT EXISTS costs (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  vendor TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  amount_minor INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  interval TEXT,
+  started_at TEXT NOT NULL,
+  ended_at TEXT,
+  units INTEGER,
+  unit_label TEXT,
+  automatic INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS costs_started_at_idx ON costs (started_at DESC);

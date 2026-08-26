@@ -24,6 +24,7 @@
     "test-website-check": "npx tsx scripts/test-website-check.ts",
     "test-pipeline": "npx tsx scripts/test-pipeline.ts",
     "test-readiness": "npx tsx scripts/test-readiness.ts",
+    "test-spend": "npx tsx scripts/test-spend.ts",
     "test-site-crawl": "npx tsx scripts/test-site-crawl.ts",
     "import-overture": "npx tsx scripts/import-overture.ts",
     "setup-crm": "npx tsx scripts/setup-crm.ts",

@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/pipeline", label: "Pipeline" },
   { href: "/import", label: "Import" },
   { href: "/analytics", label: "Analytics" },
+  { href: "/spend", label: "Spend" },
   { href: "/settings", label: "Settings" },
 ];
 
