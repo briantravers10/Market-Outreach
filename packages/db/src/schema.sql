@@ -451,3 +451,11 @@ CREATE TABLE IF NOT EXISTS costs (
 );
 
 CREATE INDEX IF NOT EXISTS costs_started_at_idx ON costs (started_at DESC);
+
+-- Operator-set values that belong to the business rather than the deployment.
+-- A spending cap is changed from the dashboard, not by a redeploy.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

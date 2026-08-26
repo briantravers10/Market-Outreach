@@ -7,10 +7,11 @@ import {
   monthlyAmountMinor,
   summarizeSpend,
   unitCostMinor,
+  SEARCH_SPEND_CAP_KEY,
 } from "@market-outreach/core";
 import { getRepos } from "../../../lib/data";
 import { KpiTile } from "../../../components/KpiTile";
-import { addCostAction, endSubscriptionAction } from "../../../lib/spendActions";
+import { addCostAction, endSubscriptionAction, setSearchCapAction } from "../../../lib/spendActions";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +26,21 @@ export default async function SpendPage() {
   const repos = getRepos();
   const now = new Date().toISOString();
 
-  const [entries, total, ready, qualified] = await Promise.all([
+  const [entries, total, ready, qualified, capRaw] = await Promise.all([
     repos.costs.list(),
     repos.leads.count({ isDuplicate: false }),
     repos.leads.count({ readyForReview: { ready: true, analysisVersion: ANALYSIS_VERSION } }),
     repos.leads.count({ qualificationStatus: "QUALIFIED", isDuplicate: false }),
+    repos.settings.get(SEARCH_SPEND_CAP_KEY),
   ]);
+
+  // No cap set means no paid lookups run at all, so forgetting to set one
+  // cannot cost anything. Zero is the safe default, not "unlimited".
+  const capMinor = Number.parseInt(capRaw ?? "0", 10) || 0;
+  const searchSpentMinor = entries
+    .filter((e) => e.automatic && e.kind !== "subscription")
+    .reduce((sum, e) => sum + e.amountMinor, 0);
+  const capRemainingMinor = Math.max(0, capMinor - searchSpentMinor);
 
   const summary = summarizeSpend(entries, now);
   const per = costPerLead(summary.totalMinor, { total, ready, qualified });
@@ -188,6 +198,37 @@ export default async function SpendPage() {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="panel">
+        <h2>Paid lookup budget <small>hard ceiling</small></h2>
+        <div className="kpi-grid">
+          <KpiTile label="Cap" value={capMinor > 0 ? money(capMinor) : "Not set"} />
+          <KpiTile label="Spent on lookups" value={money(searchSpentMinor)} />
+          <KpiTile
+            label="Remaining"
+            value={capMinor > 0 ? money(capRemainingMinor) : "—"}
+            note={capMinor > 0 ? `${Math.floor(capRemainingMinor / 0.5).toLocaleString()} lookups left` : undefined}
+          />
+        </div>
+
+        <form action={setSearchCapAction} className="spend-form">
+          <label className="field-label">
+            Set the cap
+            <input className="auth-input" name="cap" placeholder="200.00" inputMode="decimal" defaultValue={capMinor > 0 ? (capMinor / 100).toFixed(2) : ""} />
+          </label>
+          <div className="spend-form-submit">
+            <button className="btn btn-primary" type="submit">Save cap</button>
+          </div>
+        </form>
+
+        <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+          Checked before every paid search, against what has already been spent in the database — so it holds
+          across restarts and however many jobs are running at once. Reaching it stops the searches; it never
+          marks a business as having no booking, because &ldquo;we ran out of budget&rdquo; is not a finding.
+          <strong> A cap of zero means no paid lookups happen at all</strong>, which is the default, so forgetting
+          to set one cannot cost you anything.
+        </p>
       </div>
 
       <div className="panel">

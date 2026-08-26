@@ -65,3 +65,12 @@ export interface CostRepository {
   getById(id: string): Promise<CostEntry | null>;
   remove(id: string): Promise<void>;
 }
+
+/** Operator-set values stored as strings; callers parse what they asked for. */
+export interface SettingsRepository {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+}
+
+/** The one setting that can cost money if it is wrong, so it gets a name. */
+export const SEARCH_SPEND_CAP_KEY = "search_spend_cap_minor";

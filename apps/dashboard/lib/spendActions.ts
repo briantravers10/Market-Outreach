@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import type { CostEntry } from "@market-outreach/core";
+import { SEARCH_SPEND_CAP_KEY, type CostEntry } from "@market-outreach/core";
 import { getRepos } from "./data";
 import { isDemoMode } from "./demo";
 
@@ -106,4 +106,20 @@ export async function deleteCostAction(form: FormData): Promise<void> {
   await getRepos().costs.remove(id);
   revalidatePath("/spend");
   revalidatePath("/overview");
+}
+
+/**
+ * The ceiling on paid lead lookups.
+ *
+ * Stored rather than an environment variable, because this is a number the
+ * owner changes at 9pm on a Sunday, not one that should need a redeploy. Zero
+ * is meaningful and is the default: no cap set means no paid searches happen,
+ * so forgetting to set one cannot cost anything.
+ */
+export async function setSearchCapAction(form: FormData): Promise<void> {
+  if (isDemoMode) return;
+  const minor = await parseAmountToMinor(str(form, "cap"));
+  if (minor === null || minor < 0) return;
+  await getRepos().settings.set(SEARCH_SPEND_CAP_KEY, String(minor));
+  revalidatePath("/spend");
 }

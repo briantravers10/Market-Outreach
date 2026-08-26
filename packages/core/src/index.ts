@@ -194,7 +194,8 @@ export {
   unitCostMinor,
 } from "./spend/spendService";
 export type { CostPerLead, SpendSummary } from "./spend/spendService";
-export type { BillingInterval, CostEntry, CostKind, CostRepository } from "./spend/types";
+export type { BillingInterval, CostEntry, CostKind, CostRepository, SettingsRepository } from "./spend/types";
+export { SEARCH_SPEND_CAP_KEY } from "./spend/types";
 export {
   buildSearchQuery,
   cityMatches,

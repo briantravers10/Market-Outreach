@@ -244,7 +244,26 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               </tr>
             ))}
             {leads.length === 0 && (
-              <tr><td colSpan={9} className="empty-state">No leads match these filters.</td></tr>
+              <tr>
+                <td colSpan={9} className="empty-state">
+                  {!holding && readyCount === 0 && holdingCount > 0 ? (
+                    /* An empty working list with a full holding area is not an
+                       error and must not read like one. It is the gate doing
+                       its job while the research catches up, and saying so is
+                       the difference between "wait" and "something is broken". */
+                    <>
+                      <strong>Nothing has finished being researched yet.</strong>
+                      <br />
+                      All {holdingCount.toLocaleString()} leads are still being worked on — the research runs on its
+                      own every ten minutes and they appear here as they finish. Nothing is wrong and nothing is
+                      lost; they are visible under <Link href="/leads?holding=1">Still being researched</Link>, with
+                      the reason each one is waiting.
+                    </>
+                  ) : (
+                    "No leads match these filters."
+                  )}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
