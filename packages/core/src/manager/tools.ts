@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AgentId, Lead, Repositories } from "../types";
+// Type-only in the other direction, so this pair is not a runtime cycle.
+import { COMMS_TOOLS } from "./commsTools";
 import { getAgentConfigs, getTerritories } from "../config";
 import { summarizeAgent, summarizeAllAgents } from "../agents/agentRegistry";
 import type { ProspectingManager } from "../prospectingManager";
@@ -32,6 +34,20 @@ export interface ToolContext {
   messageId: string | null;
   /** The employee the conversation is currently focused on, if any. */
   focusAgentId: AgentId | null;
+
+  /**
+   * The Communications Centre, when one is wired up.
+   *
+   * Optional so every existing tool, test and scheduled run keeps working
+   * untouched — and so a context that deliberately has no ability to send (a
+   * read-only demo, a scheduled report) is expressed by the absence of the
+   * capability rather than by a flag someone can forget to check.
+   */
+  comms?: import("../comms/commsService").CommsService | null;
+  contacts?: import("../comms/contactResolver").ContactResolver | null;
+  pipedrive?: import("../crm/pipedriveReader").PipedriveReader | null;
+  /** Writes message bodies when a language model is available. */
+  composer?: import("../comms/composer").MessageComposer | null;
 }
 
 export interface ToolResult {
@@ -904,6 +920,10 @@ export const MANAGER_TOOLS: ManagerTool[] = [
   scheduleReport,
   cancelScheduledTask,
   talkToAgent,
+  // The Communications Centre's tools. They are part of the same list on
+  // purpose: the Manager chooses between 'give me a briefing' and 'email John'
+  // the same way it chooses anything else, and voice and text both arrive here.
+  ...COMMS_TOOLS,
 ];
 
 export function findTool(name: string): ManagerTool | null {

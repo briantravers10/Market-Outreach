@@ -42,6 +42,20 @@ export interface AiManagerDeps {
    * request is even looked at.
    */
   persist?: boolean;
+
+  /**
+   * The Communications Centre and CRM access.
+   *
+   * All optional. A Manager built without them still answers every question it
+   * could before — the comms tools simply say what is missing when asked to do
+   * something they cannot. That is deliberately better than hiding the tools:
+   * "Pipedrive isn't connected" is an answer the owner can act on, whereas a
+   * Manager that silently lacks the ability looks broken.
+   */
+  comms?: import("../comms/commsService").CommsService | null;
+  contacts?: import("../comms/contactResolver").ContactResolver | null;
+  pipedrive?: import("../crm/pipedriveReader").PipedriveReader | null;
+  composer?: import("../comms/composer").MessageComposer | null;
 }
 
 export interface TurnResult {
@@ -134,6 +148,10 @@ export class AiManager {
       repos: this.deps.repos,
       manager: this.deps.manager,
       commandParser: this.deps.commandParser,
+      comms: this.deps.comms ?? null,
+      contacts: this.deps.contacts ?? null,
+      pipedrive: this.deps.pipedrive ?? null,
+      composer: this.deps.composer ?? null,
       now: this.now,
       conversationId: conversation.id,
       messageId: ownerMessage.id,
@@ -354,6 +372,10 @@ export class AiManager {
       repos: this.deps.repos,
       manager: this.deps.manager,
       commandParser: this.deps.commandParser,
+      comms: this.deps.comms ?? null,
+      contacts: this.deps.contacts ?? null,
+      pipedrive: this.deps.pipedrive ?? null,
+      composer: this.deps.composer ?? null,
       now: this.now,
       conversationId: conversation.id,
       messageId: action.messageId,

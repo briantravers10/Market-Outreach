@@ -207,3 +207,6 @@ export type {
   PipedriveTransport,
   PipedriveReaderOptions,
 } from "./crm/pipedriveReader";
+export { COMMS_TOOLS } from "./manager/commsTools";
+export { composeMessage, composeFallback } from "./comms/composer";
+export type { MessageComposer, ComposeRequest, ComposedMessage } from "./comms/composer";
