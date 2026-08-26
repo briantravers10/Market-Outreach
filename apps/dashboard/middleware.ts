@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
   // A real deployment with no auth configured serves nothing at all.
   if (isMisconfigured(config)) {
     return new NextResponse(
-      "This deployment has no authentication configured. Set SESSION_SECRET (and ADMIN_EMAIL / ADMIN_PASSWORD_HASH) before serving real data. See README.md.",
+      "This deployment has no authentication configured. Set SESSION_SECRET (and ADMIN_EMAIL plus either ADMIN_PASSWORD or ADMIN_PASSWORD_HASH) before serving real data, then redeploy. See README.md.",
       { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } }
     );
   }

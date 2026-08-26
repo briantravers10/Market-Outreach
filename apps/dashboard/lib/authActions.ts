@@ -5,14 +5,15 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   DEFAULT_SESSION_TTL_SECONDS,
+  ENV_ADMIN_SUBJECT,
   SESSION_COOKIE,
   createSessionToken,
+  decideLogin,
   generateResetToken,
   hashResetToken,
   hashPassword,
   resetTokenMatches,
   validatePasswordStrength,
-  verifyPassword,
   verifySessionToken,
 } from "@market-outreach/core";
 import { getRepos } from "./data";
@@ -115,37 +116,39 @@ export async function loginAction(formData: FormData) {
     fail("Too many attempts. Wait a few minutes and try again.");
   }
 
-  // Bootstrap admin from env — the only path that works when the database is
-  // read-only, which is the case on the deployed demo.
-  if (config.adminEmail && config.adminPasswordHash && email === config.adminEmail) {
-    if (await verifyPassword(password, config.adminPasswordHash)) {
-      clearAttempts(`login:${email}`);
-      await setSessionCookie("env-admin", email);
-      redirect(next);
-    }
-    fail(GENERIC_LOGIN_ERROR);
-  }
+  // The decision itself lives in core so it can be tested without a request.
+  // Everything around it here — cookies, redirects, throttling — is plumbing.
+  const outcome = await decideLogin({
+    email,
+    password,
+    adminEmail: config.adminEmail,
+    adminPasswordHash: config.adminPasswordHash,
+    adminPassword: config.adminPassword,
+    findUser: async (address) => {
+      try {
+        return await getRepos().users.getByEmail(address);
+      } catch {
+        // Unreadable/missing users table — "no such user", not a 500.
+        return null;
+      }
+    },
+  });
 
-  // Database-backed users.
-  let user: { id: string; email: string; passwordHash: string } | null = null;
-  try {
-    user = await getRepos().users.getByEmail(email);
-  } catch {
-    // Unreadable/missing users table — treat as "no such user" rather than 500.
-    user = null;
-  }
+  if (outcome.kind === "misconfigured") fail(outcome.message);
+  if (outcome.kind === "rejected") fail(GENERIC_LOGIN_ERROR);
 
-  if (!user || !(await verifyPassword(password, user.passwordHash))) {
-    fail(GENERIC_LOGIN_ERROR);
-  }
-
+  const session = outcome as Extract<typeof outcome, { kind: "session" }>;
   clearAttempts(`login:${email}`);
-  try {
-    await getRepos().users.markLoggedIn(user!.id, new Date().toISOString());
-  } catch {
-    // Read-only database — a missing last_login stamp is not worth failing a login over.
+
+  if (session.sub !== ENV_ADMIN_SUBJECT) {
+    try {
+      await getRepos().users.markLoggedIn(session.sub, new Date().toISOString());
+    } catch {
+      // Read-only database — a missing last_login stamp is not worth failing a login over.
+    }
   }
-  await setSessionCookie(user!.id, user!.email);
+
+  await setSessionCookie(session.sub, session.email);
   redirect(next);
 }
 

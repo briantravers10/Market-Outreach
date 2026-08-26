@@ -13,6 +13,10 @@ dist/
 *.tsbuildinfo
 .env
 .env.local
+# Working credentials live here and must never be committed. An earlier version
+# of NEEDS_OWNER_INPUT.md carried real ones and put them in the git history.
+SECRETS.local.md
+*.local.md
 
 __pycache__/
 *.pyc

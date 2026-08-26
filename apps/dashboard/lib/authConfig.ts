@@ -21,9 +21,13 @@
  * existing demo deployment — the natural next step when going live — would
  * quietly publish a writable database to anyone with the URL.
  *
- * The bootstrap admin (ADMIN_EMAIL + ADMIN_PASSWORD_HASH) exists because the
- * deployed database is opened read-only — there is nowhere to write a users
- * row. Env credentials plus a stateless signed cookie mean login works anyway.
+ * The bootstrap admin (ADMIN_EMAIL + ADMIN_PASSWORD_HASH, or ADMIN_PASSWORD)
+ * exists because the deployed database may be opened read-only — there is then
+ * nowhere to write a users row. Env credentials plus a stateless signed cookie
+ * mean login works anyway.
+ *
+ * It is a fallback, not a gate: a failure here falls through to the users
+ * table rather than ending the attempt. See loginPolicy.ts for why.
  */
 
 export interface AuthConfig {
@@ -31,6 +35,12 @@ export interface AuthConfig {
   sessionSecret: string;
   adminEmail: string | null;
   adminPasswordHash: string | null;
+  /**
+   * Plaintext alternative to the hash, for when pasting a 178-character
+   * unbroken string into a hosting dashboard is the thing that keeps going
+   * wrong. Second in line behind the hash — see loginPolicy.ts.
+   */
+  adminPassword: string | null;
   demoReadOnly: boolean;
   /** A real database is attached, so nothing here is a throwaway snapshot. */
   hasDatabase: boolean;
@@ -43,6 +53,7 @@ export function getAuthConfig(env: Record<string, string | undefined> = process.
     sessionSecret,
     adminEmail: env.ADMIN_EMAIL?.trim().toLowerCase() || null,
     adminPasswordHash: env.ADMIN_PASSWORD_HASH?.trim() || null,
+    adminPassword: env.ADMIN_PASSWORD?.trim() || null,
     demoReadOnly: env.DEMO_READ_ONLY === "1",
     hasDatabase: (env.DATABASE_URL?.trim() ?? "").length > 0,
   };

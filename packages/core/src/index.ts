@@ -19,7 +19,9 @@ export type { EnrichmentProvider, EnrichmentResult } from "./providers/enrichmen
 export { MockReasoningProvider } from "./reasoning/reasoningProvider";
 export type { ReasoningProvider } from "./reasoning/reasoningProvider";
 
-export { hashPassword, verifyPassword, validatePasswordStrength } from "./auth/password";
+export { hashPassword, verifyPassword, validatePasswordStrength, hashFormatError } from "./auth/password";
+export { decideLogin, ENV_ADMIN_SUBJECT } from "./auth/loginPolicy";
+export type { LoginOutcome, LoginPolicyInput, LoginUser } from "./auth/loginPolicy";
 export {
   createSessionToken,
   verifySessionToken,

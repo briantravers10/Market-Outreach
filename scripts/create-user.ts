@@ -52,6 +52,13 @@ async function main() {
   console.log(`  ADMIN_PASSWORD_HASH=${passwordHash}`);
   console.log("\nSESSION_SECRET above is freshly generated — reuse your existing one if you already set it,");
   console.log("since changing it signs everyone out.");
+  console.log("\nADMIN_PASSWORD_HASH is one unbroken 178-character line. If your hosting dashboard or");
+  console.log("device makes that awkward to paste exactly — a wrapped or clipped paste reads as a wrong");
+  console.log("password, not as an error — you can set this instead and omit the hash entirely:\n");
+  console.log(`  ADMIN_PASSWORD=<the password itself>`);
+  console.log("\nThat trades a little safety for one fewer way to lock yourself out: an environment");
+  console.log("variable that leaks would then reveal a reusable password rather than a hash. Prefer the");
+  console.log("hash when you can set it reliably; the hash wins if both are present.");
 }
 
 main().catch((err) => {

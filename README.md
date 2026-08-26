@@ -654,11 +654,34 @@ ADMIN_EMAIL=…
 ADMIN_PASSWORD_HASH=…   # scrypt hash — the password itself is never stored
 ```
 
-`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH` exist because the deployed database is
-opened **read-only**, so there is nowhere to write a users row. Env credentials
-plus a stateless signed cookie mean sign-in works anyway. Once there's a
-writable database, users in the `users` table work the same way and the env
-admin can be dropped.
+`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH` exist because the deployed database may be
+opened **read-only**, leaving nowhere to write a users row. Env credentials plus
+a stateless signed cookie mean sign-in works anyway. Once there's a writable
+database, users in the `users` table work the same way — and both are checked,
+so either one alone is enough to get in.
+
+`ADMIN_PASSWORD` is a plaintext alternative to `ADMIN_PASSWORD_HASH`. The hash
+is safer, because an environment variable that leaks then reveals a hash rather
+than a reusable password. Set the plaintext one only when pasting an unbroken
+178-character line into a hosting dashboard is the step that keeps going wrong —
+a clipped or wrapped paste reads as *"password is incorrect"*, which sends you
+hunting the wrong problem. If both are set, the hash is tried first.
+
+**Two failure modes worth knowing before you debug a login:**
+
+- **No second way in.** Login checks the env admin *and* the `users` table, and
+  a failure on the first no longer stops the second. It used to, which meant one
+  mistyped variable locked the owner out of a perfectly healthy database. If you
+  care about the account, keep both a `users` row and the env vars.
+- **Vercel bakes environment variables at build time**, and scopes them per
+  environment. After changing one, tick **Production** and **redeploy** — until
+  you do, the running deployment still holds the old value.
+
+A malformed `ADMIN_PASSWORD_HASH` now reports itself as a misconfiguration on
+the login page instead of as a wrong password. The message names the variable
+and what is wrong with its shape, never any part of its value, and it is shown
+for any submitted address so it cannot be used to discover which one is the
+admin.
 
 ### How it's built
 

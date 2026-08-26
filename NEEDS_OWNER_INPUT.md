@@ -16,16 +16,38 @@ switches that turn parts of it on.
 Nobody has to log in to read the deployed dashboard today. The whole login
 system is built and tested; it just isn't switched on.
 
-In Vercel → **market-outreach** → Settings → Environment Variables, add:
+In Vercel → **market-outreach** → Settings → Environment Variables, set:
 
 ```
-SESSION_SECRET      rlDS-Z84tuFqON8FRhI_spZwUsMiBPsbIuDJ9939P8I
+SESSION_SECRET      <32 random bytes, base64url>
 ADMIN_EMAIL         travers.brian10@gmail.com
-ADMIN_PASSWORD_HASH scrypt$16384$8$1$2660549b19f4a24483d4de78117c5d57$ee9fde0955a6d0eab192b47e7a099feecd9b2cfc7100581b0f0c7359774aaa1fb3b33b4a7601e56b9a76904339dc750f1edce88751eaac6802afb72544ec5229
+ADMIN_PASSWORD      <the password you want to log in with>
 ```
 
-The password those correspond to is **`harbor-harbor-quarry-14f3`**. Save it —
-the hash cannot be turned back into it. Change it once you're in.
+`npm run create-user -- <email> '<password>'` prints a suitable
+`SESSION_SECRET`, along with an `ADMIN_PASSWORD_HASH` if you prefer that form.
+
+**`ADMIN_PASSWORD` or `ADMIN_PASSWORD_HASH` — pick one.** The hash is safer: an
+environment variable that leaks then reveals a hash rather than a reusable
+password. But the hash is a single unbroken 178-character line, and a paste that
+wraps or clips reads as *"password is incorrect"* rather than as an error —
+which is exactly how this deployment locked its owner out once already. If you
+are setting this up from a phone or tablet, use `ADMIN_PASSWORD`. If both are
+set, the hash is tried first and the plaintext is the fallback.
+
+Two things about Vercel environment variables that are easy to miss, each of
+which produces a login that fails for no visible reason:
+
+- They are scoped per environment. Tick **Production**, not just Preview.
+- They are baked in at build time. **Redeploy after changing them**, or the
+  running deployment keeps the old values.
+
+> **The real values are deliberately not written down in this repository.**
+> An earlier version of this file listed a live `SESSION_SECRET`, password hash
+> and plaintext password. This file is committed, so all three are in the git
+> history and must be treated as burned — do not reinstate them. Keep working
+> credentials in your password manager, or in `SECRETS.local.md`, which is
+> gitignored.
 
 ---
 
