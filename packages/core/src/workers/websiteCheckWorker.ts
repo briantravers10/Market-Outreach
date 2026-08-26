@@ -4,6 +4,7 @@ import type { ReasoningProvider } from "../reasoning/reasoningProvider";
 import { fetchWithFallback, type SiteFetcher } from "../enrichment/siteFetcher";
 import { analyzeSiteDeep } from "../enrichment/websiteAnalyzer";
 import { scoreLead, qualificationStatusForScore } from "../scoring/scoringEngine";
+import { ANALYSIS_VERSION } from "../scoring/readiness";
 
 /**
  * The Website Analyst, applied to one lead: fetch their site, read it, record
@@ -80,6 +81,10 @@ export async function checkWebsite(
     // been checked; leaving this null would put it back in the queue forever.
     websiteCheckedAt: deps.now,
     dateLastResearched: deps.now,
+    // Stamped even when the fetch failed. The claim is "the current method has
+    // been applied to this lead", which is true either way — and without it an
+    // unreachable site would be re-queued forever by the readiness gate.
+    analysisVersion: ANALYSIS_VERSION,
   };
 
   if (analysis.unreachable) {

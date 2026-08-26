@@ -8,19 +8,15 @@ import { CommandBox } from "../../../../components/CommandBox";
 import { LiveRefresh } from "../../../../components/LiveRefresh";
 import { QualificationBadge, ScorePill } from "../../../../components/Badges";
 import { SweepPanel } from "../../../../components/SweepPanel";
-import { decodeSweepOutcome } from "../../../../lib/sweepActions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AgentDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ agentId: string }>;
-  searchParams: Promise<{ sweep?: string }>;
 }) {
   const { agentId } = await params;
-  const { sweep } = await searchParams;
   const repos = getRepos();
   const agent = await summarizeAgent(agentId as AgentId, repos.agentActivity, repos.humanReview);
   if (!agent) notFound();
@@ -42,7 +38,6 @@ export default async function AgentDetailPage({
         repos.leads.count({ needsWebsiteRecheck: new Date().toISOString() }),
       ])
     : [0, 0];
-  const sweepOutcome = isWebsiteAnalyst ? await decodeSweepOutcome(sweep) : null;
 
   return (
     <div>
@@ -56,7 +51,7 @@ export default async function AgentDetailPage({
       </div>
 
       {isWebsiteAnalyst && (
-        <SweepPanel neverChecked={neverChecked} needsRecheck={needsRecheck} outcome={sweepOutcome} />
+        <SweepPanel neverChecked={neverChecked} needsRecheck={needsRecheck} />
       )}
 
       <div className="grid-2">

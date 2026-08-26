@@ -393,6 +393,9 @@ export class ProspectingManager {
           latitude: null,
           longitude: null,
           websiteCheckedAt: null,
+    // Freshly discovered: no research method has been applied yet, so it is
+    // held out of the working list until the sweep reaches it.
+    analysisVersion: null,
           dateDiscovered: nowIso(),
           dateLastResearched: null,
           researchStatus: "ANALYZED",

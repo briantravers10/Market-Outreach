@@ -155,6 +155,9 @@ export function observationToLead(observation: OvertureObservation, context: Obs
     longitude: observation.longitude,
     // Nobody has read their site yet — that is the Website Analyst's job.
     websiteCheckedAt: null,
+    // Freshly discovered: no research method has been applied yet, so it is
+    // held out of the working list until the sweep reaches it.
+    analysisVersion: null,
     dateDiscovered: context.now,
     dateLastResearched: context.now,
     researchStatus: "ENRICHED",

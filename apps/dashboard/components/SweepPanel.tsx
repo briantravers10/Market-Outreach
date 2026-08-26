@@ -1,6 +1,3 @@
-import { runSweepAction, type SweepOutcome } from "../lib/sweepActions";
-import { SweepButtons } from "./SweepButtons";
-
 /**
  * Running the website sweep by hand.
  *
@@ -12,11 +9,9 @@ import { SweepButtons } from "./SweepButtons";
 export function SweepPanel({
   neverChecked,
   needsRecheck,
-  outcome,
 }: {
   neverChecked: number;
   needsRecheck: number;
-  outcome: SweepOutcome | null;
 }) {
   return (
     <div className="panel">
@@ -41,44 +36,12 @@ export function SweepPanel({
         answers can change now, and the booking one is the highest-weighted field in the score.
       </p>
 
-      {outcome && <SweepResult outcome={outcome} />}
-
-      <form action={runSweepAction}>
-        <SweepButtons />
-      </form>
-
       <p className="muted" style={{ fontSize: 12, margin: "10px 0 0" }}>
-        A batch is bounded by a 20-second budget, so this returns while you wait rather than timing out — expect
-        roughly a hundred sites a click. Whatever it does not reach stays queued. The hourly schedule works the same
-        queues with a much longer budget, so the fastest route through tens of thousands is to leave it running.
+        This runs on its own every ten minutes and needs nothing from you. There is deliberately no button: a queue
+        this size is not something to work through by hand, and a manual control would only ever leave half the
+        database judged by one method and half by another. Leads move into the working list as they finish.
       </p>
     </div>
   );
 }
 
-function SweepResult({ outcome }: { outcome: SweepOutcome }) {
-  if (outcome.checked === 0) {
-    return (
-      <div className="auth-notice auth-notice-ok" style={{ marginBottom: 14 }}>
-        <p style={{ margin: 0 }}>
-          Nothing left in the {outcome.mode === "recheck" ? "re-read" : "unchecked"} queue.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="auth-notice auth-notice-ok" style={{ marginBottom: 14 }}>
-      <p style={{ margin: 0, fontWeight: 600 }}>
-        Read {outcome.checked.toLocaleString()} site{outcome.checked === 1 ? "" : "s"}
-        {outcome.mode === "recheck" ? " again" : ""}.
-      </p>
-      <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12.5 }}>
-        <li>{outcome.reachable.toLocaleString()} answered, {outcome.unreachable.toLocaleString()} did not</li>
-        <li>{outcome.bookingFound.toLocaleString()} have online booking</li>
-        <li>{outcome.scoreImproved.toLocaleString()} changed score</li>
-        <li>{outcome.remaining.toLocaleString()} still queued</li>
-      </ul>
-    </div>
-  );
-}

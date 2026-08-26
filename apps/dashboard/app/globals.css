@@ -1263,3 +1263,39 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
 }
 
 .bulk-push-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+
+/* The gate between the working list and the holding area. Two tabs rather
+   than a filter dropdown: which pile you are looking at is the most important
+   fact on the page, not a refinement of it. */
+.lead-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.lead-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--text-faint);
+}
+
+.lead-tab-active {
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.lead-tab-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+  font-size: 12px;
+}

@@ -43,6 +43,7 @@ interface LeadRow {
   latitude: number | null;
   longitude: number | null;
   website_checked_at: string | null;
+  analysis_version: number | null;
   date_discovered: string;
   date_last_researched: string | null;
   research_status: string;
@@ -96,6 +97,7 @@ function rowToLead(row: LeadRow): Lead {
     latitude: row.latitude,
     longitude: row.longitude,
     websiteCheckedAt: row.website_checked_at,
+    analysisVersion: row.analysis_version ?? null,
     dateDiscovered: row.date_discovered,
     dateLastResearched: row.date_last_researched,
     researchStatus: row.research_status as Lead["researchStatus"],
@@ -127,7 +129,7 @@ const LEAD_COLUMNS = [
   "website_status", "website_quality", "online_booking_status", "booking_provider", "booking_method",
   "staff_count", "staff_count_confidence", "rating", "review_count", "instagram", "facebook",
   "social_activity", "location_count", "services", "prospect_score", "score_breakdown", "score_reason",
-  "data_confidence", "discovery_source", "external_id", "source_confidence", "latitude", "longitude", "website_checked_at",
+  "data_confidence", "discovery_source", "external_id", "source_confidence", "latitude", "longitude", "website_checked_at", "analysis_version",
   "date_discovered", "date_last_researched", "research_status", "qualification_status", "pipeline_stage",
   "campaign_id", "job_id", "is_duplicate_of", "stages_completed", "link_in_bio_url", "detected_links",
   "service_area", "location_confidence", "location_evidence", "notes",
@@ -174,6 +176,7 @@ function leadToRow(lead: Lead): Record<string, unknown> {
     latitude: lead.latitude,
     longitude: lead.longitude,
     website_checked_at: lead.websiteCheckedAt,
+    analysis_version: lead.analysisVersion,
     date_discovered: lead.dateDiscovered,
     date_last_researched: lead.dateLastResearched,
     research_status: lead.researchStatus,
@@ -239,6 +242,16 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
     clauses.push("website IS NOT NULL AND website_status = 'UNREACHABLE' AND website_checked_at < @unreachableBefore");
     params.unreachableBefore = filter.unreachableCheckedBefore;
   }
+  if (filter.readyForReview) {
+    const { ready, analysisVersion } = filter.readyForReview;
+    // Ready means: not a duplicate, the booking question is answered, and it
+    // was answered by the current method. Anything else is still being worked
+    // on and must not reach a call list.
+    const readyClause =
+      "(is_duplicate_of IS NULL AND online_booking_status <> 'UNKNOWN' AND analysis_version >= @readyVersion)";
+    clauses.push(ready ? readyClause : `NOT ${readyClause}`);
+    params.readyVersion = analysisVersion;
+  }
   if (filter.needsWebsiteRecheck) {
     clauses.push(
       `website IS NOT NULL AND website_checked_at IS NOT NULL AND website_checked_at < @recheckBefore
@@ -263,7 +276,7 @@ export class SqliteLeadsRepository implements LeadsRepository {
           website_status, website_quality, online_booking_status, booking_provider, booking_method,
           staff_count, staff_count_confidence, rating, review_count, instagram, facebook,
           social_activity, location_count, services, prospect_score, score_breakdown, score_reason,
-          data_confidence, discovery_source, external_id, source_confidence, latitude, longitude, website_checked_at,
+          data_confidence, discovery_source, external_id, source_confidence, latitude, longitude, website_checked_at, analysis_version,
           date_discovered, date_last_researched, research_status,
           qualification_status, pipeline_stage, campaign_id, job_id, is_duplicate_of, stages_completed,
           link_in_bio_url, detected_links, service_area, location_confidence, location_evidence, notes
@@ -272,7 +285,7 @@ export class SqliteLeadsRepository implements LeadsRepository {
           @websiteStatus, @websiteQuality, @onlineBookingStatus, @bookingProvider, @bookingMethod,
           @staffCount, @staffCountConfidence, @rating, @reviewCount, @instagram, @facebook,
           @socialActivity, @locationCount, @services, @prospectScore, @scoreBreakdown, @scoreReason,
-          @dataConfidence, @discoverySource, @externalId, @sourceConfidence, @latitude, @longitude, @websiteCheckedAt,
+          @dataConfidence, @discoverySource, @externalId, @sourceConfidence, @latitude, @longitude, @websiteCheckedAt, @analysisVersion,
           @dateDiscovered, @dateLastResearched, @researchStatus,
           @qualificationStatus, @pipelineStage, @campaignId, @jobId, @isDuplicateOf, @stagesCompleted,
           @linkInBioUrl, @detectedLinks, @serviceArea, @locationConfidence, @locationEvidence, @notes

@@ -22,6 +22,7 @@
     "test-export": "npx tsx scripts/test-export.ts",
     "test-import": "npx tsx scripts/test-import.ts",
     "test-website-check": "npx tsx scripts/test-website-check.ts",
+    "test-readiness": "npx tsx scripts/test-readiness.ts",
     "test-site-crawl": "npx tsx scripts/test-site-crawl.ts",
     "import-overture": "npx tsx scripts/import-overture.ts",
     "setup-crm": "npx tsx scripts/setup-crm.ts",

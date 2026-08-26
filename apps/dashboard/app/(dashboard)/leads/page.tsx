@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { getIndustries, type LeadFilter } from "@market-outreach/core";
+import {
+  ANALYSIS_VERSION,
+  assessReadiness,
+  describeHoldReason,
+  getIndustries,
+  type LeadFilter,
+} from "@market-outreach/core";
 import { getRepos } from "../../../lib/data";
 import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../components/Badges";
 import { ExportCsvLink } from "../../../components/ExportCsvLink";
@@ -20,6 +26,8 @@ interface LeadsSearchParams {
   qualificationStatus?: string;
   sort?: string;
   page?: string;
+  /** "1" to see the holding area instead of the working list. */
+  holding?: string;
 }
 
 export const dynamic = "force-dynamic";
@@ -38,6 +46,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const industries = getIndustries();
   const industryLabels = new Map(industries.map((i) => [i.id, i.label]));
 
+  const holding = params.holding === "1";
   const page = Math.max(1, Number(params.page) || 1);
   const sort = params.sort === "discovered" || params.sort === "name" ? params.sort : "score";
 
@@ -55,7 +64,21 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     researchStatus: (params.researchStatus as LeadFilter["researchStatus"]) || undefined,
     qualificationStatus: (params.qualificationStatus as LeadFilter["qualificationStatus"]) || undefined,
     orderBy: sort,
+    // THE GATE.
+    //
+    // By default this page shows only leads that have finished being
+    // researched. A half-researched lead is not a worse lead, it is an unknown
+    // one, and putting it in a ranked list is how someone ends up phoning a
+    // business that already books online. The holding area is one click away
+    // and says why each lead is in it — but it is never the default, and it is
+    // never mixed in.
+    readyForReview: { ready: !holding, analysisVersion: ANALYSIS_VERSION },
   };
+
+  const [readyCount, holdingCount] = await Promise.all([
+    repos.leads.count({ readyForReview: { ready: true, analysisVersion: ANALYSIS_VERSION } }),
+    repos.leads.count({ readyForReview: { ready: false, analysisVersion: ANALYSIS_VERSION } }),
+  ]);
 
   // The name search has no SQL column behind it, so it filters what this page
   // fetched. Asking for one row more than we show is how the pager knows there
@@ -81,11 +104,21 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   return (
     <div>
       <div className="page-header">
-        <h1>Leads</h1>
+        <h1>{holding ? "Still being researched" : "Leads"}</h1>
         <p>
-          Real businesses from the Overture Maps open dataset. Filter by state, city or ZIP, then download the
-          CSV to review in Excel or Numbers.
+          {holding
+            ? "These are not ready to call. Each one is waiting on something — the reason is on the right. They move across on their own as the research finishes; nothing here needs you."
+            : "Businesses that have finished being researched, so the booking answer behind every score is known. Filter, then export to review in Excel or Numbers."}
         </p>
+      </div>
+
+      <div className="lead-tabs">
+        <Link href="/leads" className={holding ? "lead-tab" : "lead-tab lead-tab-active"}>
+          Ready to work <span className="lead-tab-count">{readyCount.toLocaleString()}</span>
+        </Link>
+        <Link href="/leads?holding=1" className={holding ? "lead-tab lead-tab-active" : "lead-tab"}>
+          Still being researched <span className="lead-tab-count">{holdingCount.toLocaleString()}</span>
+        </Link>
       </div>
 
       <form className="filter-bar" method="get">
@@ -181,7 +214,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               <th>Confidence</th>
               <th>Website</th>
               <th>Booking</th>
-              <th>Qualification</th>
+              <th>{holding ? "Waiting on" : "Qualification"}</th>
             </tr>
           </thead>
           <tbody>
@@ -199,7 +232,15 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     ? "Not checked"
                     : lead.bookingMethod.replace(/_/g, " ").toLowerCase()}
                 </td>
-                <td><QualificationBadge status={lead.qualificationStatus} /></td>
+                <td>
+                  {holding ? (
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      {describeHoldReason(assessReadiness(lead).reason ?? "never-researched")}
+                    </span>
+                  ) : (
+                    <QualificationBadge status={lead.qualificationStatus} />
+                  )}
+                </td>
               </tr>
             ))}
             {leads.length === 0 && (

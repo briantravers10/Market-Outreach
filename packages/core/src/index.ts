@@ -183,6 +183,8 @@ export {
   TIMEOUT_MS,
 } from "./enrichment/siteFetcher";
 export type { SiteFetcher, FetchedPage } from "./enrichment/siteFetcher";
+export { ANALYSIS_VERSION, assessReadiness, describeHoldReason } from "./scoring/readiness";
+export type { HoldReason, Readiness } from "./scoring/readiness";
 export {
   analyzeSite,
   analyzeSiteDeep,

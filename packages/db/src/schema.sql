@@ -71,6 +71,10 @@ CREATE TABLE IF NOT EXISTS leads (
   latitude REAL,
   longitude REAL,
   website_checked_at TEXT,
+  -- Which version of the research method produced the current answers.
+  -- Null predates versioning; anything below the current version is held back
+  -- from the working list rather than ranked beside freshly-researched leads.
+  analysis_version INTEGER,
   date_discovered TEXT NOT NULL,
   date_last_researched TEXT,
   research_status TEXT NOT NULL,

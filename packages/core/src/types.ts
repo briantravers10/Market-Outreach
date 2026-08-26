@@ -182,6 +182,16 @@ export interface Lead {
    * an infinite work queue that starves the leads that would actually answer.
    */
   websiteCheckedAt: string | null;
+  /**
+   * Which version of the research method produced this lead's current answers.
+   *
+   * Null means it predates versioning. Anything below ANALYSIS_VERSION was
+   * judged by an older, worse method, and must not be ranked alongside leads
+   * judged by the current one — a 71 from a method that only read homepages
+   * does not mean what a 71 from the current method means, and silently
+   * sorting them together produces a list that looks authoritative and isn't.
+   */
+  analysisVersion: number | null;
   dateDiscovered: string; // ISO timestamp
   dateLastResearched: string | null;
   researchStatus: ResearchStatus;
@@ -509,6 +519,19 @@ export interface LeadFilter {
    * re-reading them would spend the budget re-confirming what we know.
    */
   needsWebsiteRecheck?: string;
+  /**
+   * The gate between the holding area and the working list.
+   *
+   * true  — finished being researched: booking answered, by the current
+   *         method, not a duplicate. Safe to put in front of the owner.
+   * false — still being worked on. Useful for showing what is held and why,
+   *         never for building a call list.
+   *
+   * Takes the current version as a parameter rather than reading a constant
+   * so a query cannot silently drift from whatever the code believes the
+   * current method to be.
+   */
+  readyForReview?: { ready: boolean; analysisVersion: number };
   /** ISO timestamps bounding when the lead was discovered. A report over "yesterday" must not read the whole table to find yesterday. */
   discoveredSince?: string;
   discoveredBefore?: string;
