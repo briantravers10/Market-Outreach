@@ -106,7 +106,34 @@ export async function decideLogin(input: LoginPolicyInput): Promise<LoginOutcome
   }
 
   const user = await input.findUser(email);
-  if (!user) return { kind: "rejected" };
+
+  if (!user) {
+    // Nothing matched, and the environment-variable admin is not merely wrong
+    // but absent. That combination means NO password could ever work here, and
+    // "email or password is incorrect" is then an actively misleading thing to
+    // say — it sends the operator hunting for a typo in a credential that does
+    // not exist. Name the missing variables instead.
+    //
+    // On enumeration: this branch can only fire on a deployment that is
+    // already unusable, and the message describes configuration rather than
+    // the submitted address. A correctly configured deployment never reaches
+    // it, so normal operation leaks nothing.
+    const missing: string[] = [];
+    if (!adminEmail) missing.push("ADMIN_EMAIL");
+    if (!adminPasswordHash && !adminPassword) missing.push("ADMIN_PASSWORD (or ADMIN_PASSWORD_HASH)");
+
+    if (missing.length > 0) {
+      return {
+        kind: "misconfigured",
+        message:
+          `No login is possible with this deployment's current configuration: ` +
+          `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set. ` +
+          `Set ${missing.length > 1 ? "them" : "it"} for the Production environment — a variable saved only to ` +
+          `Preview or Development is invisible here — then redeploy, because Vercel reads these at build time.`,
+      };
+    }
+    return { kind: "rejected" };
+  }
   if (!(await verifyPassword(password, user.passwordHash))) return { kind: "rejected" };
 
   return { kind: "session", sub: user.id, email: user.email };

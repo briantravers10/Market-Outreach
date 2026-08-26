@@ -234,6 +234,8 @@ async function main(): Promise<void> {
       })
     ).kind === "rejected"
   );
+  // Treated as unset — and since nothing else is configured either, the honest
+  // answer is that this deployment has no password set, not that ours is wrong.
   check(
     "a whitespace-only ADMIN_PASSWORD is treated as unset",
     (
@@ -243,7 +245,7 @@ async function main(): Promise<void> {
         ...plainOnly,
         adminPassword: "   ",
       })
-    ).kind === "rejected"
+    ).kind === "misconfigured"
   );
 
   // With both set, the hash wins — but a mangled hash must not veto a correct
@@ -339,20 +341,127 @@ async function main(): Promise<void> {
     "an unreadable users table is a rejection, not a crash",
     (
       await decideLogin({
+        // Admin configured on purpose, so this isolates the database failure
+        // instead of tripping the "nothing is configured" report below.
         email: DB_EMAIL,
         password: DB_PASSWORD,
-        adminEmail: null,
-        adminPasswordHash: null,
+        adminEmail: ADMIN_EMAIL,
+        adminPasswordHash: adminHash,
         findUser: async () => null,
       })
     ).kind === "rejected"
   );
 
   // -------------------------------------------------------------------------
+  section("Nothing configured at all — say so, don't blame the password");
+  // -------------------------------------------------------------------------
+
+  // The state the live deployment was actually in: variables missing or scoped
+  // to the wrong environment, so every attempt returned "incorrect" for a
+  // credential that did not exist.
+  const nothingSet = await decideLogin({
+    email: ADMIN_EMAIL,
+    password: ADMIN_PASSWORD,
+    adminEmail: null,
+    adminPasswordHash: null,
+    adminPassword: null,
+    findUser: noUsers,
+  });
+  check("no credentials configured reports misconfiguration", nothingSet.kind === "misconfigured");
+  check(
+    "the message names both missing variables",
+    nothingSet.kind === "misconfigured" &&
+      nothingSet.message.includes("ADMIN_EMAIL") &&
+      nothingSet.message.includes("ADMIN_PASSWORD")
+  );
+  check(
+    "the message mentions the Production environment",
+    nothingSet.kind === "misconfigured" && nothingSet.message.includes("Production")
+  );
+  check(
+    "the message mentions redeploying",
+    nothingSet.kind === "misconfigured" && nothingSet.message.includes("redeploy")
+  );
+
+  const emailMissing = await decideLogin({
+    email: ADMIN_EMAIL,
+    password: ADMIN_PASSWORD,
+    adminEmail: null,
+    adminPasswordHash: adminHash,
+    adminPassword: null,
+    findUser: noUsers,
+  });
+  check(
+    "a missing ADMIN_EMAIL alone is named",
+    emailMissing.kind === "misconfigured" &&
+      emailMissing.message.includes("ADMIN_EMAIL") &&
+      !emailMissing.message.includes("ADMIN_PASSWORD")
+  );
+
+  const passwordMissing = await decideLogin({
+    email: ADMIN_EMAIL,
+    password: ADMIN_PASSWORD,
+    adminEmail: ADMIN_EMAIL,
+    adminPasswordHash: null,
+    adminPassword: null,
+    findUser: noUsers,
+  });
+  check(
+    "a missing password variable alone is named",
+    passwordMissing.kind === "misconfigured" &&
+      passwordMissing.message.includes("ADMIN_PASSWORD") &&
+      !passwordMissing.message.includes("ADMIN_EMAIL")
+  );
+
+  // Fully configured but simply wrong must stay generic — this must not become
+  // a way to probe a healthy deployment.
+  check(
+    "a fully configured deployment still gives the generic rejection",
+    (
+      await decideLogin({
+        email: OTHER_EMAIL,
+        password: "guessing",
+        adminEmail: ADMIN_EMAIL,
+        adminPasswordHash: adminHash,
+        adminPassword: null,
+        findUser: noUsers,
+      })
+    ).kind === "rejected"
+  );
+  check(
+    "a real database user with a wrong password gets the generic rejection",
+    (
+      await decideLogin({
+        email: DB_EMAIL,
+        password: "wrong",
+        adminEmail: null,
+        adminPasswordHash: null,
+        adminPassword: null,
+        findUser: usersTable(dbUser),
+      })
+    ).kind === "rejected"
+  );
+  check(
+    "a database-only deployment still lets its users in",
+    (
+      await decideLogin({
+        email: DB_EMAIL,
+        password: DB_PASSWORD,
+        adminEmail: null,
+        adminPasswordHash: null,
+        adminPassword: null,
+        findUser: usersTable(dbUser),
+      })
+    ).kind === "session"
+  );
+
+  // -------------------------------------------------------------------------
   section("Database users");
   // -------------------------------------------------------------------------
 
-  const dbOnly = { adminEmail: null, adminPasswordHash: null, findUser: usersTable(dbUser) };
+  // An env admin is configured alongside, so an unmatched address here is a
+  // plain rejection rather than a report that the deployment has no login.
+  const dbOnly = { adminEmail: ADMIN_EMAIL, adminPasswordHash: adminHash, findUser: usersTable(dbUser) };
   check(
     "the right password logs the user in",
     (await decideLogin({ email: DB_EMAIL, password: DB_PASSWORD, ...dbOnly })).kind === "session"
