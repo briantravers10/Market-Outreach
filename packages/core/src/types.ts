@@ -489,6 +489,26 @@ export interface LeadFilter {
    * dead domains on every run and never reach the recoverable ones.
    */
   unreachableCheckedBefore?: string;
+  /**
+   * Leads already checked, whose answer the current analysis could improve on.
+   *
+   * The re-sweep queue. `awaitingWebsiteCheck` cannot serve this: it keys on
+   * `website_checked_at IS NULL`, and every lead is now stamped, so it selects
+   * nothing forever. Improving the analyser would otherwise have no way to
+   * reach the leads decided by the older, worse version of it.
+   *
+   * Three shapes qualify, all bounded by the timestamp:
+   *   - UNREACHABLE — retry, now that several URL forms are tried
+   *   - booking NONE — the inner-page crawl may find booking one click in
+   *   - EXISTS + booking UNKNOWN — the old shape of a failed fetch, before
+   *     UNREACHABLE was recordable. Matching it here means the 19,390 leads
+   *     stuck in that state are reachable without a data migration, and they
+   *     get labelled correctly as a side effect of being re-read.
+   *
+   * Leads with a booking answer are excluded: that question is settled, and
+   * re-reading them would spend the budget re-confirming what we know.
+   */
+  needsWebsiteRecheck?: string;
   /** ISO timestamps bounding when the lead was discovered. A report over "yesterday" must not read the whole table to find yesterday. */
   discoveredSince?: string;
   discoveredBefore?: string;

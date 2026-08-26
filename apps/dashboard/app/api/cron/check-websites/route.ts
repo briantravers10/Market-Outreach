@@ -22,7 +22,14 @@ import { isDemoMode } from "../../../../lib/demo";
  * without one rather than defaulting open.
  */
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+/**
+ * Raised from 60 on evidence: production logs show this route hitting the 60s
+ * ceiling, and the work is now heavier per lead — a re-check may fetch four
+ * URL forms for an unreachable site, or a homepage plus four inner pages.
+ * A longer invocation is also far cheaper than the same work split across
+ * six times as many cold starts and queue queries.
+ */
+export const maxDuration = 300;
 
 /**
  * How many leads to pull off the queue. Not how many get done — the deadline
@@ -37,8 +44,15 @@ export const maxDuration = 60;
  */
 const DEFAULT_BATCH = 800;
 
-/** Leaves the invocation room to write results and answer before its 60s limit. */
-const WORK_DEADLINE_MS = 42_000;
+/**
+ * Leaves the invocation room to write results and answer before the limit.
+ *
+ * The margin is generous because writing is the part that overran: upserting a
+ * full batch over a connection pooler, plus the remaining-count query, is not
+ * instant at this row count, and a run that fetches beautifully and then dies
+ * before saving has done nothing at all.
+ */
+const WORK_DEADLINE_MS = 240_000;
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -57,26 +71,48 @@ export async function GET(request: NextRequest) {
 
   const batchSize = resolveBatchSize(request.nextUrl.searchParams.get("batch"), DEFAULT_BATCH, 1000);
 
+  /**
+   * Which queue to drain.
+   *
+   *   (default)      leads nobody has read yet
+   *   ?mode=recheck  leads read by an older, worse version of the analysis
+   *
+   * The re-check queue exists because the first queue keys on "never checked",
+   * which every lead now fails. Without a second queue, improving the analyser
+   * could never reach the leads the old one already decided.
+   */
+  const recheck = request.nextUrl.searchParams.get("mode") === "recheck";
+  // Everything checked before this moment was read by the older analysis.
+  // Passed explicitly so a run cannot re-select the leads it just wrote, which
+  // would loop forever on the same slice.
+  const recheckBefore = request.nextUrl.searchParams.get("before") ?? new Date().toISOString();
+  const queueFilter = recheck
+    ? { needsWebsiteRecheck: recheckBefore }
+    : { awaitingWebsiteCheck: true };
+
   const repos = getRepos();
   // Timed in three parts. The first run of this checked two sites in a window
   // sized for hundreds, and without knowing which part ate the budget any fix
   // would have been a guess.
   const startedAt = Date.now();
   const queue = await repos.leads.list({
-    awaitingWebsiteCheck: true,
+    ...queueFilter,
     orderBy: "score",
     limit: batchSize,
   });
   const queueMs = Date.now() - startedAt;
 
   if (queue.length === 0) {
-    const remaining = await repos.leads.count({ awaitingWebsiteCheck: true });
-    return NextResponse.json({ checked: 0, remaining, done: true });
+    const remaining = await repos.leads.count(queueFilter);
+    return NextResponse.json({ mode: recheck ? "recheck" : "new", checked: 0, remaining, done: true });
   }
 
   const workStartedAt = Date.now();
   const results = await checkWebsites(queue, {
-    fetcher: new HttpSiteFetcher(6_000),
+    // Shorter per-request timeout on a re-check: most of that queue is sites
+    // that already failed once, and four URL forms at six seconds each would
+    // let a handful of dead domains consume the entire budget.
+    fetcher: new HttpSiteFetcher(recheck ? 4_000 : 6_000),
     scoringConfig: getScoringConfig(),
     reasoning: new MockReasoningProvider(),
     now: new Date().toISOString(),
@@ -106,13 +142,14 @@ export async function GET(request: NextRequest) {
   console.log(`check-websites ${JSON.stringify({ ...timing, checked: results.length })}`);
 
   return NextResponse.json({
+    mode: recheck ? "recheck" : "new",
     ...timing,
     checked: results.length,
     reachable,
     unreachable: results.length - reachable,
     scoreImproved: improved,
     nowQualified,
-    remaining: await repos.leads.count({ awaitingWebsiteCheck: true }),
+    remaining: await repos.leads.count(queueFilter),
     done: false,
   });
 }

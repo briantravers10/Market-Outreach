@@ -239,6 +239,15 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
     clauses.push("website IS NOT NULL AND website_status = 'UNREACHABLE' AND website_checked_at < @unreachableBefore");
     params.unreachableBefore = filter.unreachableCheckedBefore;
   }
+  if (filter.needsWebsiteRecheck) {
+    clauses.push(
+      `website IS NOT NULL AND website_checked_at IS NOT NULL AND website_checked_at < @recheckBefore
+       AND (website_status = 'UNREACHABLE'
+            OR online_booking_status = 'NONE'
+            OR (website_status = 'EXISTS' AND online_booking_status = 'UNKNOWN'))`
+    );
+    params.recheckBefore = filter.needsWebsiteRecheck;
+  }
 
   return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
 }
