@@ -61,7 +61,7 @@ function makeLead(overrides: Partial<Lead> = {}): Lead {
     prospectScore: 50,
     qualificationStatus: "QUALIFIED" as QualificationStatus,
     pipelineStage: "QUALIFIED" as PipelineStage,
-    isDuplicate: false,
+    isDuplicateOf: null,
     ...overrides,
   } as Lead;
 }
@@ -72,7 +72,11 @@ function fakeLeads(rows: Lead[]): LeadsRepository {
     async list(filter?: LeadFilter): Promise<Lead[]> {
       let out = rows;
       if (filter?.qualificationStatus) out = out.filter((l) => l.qualificationStatus === filter.qualificationStatus);
-      if (filter?.isDuplicate !== undefined) out = out.filter((l) => l.isDuplicate === filter.isDuplicate);
+      // The filter speaks in booleans; a lead carries a reference to what it
+      // was folded into. Translating here is exactly what the SQL does.
+      if (filter?.isDuplicate !== undefined) {
+        out = out.filter((l) => (l.isDuplicateOf !== null) === filter.isDuplicate);
+      }
       if (filter?.minScore !== undefined) out = out.filter((l) => (l.prospectScore ?? 0) >= filter.minScore!);
       if (filter?.state) out = out.filter((l) => l.state === filter.state);
       if (filter?.city) out = out.filter((l) => l.city === filter.city);
@@ -295,8 +299,8 @@ async function main(): Promise<void> {
 
   {
     const leads = [
-      makeLead({ isDuplicate: true }),
-      makeLead({ isDuplicate: false }),
+      makeLead({ isDuplicateOf: "folded-into-this-one" }),
+      makeLead({ isDuplicateOf: null }),
     ];
     const result = await bulkPushToCrm(
       { leads: fakeLeads(leads), crm: fakeCrmRepo(), adapter: recordingAdapter() },

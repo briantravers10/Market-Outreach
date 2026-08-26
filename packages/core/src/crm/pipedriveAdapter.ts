@@ -493,6 +493,104 @@ export class PipedriveCrmAdapter implements CrmAdapter {
     return await this.repo.listByLead(leadId);
   }
 
+  /**
+   * Records that a conversation happened, against the deal in Pipedrive.
+   *
+   * This writes to Pipedrive rather than to a table here, and that is the
+   * whole design: the moment a call log exists in two places, there are two
+   * versions of what was said and the owner stops trusting either. Pipedrive
+   * owns the conversation; this system owns finding and judging.
+   *
+   * Marked done immediately because it records something that already
+   * happened — an activity left open would show up as a task still to do.
+   */
+  async logCall(
+    leadId: string,
+    detail: { subject: string; note?: string | null; type?: "call" | "meeting" | "email" | "task" }
+  ): Promise<{ logged: boolean; reason: string }> {
+    const mode = this.describeMode();
+    const existing = await this.latestRecord(leadId);
+
+    if (!existing?.externalDealId) {
+      return {
+        logged: false,
+        reason: "This lead is not in Pipedrive yet — add it first, then the call has somewhere to attach.",
+      };
+    }
+    if (!mode.live) {
+      return { logged: false, reason: mode.explanation };
+    }
+
+    await this.send({
+      endpoint: "/activities",
+      method: "POST",
+      body: {
+        subject: detail.subject,
+        type: detail.type ?? "call",
+        done: true,
+        deal_id: Number(existing.externalDealId),
+        ...(existing.externalPersonId ? { person_id: Number(existing.externalPersonId) } : {}),
+        ...(existing.externalOrgId ? { org_id: Number(existing.externalOrgId) } : {}),
+        ...(detail.note?.trim() ? { note: detail.note.trim() } : {}),
+      },
+    });
+
+    return { logged: true, reason: `Logged against the deal in Pipedrive.` };
+  }
+
+  /** A free-text note on the deal. Same reasoning as logCall — Pipedrive holds it. */
+  async addNote(leadId: string, content: string): Promise<{ logged: boolean; reason: string }> {
+    const trimmed = content.trim();
+    if (!trimmed) return { logged: false, reason: "Nothing to save — the note was empty." };
+
+    const mode = this.describeMode();
+    const existing = await this.latestRecord(leadId);
+
+    if (!existing?.externalDealId) {
+      return { logged: false, reason: "This lead is not in Pipedrive yet — add it first." };
+    }
+    if (!mode.live) return { logged: false, reason: mode.explanation };
+
+    await this.send({
+      endpoint: "/notes",
+      method: "POST",
+      body: {
+        content: trimmed,
+        deal_id: Number(existing.externalDealId),
+        ...(existing.externalOrgId ? { org_id: Number(existing.externalOrgId) } : {}),
+      },
+    });
+
+    return { logged: true, reason: "Saved to the deal in Pipedrive." };
+  }
+
+  /**
+   * Moves a deal to a named Pipedrive stage id, rather than to one of our
+   * internal stage names.
+   *
+   * `updateStage` maps from this system's vocabulary through the config; this
+   * takes the id straight from Pipedrive, which is what the Pipeline page has
+   * — it read the stages from the account, so translating back through a
+   * mapping that might not cover them would lose the ones we never named.
+   */
+  async moveDealToStage(leadId: string, stageId: number): Promise<{ moved: boolean; reason: string }> {
+    const mode = this.describeMode();
+    const existing = await this.latestRecord(leadId);
+
+    if (!existing?.externalDealId) {
+      return { moved: false, reason: "This lead is not in Pipedrive yet." };
+    }
+    if (!mode.live) return { moved: false, reason: mode.explanation };
+
+    await this.send({
+      endpoint: `/deals/${existing.externalDealId}`,
+      method: "PUT",
+      body: { stage_id: stageId },
+    });
+
+    return { moved: true, reason: "Moved in Pipedrive." };
+  }
+
   /** Most recent sync for a lead, which carries the external ids. */
   private async latestRecord(leadId: string): Promise<CrmRecord | null> {
     return (await this.repo.listByLead(leadId))[0] ?? null;

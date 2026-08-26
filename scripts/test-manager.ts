@@ -571,10 +571,11 @@ async function main() {
     },
   };
   const claudeBrain = new ClaudeManagerBrain("test-key-not-real", fakeTransport);
-  const claudePlan = await claudeBrain.plan(
-    { text: "what's the team up to", history: [{ role: "owner", content: "hi" }], focusAgentId: null },
-    null as never
-  );
+  const claudePlan = await claudeBrain.plan({
+    text: "what's the team up to",
+    history: [{ role: "owner", content: "hi" }],
+    focusAgentId: null,
+  });
   check("the Claude brain selects the tool the model named", claudePlan.tool?.name === "get_team_status");
   check("the model's text becomes the acknowledgement", claudePlan.acknowledgement === "Checking now.");
   check("the request includes the tool definitions", Array.isArray(capturedBody?.tools) && capturedBody.tools.length >= 15);

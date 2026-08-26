@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getIndustries } from "@market-outreach/core";
 import { getCrmHandoff, getCrmMode, getPipedriveConfig, getRepos } from "../../../../lib/data";
+import { AddToCrmPanel } from "../../../../components/AddToCrmPanel";
 import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../../components/Badges";
 import { PipelineChecklist } from "../../../../components/PipelineChecklist";
 import { PayloadPreview } from "../../../../components/PayloadPreview";
@@ -32,6 +33,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <h1>{lead.businessName}</h1>
         <p>{industryLabel} · {lead.city}, {lead.state} {lead.zip}</p>
       </div>
+
+      <AddToCrmPanel
+        leadId={lead.id}
+        businessName={lead.businessName}
+        alreadyInCrm={crmRecords.length > 0}
+        dealId={crmRecords.find((r) => r.externalDealId)?.externalDealId ?? null}
+        live={crmMode.live}
+      />
 
       <div className="panel">
         <h2>Pipeline</h2>

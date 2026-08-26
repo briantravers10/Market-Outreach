@@ -245,6 +245,44 @@ export class PipedriveReader {
     }));
   }
 
+  /**
+   * The pipeline's stages, in board order.
+   *
+   * Read from the account rather than from config, because the board the
+   * owner actually sees is the one in Pipedrive. A hard-coded list would
+   * silently stop matching the first time they rename or add a column, and
+   * the dashboard would show a board that no longer exists.
+   */
+  async listStages(pipelineId?: number): Promise<{ id: number; name: string; order: number; pipelineId: number }[]> {
+    const items = await this.get<Record<string, unknown>>("/stages", pipelineId ? { pipeline_id: pipelineId } : {});
+    return items
+      .map((item) => ({
+        id: num(item.id) ?? 0,
+        name: str(item.name) ?? "(unnamed)",
+        order: num(item.order_nr) ?? 0,
+        pipelineId: num(item.pipeline_id) ?? 0,
+      }))
+      .sort((a, b) => a.order - b.order);
+  }
+
+  /** Every open deal, for building the board. Bounded — this is a working list, not an archive. */
+  async listOpenDeals(limit = 200): Promise<PipedriveDeal[]> {
+    const items = await this.get<Record<string, unknown>>("/deals", { status: "open", limit });
+    return items.map((item) => ({
+      id: num(item.id) ?? 0,
+      title: str(item.title) ?? "(untitled)",
+      value: num(item.value),
+      currency: str(item.currency),
+      status: str(item.status) ?? "open",
+      stageId: num(item.stage_id),
+      stageName: str(item.stage_name),
+      personId: num((item.person_id as Record<string, unknown> | undefined)?.value ?? item.person_id),
+      organizationId: num((item.org_id as Record<string, unknown> | undefined)?.value ?? item.org_id),
+      updateTime: str(item.update_time),
+      expectedCloseDate: str(item.expected_close_date),
+    }));
+  }
+
   async listNotes(
     filter: { personId?: number; organizationId?: number; dealId?: number; limit?: number } = {}
   ): Promise<PipedriveNote[]> {
