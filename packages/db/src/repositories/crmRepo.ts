@@ -57,4 +57,13 @@ export class SqliteCrmRepository implements CrmRepository {
     const rows = await this.db.prepare("SELECT * FROM mock_crm_records ORDER BY synced_at DESC").all() as CrmRow[];
     return rows.map(rowToRecord);
   }
+
+  async syncedLeadIds(): Promise<string[]> {
+    // DISTINCT, and only the id column: a lead re-synced on every stage change
+    // has several rows, and the caller only wants to know whether it is filed.
+    const rows = (await this.db
+      .prepare("SELECT DISTINCT lead_id FROM mock_crm_records")
+      .all()) as { lead_id: string }[];
+    return rows.map((row) => row.lead_id);
+  }
 }

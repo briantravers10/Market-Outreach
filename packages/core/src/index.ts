@@ -38,6 +38,14 @@ export type { LinkInBioProvider, LinkInBioProfile, RawBioLink } from "./provider
 
 export { MockCrmAdapter } from "./crm/crmAdapter";
 export type { CrmAdapter } from "./crm/crmAdapter";
+export { bulkPushToCrm, describeBulkPush } from "./crm/bulkPush";
+export type {
+  BulkPushDeps,
+  BulkPushFilter,
+  BulkPushOptions,
+  BulkPushPreviewRow,
+  BulkPushResult,
+} from "./crm/bulkPush";
 export {
   PipedriveCrmAdapter,
   buildHandoff,

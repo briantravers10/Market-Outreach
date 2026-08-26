@@ -1227,4 +1227,39 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
 
   .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
   .filter-bar { overflow-x: auto; }
+  .bulk-push-controls { grid-template-columns: 1fr; }
 }
+
+/* Bulk CRM push controls. The two submit buttons are deliberately unequal:
+   Preview is the primary, "Push for real" is the plain one beside it. */
+.bulk-push-form { margin-top: 4px; }
+
+.bulk-push-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0 14px;
+  align-items: end;
+}
+
+.bulk-push-controls .field-label { display: block; }
+.bulk-push-controls .auth-input { width: 100%; margin-bottom: 12px; }
+
+.bulk-push-statuses {
+  border: 0;
+  padding: 0;
+  margin: 0 0 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.bulk-push-statuses legend { float: left; width: 100%; margin-bottom: 6px; }
+.bulk-push-statuses label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.bulk-push-actions { display: flex; gap: 10px; flex-wrap: wrap; }

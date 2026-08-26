@@ -1,13 +1,36 @@
 import Link from "next/link";
 import { getCrmHandoff, getCrmMode, getPipedriveConfig, getRepos } from "../../../lib/data";
 import { PayloadPreview } from "../../../components/PayloadPreview";
+import { BulkPushPanel } from "../../../components/BulkPushPanel";
+import { decodePushResult } from "../../../lib/crmActions";
 
 export const dynamic = "force-dynamic";
 
-export default async function CrmPage() {
+export default async function CrmPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ result?: string }>;
+}) {
   const mode = getCrmMode();
   const config = getPipedriveConfig();
   const repos = getRepos();
+  const { result: rawResult } = await searchParams;
+  const pushResult = await decodePushResult(rawResult);
+
+  // Counts come from SQL aggregates, never by listing leads — this page is one
+  // of the ones that was pulling the whole table to render a few tiles.
+  const [qualified, highPriority, syncedIds, stateGroups] = await Promise.all([
+    repos.leads.count({ qualificationStatus: "QUALIFIED", isDuplicate: false }),
+    repos.leads.count({ qualificationStatus: "HIGH_PRIORITY", isDuplicate: false }),
+    repos.crm.syncedLeadIds(),
+    repos.leads.groupCount("state", { isDuplicate: false }),
+  ]);
+
+  const counts = { qualified, highPriority, alreadyInCrm: syncedIds.length };
+  const states = stateGroups
+    .filter((g) => g.value)
+    .map((g) => ({ value: String(g.value), count: g.count }))
+    .sort((a, b) => b.count - a.count);
 
   // Preview against a real lead — the best-scoring one, since that's the case
   // that produces every object type (organization + person + deal).
@@ -49,32 +72,39 @@ export default async function CrmPage() {
       </div>
 
       <div className="panel">
-        <h2>Turning It On <small>when you buy the membership</small></h2>
+        <h2>Turning It On <small>four steps, no hand-copied keys</small></h2>
         <ol className="setup-steps">
           <li>
-            Create the Pipedrive account and add the custom fields listed below to the <strong>Organization</strong>{" "}
-            object.
+            Create the Pipedrive account and generate an API token (Settings → Personal preferences → API).
           </li>
           <li>
-            Copy each field&apos;s 40-character API key from Pipedrive (Settings → Data fields) into{" "}
-            <code>config/crm-pipedrive.json</code>. Fields left as <code>null</code> are skipped on push, never guessed.
+            Run <code>npm run setup-crm</code> with that token. It verifies the token, creates the custom fields
+            listed below, reads back the 40-character keys Pipedrive assigns, writes them into{" "}
+            <code>config/crm-pipedrive.json</code>, and maps your deal pipeline and stages. Safe to re-run — it
+            matches fields by name, so a second run creates nothing and just refreshes the keys. It only ever adds,
+            and never touches your organizations, people or deals.
           </li>
           <li>
-            Create your deal pipeline, then fill in <code>pipelineId</code> and map each internal stage to a Pipedrive
-            stage id in the same file.
+            Set <code>{config.connection.apiTokenEnvVar}</code> in the environment, then check the payload preview at
+            the bottom of this page.
           </li>
           <li>
-            Set <code>{config.connection.apiTokenEnvVar}</code> in the environment.
-          </li>
-          <li>
-            Set <code>{config.connection.liveSyncEnvVar}=1</code> once you&apos;ve confirmed the dry-run payloads below
-            look right. That&apos;s the moment it goes live — nothing before it.
+            Set <code>{config.connection.liveSyncEnvVar}=1</code> once those payloads look right. That&apos;s the
+            moment it goes live — nothing before it.
           </li>
         </ol>
         <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-          No code changes at any step. Everything above is config.
+          No code changes at any step. Fields the account has no key for are skipped on push, never guessed — so a
+          partial setup under-sends rather than writing to the wrong column.
         </p>
       </div>
+
+      <BulkPushPanel
+        counts={counts}
+        live={mode.live}
+        result={pushResult}
+        states={states}
+      />
 
       <div className="panel">
         <h2>

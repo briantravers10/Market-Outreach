@@ -16,6 +16,7 @@
     "build:demo": "SEED_DB_PATH=data/demo.db npx tsx scripts/reset-db.ts && SEED_DB_PATH=data/demo.db npx tsx scripts/seed.ts && SEED_DB_PATH=data/demo.db npx tsx scripts/run-campaign.ts && SEED_DB_PATH=data/demo.db npx tsx scripts/seed-manager-demo.ts && node scripts/encode-demo-db.mjs && npm run build --workspace apps/dashboard",
     "create-user": "npx tsx scripts/create-user.ts",
     "test-auth": "npx tsx scripts/test-auth.ts",
+    "test-bulk-push": "npx tsx scripts/test-bulk-push.ts",
     "test-crm": "npx tsx scripts/test-crm.ts",
     "test-comms": "npx tsx scripts/test-comms.ts",
     "test-export": "npx tsx scripts/test-export.ts",

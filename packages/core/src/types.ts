@@ -543,6 +543,16 @@ export interface CrmRepository {
   upsert(record: CrmRecord): Promise<CrmRecord>;
   listByLead(leadId: string): Promise<CrmRecord[]>;
   list(): Promise<CrmRecord[]>;
+  /**
+   * Every lead id that has ever been synced, as one query.
+   *
+   * A bulk push has to skip what is already filed, and asking `listByLead`
+   * per candidate would be one round trip per lead — eleven thousand of them
+   * over a connection pooler. This returns only ids, so the result stays small
+   * even when the CRM is full, and it grows with what has been *synced* rather
+   * than with the size of the leads table.
+   */
+  syncedLeadIds(): Promise<string[]>;
 }
 
 export interface OutreachRepository {
