@@ -29,6 +29,20 @@ export interface CrawlResult {
   listings: DirectoryListing[];
   /** The URL shape that worked, so a list of candidates can be trimmed to the answer. */
   usedTemplate: string | null;
+  /**
+   * Town ids noticed on the pages this crawl fetched, keyed by town slug.
+   *
+   * Free intelligence. A platform's directory page for one town links to
+   * neighbouring towns, and those links carry their ids — so reading Miami
+   * teaches us Hialeah and Coral Gables at no extra cost. Without this the id
+   * pool saturates at whatever the platform's own index pages happen to list
+   * (42 towns, against 625 in the dataset) and every other town fails forever
+   * with "id unknown".
+   *
+   * Collected from failed crawls too: a page that had no profile links may
+   * still have been full of town links.
+   */
+  cityIdsSeen: Map<string, string>;
 }
 
 export interface CrawlScope {
@@ -57,10 +71,21 @@ export async function crawlDirectory(
 ): Promise<CrawlResult> {
   const id = coverageKey({ platform: platform.id, ...scope });
   const base = { id, platform: platform.id, city: scope.city, state: scope.state, industry: scope.industry };
+  /** Town ids noticed on any page fetched here, kept even when the crawl fails. */
+  const cityIdsSeen = new Map<string, string>();
+  const noticeCityIds = (html: string) => {
+    const patterns = deps.listing.cityIndex?.cityLinkPatterns;
+    if (!patterns) return;
+    for (const [slug, id] of extractCityIds(html, patterns)) {
+      if (!cityIdsSeen.has(slug)) cityIdsSeen.set(slug, id);
+    }
+  };
+
   const failed = (detail: string, pagesRead = 0): CrawlResult => ({
     crawl: { ...base, status: "failed", listingsFound: 0, pagesRead, detail, crawledAt: deps.now },
     listings: [],
     usedTemplate: null,
+    cityIdsSeen,
   });
 
   const cityId = deps.cityIds?.get(slugify(scope.city)) ?? null;
@@ -100,6 +125,7 @@ export async function crawlDirectory(
       firstPageAttempts.push(`${url} — HTTP ${probe.status}`);
       continue;
     }
+    noticeCityIds(probe.html);
     if (extractCandidatesFromHtml(probe.html, probe.finalUrl, platform, 200).length === 0) {
       firstPageAttempts.push(`${url} — 200 but no profile links in it`);
       continue;
@@ -150,6 +176,8 @@ export async function crawlDirectory(
         pagesRead
       );
     }
+
+    noticeCityIds(fetched.html);
 
     // A directory page carries dozens of listings, so the per-page cap that
     // suits a search-results page would silently truncate this one.
@@ -203,6 +231,7 @@ export async function crawlDirectory(
     },
     listings,
     usedTemplate: deps.listing.urlTemplates[templateIndex] ?? null,
+    cityIdsSeen,
   };
 }
 

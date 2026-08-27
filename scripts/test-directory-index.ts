@@ -452,6 +452,78 @@ async function main(): Promise<void> {
     check("naming each URL", (result.detail ?? "").split("|").length >= 2, String(result.detail));
   }
 
+  section("Learning towns from the pages we already fetch");
+
+  {
+    // Free intelligence, and the thing that decides whether Booksy ever covers
+    // more than the 42 towns its own index pages happen to name. A directory
+    // page for one town links to its neighbours, and those links carry ids.
+    const MIAMI = "https://booksy.com/en-us/s/hair-salon/15889_miami";
+    const fetcher = new StubFetcher({
+      [MIAMI]: {
+        html: `
+          <a href="/en-us/123_bella-hair_hair-salon_15889_miami">Bella Hair</a>
+          <a href="/en-us/s/hair-salon/15890_miami-beach">Nearby: Miami Beach</a>
+          <a href="/en-us/s/hair-salon/16002_hialeah">Nearby: Hialeah</a>`,
+      },
+      [`${MIAMI}?page=2`]: { status: 404, html: "" },
+    });
+    const { crawl: result, cityIdsSeen } = await crawlDirectory(
+      BOOKSY,
+      { city: "Miami", state: "FL", industry: "hair-salons" },
+      {
+        fetcher,
+        listing: BOOKSY_LISTING,
+        now: "2026-08-27T00:00:00.000Z",
+        newId: nextId,
+        cityIds: new Map([["miami", "15889"]]),
+      }
+    );
+    check("the crawl itself still succeeds", result.status === "complete", String(result.detail));
+    check(
+      "and neighbouring towns are learned from the same page",
+      cityIdsSeen.get("miami-beach") === "15890" && cityIdsSeen.get("hialeah") === "16002",
+      JSON.stringify([...cityIdsSeen])
+    );
+  }
+
+  {
+    // Also harvested from a crawl that FAILED. A page with no profile links on
+    // it may still have been covered in town links, and throwing those away
+    // because the crawl was useless for listings wastes the fetch entirely.
+    const MIAMI = "https://booksy.com/en-us/s/hair-salon/15889_miami";
+    const fetcher = new StubFetcher({
+      [MIAMI]: { html: `<a href="/en-us/s/hair-salon/15890_miami-beach">Miami Beach</a>` },
+    });
+    const { crawl: result, cityIdsSeen } = await crawlDirectory(
+      BOOKSY,
+      { city: "Miami", state: "FL", industry: "hair-salons" },
+      {
+        fetcher,
+        listing: BOOKSY_LISTING,
+        now: "2026-08-27T00:00:00.000Z",
+        newId: nextId,
+        cityIds: new Map([["miami", "15889"]]),
+      }
+    );
+    check("a crawl with no listings still fails", result.status === "failed");
+    check("but what it learned is kept", cityIdsSeen.get("miami-beach") === "15890", JSON.stringify([...cityIdsSeen]));
+  }
+
+  {
+    // A platform with no id scheme has nothing to harvest and must not break.
+    const fetcher = new StubFetcher({
+      [VAGARO_MIAMI]: { html: `<a href="/bellahair">Bella Hair Studio</a>` },
+      [`${VAGARO_MIAMI}?page=2`]: { status: 404, html: "" },
+    });
+    const { cityIdsSeen } = await crawlDirectory(
+      VAGARO,
+      { city: "Miami", state: "FL", industry: "hair-salons" },
+      { fetcher, listing: VAGARO_LISTING, now: "2026-08-27T00:00:00.000Z", newId: nextId }
+    );
+    check("a platform without town ids harvests nothing and does not throw", cityIdsSeen.size === 0);
+  }
+
   section("Looking a business up in an index");
 
   {

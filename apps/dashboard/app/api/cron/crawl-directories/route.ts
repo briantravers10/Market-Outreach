@@ -5,6 +5,8 @@ import {
   coverageKey,
   crawlDirectory,
   discoverCityIds,
+  listingUrlFor,
+  slugify,
   getBookingDirectories,
   logActivity,
   resolveBatchSize,
@@ -190,6 +192,7 @@ export async function GET(request: NextRequest) {
   const failures: string[] = [];
   const workingTemplates = new Map<string, string>();
   let skippedRecentFailures = 0;
+  let harvestedFromPages = 0;
 
   /**
    * Platforms that have refused us during this run.
@@ -227,11 +230,17 @@ export async function GET(request: NextRequest) {
       return;
     }
 
-    attempted += 1;
     const listing = platform.listing!;
     const cityIds = await cityIdsFor(platform.id, listing, scope.industry);
 
-    const { crawl, listings, usedTemplate } = await crawlDirectory(platform, scope, {
+    // Counted only when the crawl will actually cost a request. A town whose
+    // id is unknown fails before fetching anything, and letting those consume
+    // slots means a run of sixty can spend most of itself on work that never
+    // touched the network.
+    const willFetch = Boolean(listingUrlFor(listing, { ...scope, cityId: cityIds?.get(slugify(scope.city)) ?? null }, listing.firstPage));
+    if (willFetch) attempted += 1;
+
+    const { crawl, listings, usedTemplate, cityIdsSeen } = await crawlDirectory(platform, scope, {
       fetcher,
       listing,
       now: nowIso,
@@ -239,6 +248,27 @@ export async function GET(request: NextRequest) {
       cityIds,
       delayMs: PAGE_DELAY_MS,
     });
+
+    /**
+     * Town ids picked up from the pages this crawl fetched.
+     *
+     * A directory page for one town links to its neighbours, and those links
+     * carry their ids — so reading Miami teaches us Hialeah and Coral Gables
+     * for nothing. Without it the pool saturates at whatever the platform's
+     * own index pages list (42 towns, against 625 in the data) and every other
+     * town fails forever with "id unknown".
+     */
+    if (cityIdsSeen.size > 0) {
+      const pool = cityIdPool.get(platform.id) ?? new Map<string, string>();
+      cityIdPool.set(platform.id, pool);
+      for (const [slug, id] of cityIdsSeen) {
+        if (!pool.has(slug)) {
+          pool.set(slug, id);
+          poolGrewBy += 1;
+          harvestedFromPages += 1;
+        }
+      }
+    }
 
     if (listings.length > 0) listingsWritten += await repos.directoryIndex.putListings(listings);
     await repos.directoryIndex.recordCrawl(crawl);
@@ -324,6 +354,7 @@ export async function GET(request: NextRequest) {
     skippedRecentFailures,
     townIdsKnown: Object.fromEntries([...cityIdPool].map(([id, ids]) => [id, ids.size])),
     townIdsLearnedThisRun: poolGrewBy,
+    townIdsHarvestedFromPages: harvestedFromPages,
     failures,
     ms: Date.now() - startedAt,
   };
