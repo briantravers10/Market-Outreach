@@ -64,8 +64,18 @@ export interface DirectoryIndexRepository {
   getCrawl(id: string): Promise<DirectoryCrawl | null>;
   /** Crawls for one town-and-trade across every platform, for the coverage check. */
   crawlsFor(scope: { city: string; state: string; industry: string }): Promise<DirectoryCrawl[]>;
-  countListings(): Promise<number>;
-  countCrawls(status?: "complete" | "failed"): Promise<number>;
+  /**
+   * Status and age of every crawl, keyed by coverage id, in one query.
+   *
+   * The crawl loop needs to know "has this town already been read" for each of
+   * sixty units, and asking one at a time is sixty round trips per run from
+   * four concurrent workers — which exhausted the connection pool and killed a
+   * whole run on its closing query. These rows are small and few; fetching all
+   * of them once is cheaper than fetching a fraction of them individually.
+   */
+  crawlStates(): Promise<Map<string, { status: "complete" | "failed"; crawledAt: string }>>;
+  /** Listings indexed, and crawls by status, in a single round trip. */
+  indexTotals(): Promise<{ listings: number; complete: number; failed: number }>;
 }
 
 /** How a platform's town directory is addressed. */

@@ -163,6 +163,37 @@ export class SqlDirectoryIndexRepository implements DirectoryIndexRepository {
     return rows.map(toCrawl);
   }
 
+  async crawlStates(): Promise<Map<string, { status: "complete" | "failed"; crawledAt: string }>> {
+    const rows = (await this.db
+      .prepare("SELECT id, status, crawled_at FROM directory_crawls")
+      .all({})) as { id: string; status: string; crawled_at: string }[];
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        // Same rule as toCrawl(): anything not exactly "complete" is failed. An
+        // unrecognised status must never read as a finished crawl, because a
+        // finished crawl is what licenses recording "no online booking".
+        { status: row.status === "complete" ? ("complete" as const) : ("failed" as const), crawledAt: row.crawled_at },
+      ])
+    );
+  }
+
+  async indexTotals(): Promise<{ listings: number; complete: number; failed: number }> {
+    const row = (await this.db
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM directory_listings) AS listings,
+           (SELECT COUNT(*) FROM directory_crawls WHERE status = 'complete') AS complete,
+           (SELECT COUNT(*) FROM directory_crawls WHERE status <> 'complete') AS failed`
+      )
+      .get({})) as { listings: number; complete: number; failed: number } | undefined;
+    return {
+      listings: Number(row?.listings ?? 0),
+      complete: Number(row?.complete ?? 0),
+      failed: Number(row?.failed ?? 0),
+    };
+  }
+
   async countListings(): Promise<number> {
     const row = (await this.db.prepare("SELECT COUNT(*) AS n FROM directory_listings").get()) as
       | { n: number }

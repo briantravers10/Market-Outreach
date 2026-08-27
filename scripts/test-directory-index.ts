@@ -729,7 +729,33 @@ async function main(): Promise<void> {
     await repo.recordCrawl(crawl({ status: "complete", detail: null }));
     const stored = await repo.getCrawl(crawl().id);
     check("a retry overwrites the failure rather than adding a row", stored?.status === "complete", String(stored?.status));
-    check("only one crawl row exists for the town", (await repo.countCrawls()) === 1);
+    const totals = await repo.indexTotals();
+    check("only one crawl row exists for the town", totals.complete + totals.failed === 1);
+    check("and the snapshot agrees", (await repo.crawlStates()).size === 1);
+  }
+
+  {
+    const repo = makeRepo();
+    await repo.recordCrawl(crawl({ status: "complete" }));
+    await repo.recordCrawl(
+      crawl({
+        platform: "vagaro",
+        id: coverageKey({ platform: "vagaro", city: "Miami", state: "FL", industry: "hair-salons" }),
+        status: "failed",
+        detail: "HTTP 500",
+      })
+    );
+    const states = await repo.crawlStates();
+    check("the snapshot keys on the coverage id", states.has(crawl().id));
+    check(
+      "and preserves complete-versus-failed",
+      states.get(crawl().id)?.status === "complete" &&
+        states.get(coverageKey({ platform: "vagaro", city: "Miami", state: "FL", industry: "hair-salons" }))?.status ===
+          "failed",
+      JSON.stringify([...states])
+    );
+    const totals = await repo.indexTotals();
+    check("totals count both statuses separately", totals.complete === 1 && totals.failed === 1, JSON.stringify(totals));
   }
 
   console.log("\n" + "=".repeat(40));

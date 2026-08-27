@@ -149,7 +149,12 @@ function getPool(connectionString: string): Pool {
     // Serverless: many short-lived instances, each wanting a connection.
     // Supabase's transaction pooler fronts this, so keep per-instance
     // connections low and let idle ones close quickly.
-    max: 3,
+    // Raised from 3 on evidence: four concurrent crawl workers plus the
+    // website sweep exhausted it, and a run died on its closing query having
+    // done all the work. Supabase's transaction pooler fronts this and
+    // multiplexes far more than one connection per client, so a handful per
+    // instance is well within what it expects.
+    max: 8,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 10_000,
     // TLS for anything remote. Skipped for localhost, which has no certificate

@@ -115,6 +115,8 @@ export async function GET(request: NextRequest) {
   // table it does not know about; asking for the busiest few hundred and
   // skipping the done ones costs one query and stays simple.
   const scopes = await repos.leads.directoryScopes(Math.max(400, batchSize * 8));
+  // One query for what has already been crawled, rather than one per unit.
+  const crawlStates = await repos.directoryIndex.crawlStates();
 
   /**
    * Town ids, pooled per platform and remembered between runs.
@@ -219,7 +221,10 @@ export async function GET(request: NextRequest) {
     if (refusing.has(platform.id)) return;
 
     const key = coverageKey({ platform: platform.id, ...scope });
-    const existing = await repos.directoryIndex.getCrawl(key);
+    // Read from the snapshot taken before the run rather than queried per unit.
+    // Sixty individual lookups from four concurrent workers exhausted the
+    // connection pool and killed an entire run on its closing query.
+    const existing = crawlStates.get(key);
     // A completed, fresh index needs nothing.
     if (existing?.status === "complete" && existing.crawledAt > staleBefore) return;
     // A recent failure is left alone rather than re-proved on every run. The
@@ -272,6 +277,7 @@ export async function GET(request: NextRequest) {
 
     if (listings.length > 0) listingsWritten += await repos.directoryIndex.putListings(listings);
     await repos.directoryIndex.recordCrawl(crawl);
+    crawlStates.set(key, { status: crawl.status, crawledAt: crawl.crawledAt });
 
     if (crawl.status === "complete") {
       completed += 1;
@@ -316,11 +322,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const [indexedListings, completeCrawls, failedCrawls] = await Promise.all([
-    repos.directoryIndex.countListings(),
-    repos.directoryIndex.countCrawls("complete"),
-    repos.directoryIndex.countCrawls("failed"),
-  ]);
+  // One round trip rather than three. This is the query that died when the
+  // pool was exhausted, taking a run's worth of finished work down with it.
+  const totals = await repos.directoryIndex.indexTotals();
+  const { listings: indexedListings, complete: completeCrawls, failed: failedCrawls } = totals;
 
   try {
     await logActivity(repos.agentActivity, {
