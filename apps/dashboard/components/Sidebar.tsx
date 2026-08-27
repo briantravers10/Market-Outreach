@@ -17,14 +17,23 @@ const LINKS = [
   { href: "/settings", label: "Settings" },
 ];
 
-// Not-yet-live destinations. CRM is built but runs in dry-run until an account
-// is connected, so it gets a different tag than the genuinely unbuilt Outreach.
-const PENDING_LINKS = [
-  { href: "/crm", label: "CRM", tag: "Dry run" },
-  { href: "/outreach", label: "Outreach", tag: "Off" },
-];
+/**
+ * Destinations whose tag depends on what is actually configured.
+ *
+ * These tags used to be the literal strings "Dry run" and "Off", under a
+ * heading reading "Not live". The CRM had been switched live weeks earlier and
+ * the navigation still called it a preview — so a bulk push that writes to a
+ * real Pipedrive account looked like a rehearsal. A label that asserts a state
+ * rather than reading it is a lie waiting for the state to change, and this
+ * one was already false.
+ */
+export interface IntegrationTags {
+  crm: { live: boolean; tag: string; explanation: string };
+  outreachTag: string;
+  outreachLive: boolean;
+}
 
-export function Sidebar({ userEmail }: { userEmail: string | null }) {
+export function Sidebar({ userEmail, integrations }: { userEmail: string | null; integrations: IntegrationTags }) {
   const pathname = usePathname();
   const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`);
 
@@ -43,17 +52,26 @@ export function Sidebar({ userEmail }: { userEmail: string | null }) {
       </div>
 
       <div className="sidebar-section">
-        <div className="sidebar-heading">Not live</div>
-        {PENDING_LINKS.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={`sidebar-link sidebar-link-muted ${isActive(link.href) ? "active" : ""}`}
-          >
-            {link.label}
-            <span className="sidebar-tag">{link.tag}</span>
-          </Link>
-        ))}
+        <div className="sidebar-heading">Sends things</div>
+        <Link
+          href="/crm"
+          title={integrations.crm.explanation}
+          className={`sidebar-link ${integrations.crm.live ? "" : "sidebar-link-muted"} ${isActive("/crm") ? "active" : ""}`}
+        >
+          CRM
+          <span className={`sidebar-tag ${integrations.crm.live ? "sidebar-tag-live" : ""}`}>
+            {integrations.crm.tag}
+          </span>
+        </Link>
+        <Link
+          href="/outreach"
+          className={`sidebar-link ${integrations.outreachLive ? "" : "sidebar-link-muted"} ${isActive("/outreach") ? "active" : ""}`}
+        >
+          Outreach
+          <span className={`sidebar-tag ${integrations.outreachLive ? "sidebar-tag-live" : ""}`}>
+            {integrations.outreachTag}
+          </span>
+        </Link>
       </div>
 
       {userEmail && (

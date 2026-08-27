@@ -1,6 +1,7 @@
 import { Sidebar } from "../../components/Sidebar";
 import { ManagerAssistant } from "../../components/manager/ManagerAssistant";
 import { isDemoMode } from "../../lib/demo";
+import { getIntegrationStatus } from "../../lib/data";
 import { getCurrentUser } from "../../lib/authActions";
 import { getAuthConfig } from "../../lib/authConfig";
 
@@ -11,6 +12,8 @@ import { getAuthConfig } from "../../lib/authConfig";
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   const authConfig = getAuthConfig();
+  const integrations = getIntegrationStatus();
+  const canSend = integrations.email.ready || integrations.sms.ready;
 
   return (
     <>
@@ -28,16 +31,41 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <strong>Public demo</strong> — every business here is invented, and the snapshot never changes.
             Controls are disabled.
           </>
+        ) : canSend ? (
+          /*
+            The banner has to change the moment sending becomes possible. It
+            previously stated flatly that "outreach is disabled in code" — true
+            when written, and a dangerous thing to keep asserting once a Resend
+            or Twilio key exists, because it invites treating a real send as a
+            rehearsal.
+          */
+          <>
+            <strong>Live outreach is possible</strong> — these are real businesses and real contact details.
+            {integrations.email.ready && integrations.sms.ready
+              ? " Email and SMS are both configured"
+              : integrations.email.ready
+                ? " Email is configured"
+                : " SMS is configured"}
+            , so anything you approve actually reaches the business. Nothing sends without your approval.
+          </>
         ) : (
           <>
             <strong>Research only</strong> — these are real businesses and real contact details, from published
-            open data. Nothing here contacts anyone: outreach is disabled in code, not by policy.
+            open data. Nothing here can contact them: no email or SMS provider is configured.
+            {integrations.crm.live && " Pipedrive sync IS live, so pushed leads reach your real CRM."}
           </>
         )}
         {!authConfig.enabled && " No login is configured on this deployment."}
       </div>
       <div className="layout">
-        <Sidebar userEmail={user?.email ?? null} />
+        <Sidebar
+          userEmail={user?.email ?? null}
+          integrations={{
+            crm: integrations.crm,
+            outreachTag: integrations.outreachTag,
+            outreachLive: canSend,
+          }}
+        />
         <main className="content">{children}</main>
       </div>
       {/* Available on every dashboard page — the Manager is the primary interface,

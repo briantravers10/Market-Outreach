@@ -1,5 +1,7 @@
 import "server-only";
 import {
+  ResendEmailProvider,
+  TwilioSmsProvider,
   ProspectingManager,
   MockDiscoveryProvider,
   MockEnrichmentProvider,
@@ -49,6 +51,37 @@ export function getCommandParser() {
  */
 export function getCrmMode() {
   return describePipedriveMode();
+}
+
+/**
+ * What is actually switched on, read from the deployment rather than asserted.
+ *
+ * The sidebar used to carry the literal strings "Dry run" and "Off" as
+ * hardcoded text under a heading reading "Not live". That is the worst kind of
+ * wrong: the CRM had been made live weeks earlier and the navigation still
+ * said it was a preview, so a bulk push that writes to a real Pipedrive
+ * account looked like a rehearsal. A label that asserts a state instead of
+ * reading it is a lie waiting for the state to change.
+ */
+export function getIntegrationStatus(): {
+  crm: { live: boolean; tag: string; explanation: string };
+  email: { ready: boolean; explanation: string };
+  sms: { ready: boolean; explanation: string };
+  outreachTag: string;
+} {
+  const crm = describePipedriveMode();
+  const email = new ResendEmailProvider().readiness();
+  const sms = new TwilioSmsProvider().readiness();
+
+  const outreachTag =
+    email.ready && sms.ready ? "Email + SMS" : email.ready ? "Email only" : sms.ready ? "SMS only" : "Off";
+
+  return {
+    crm: { live: crm.live, tag: crm.live ? "Live" : "Dry run", explanation: crm.explanation },
+    email: { ready: email.ready, explanation: email.explanation },
+    sms: { ready: sms.ready, explanation: sms.explanation },
+    outreachTag,
+  };
 }
 
 /** The exact Pipedrive payloads that would be sent for a given lead. Pure — no credentials needed. */

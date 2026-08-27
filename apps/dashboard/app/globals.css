@@ -1509,3 +1509,9 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
 .queue-badge-good { color: var(--pos); border-color: color-mix(in srgb, var(--pos) 40%, transparent); }
 .queue-badge-idle { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
 .queue-badge-stuck { color: var(--neg); border-color: color-mix(in srgb, var(--neg) 45%, transparent); }
+
+/* A live integration is marked in the accent, not left looking dormant. */
+.sidebar-tag-live {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
