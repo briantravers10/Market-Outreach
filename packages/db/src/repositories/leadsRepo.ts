@@ -44,6 +44,7 @@ interface LeadRow {
   longitude: number | null;
   website_checked_at: string | null;
   analysis_version: number | null;
+  directory_checked_at: string | null;
   date_discovered: string;
   date_last_researched: string | null;
   research_status: string;
@@ -98,6 +99,7 @@ function rowToLead(row: LeadRow): Lead {
     longitude: row.longitude,
     websiteCheckedAt: row.website_checked_at,
     analysisVersion: row.analysis_version ?? null,
+    directoryCheckedAt: row.directory_checked_at ?? null,
     dateDiscovered: row.date_discovered,
     dateLastResearched: row.date_last_researched,
     researchStatus: row.research_status as Lead["researchStatus"],
@@ -129,7 +131,7 @@ const LEAD_COLUMNS = [
   "website_status", "website_quality", "online_booking_status", "booking_provider", "booking_method",
   "staff_count", "staff_count_confidence", "rating", "review_count", "instagram", "facebook",
   "social_activity", "location_count", "services", "prospect_score", "score_breakdown", "score_reason",
-  "data_confidence", "discovery_source", "external_id", "source_confidence", "latitude", "longitude", "website_checked_at", "analysis_version",
+  "data_confidence", "discovery_source", "external_id", "source_confidence", "latitude", "longitude", "website_checked_at", "analysis_version", "directory_checked_at",
   "date_discovered", "date_last_researched", "research_status", "qualification_status", "pipeline_stage",
   "campaign_id", "job_id", "is_duplicate_of", "stages_completed", "link_in_bio_url", "detected_links",
   "service_area", "location_confidence", "location_evidence", "notes",
@@ -177,6 +179,7 @@ function leadToRow(lead: Lead): Record<string, unknown> {
     longitude: lead.longitude,
     website_checked_at: lead.websiteCheckedAt,
     analysis_version: lead.analysisVersion,
+    directory_checked_at: lead.directoryCheckedAt,
     date_discovered: lead.dateDiscovered,
     date_last_researched: lead.dateLastResearched,
     research_status: lead.researchStatus,
@@ -262,6 +265,20 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
         : "online_booking_status = 'NONE'"
     );
   }
+  if (filter.awaitingDirectoryLookup) {
+    // Still unanswered, and the Website Analyst has already had its turn —
+    // either it read the site and found nothing conclusive, or there is no
+    // site to read, which is the case the directories exist for.
+    //
+    // Duplicates are excluded because a duplicate never reaches the call list
+    // whatever the answer is, and paid lookups should not be spent on one.
+    clauses.push(
+      `online_booking_status = 'UNKNOWN' AND is_duplicate_of IS NULL
+       AND (website IS NULL OR website_checked_at IS NOT NULL)
+       AND (directory_checked_at IS NULL OR directory_checked_at < @directoryBefore)`
+    );
+    params.directoryBefore = filter.awaitingDirectoryLookup;
+  }
   if (filter.needsWebsiteRecheck) {
     clauses.push(
       `website IS NOT NULL AND website_checked_at IS NOT NULL AND website_checked_at < @recheckBefore
@@ -278,63 +295,20 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
 export class SqliteLeadsRepository implements LeadsRepository {
   constructor(private readonly db: SqlClient) {}
 
+  /**
+   * Write one lead.
+   *
+   * Delegates to the bulk path rather than carrying its own hand-written SQL.
+   * The two used to be separate statements, and they had already drifted: the
+   * single-lead version never updated analysis_version, so a lead written one
+   * at a time kept whatever research-method stamp it arrived with and could
+   * sit in the holding area forever. Generating both from LEAD_COLUMNS is the
+   * only way that class of bug stays fixed.
+   */
   async upsert(lead: Lead): Promise<Lead> {
-    await this.db
-      .prepare(
-        `INSERT INTO leads (
-          id, business_name, industry, address, city, state, zip, phone, email, website,
-          website_status, website_quality, online_booking_status, booking_provider, booking_method,
-          staff_count, staff_count_confidence, rating, review_count, instagram, facebook,
-          social_activity, location_count, services, prospect_score, score_breakdown, score_reason,
-          data_confidence, discovery_source, external_id, source_confidence, latitude, longitude, website_checked_at, analysis_version,
-          date_discovered, date_last_researched, research_status,
-          qualification_status, pipeline_stage, campaign_id, job_id, is_duplicate_of, stages_completed,
-          link_in_bio_url, detected_links, service_area, location_confidence, location_evidence, notes
-        ) VALUES (
-          @id, @businessName, @industry, @address, @city, @state, @zip, @phone, @email, @website,
-          @websiteStatus, @websiteQuality, @onlineBookingStatus, @bookingProvider, @bookingMethod,
-          @staffCount, @staffCountConfidence, @rating, @reviewCount, @instagram, @facebook,
-          @socialActivity, @locationCount, @services, @prospectScore, @scoreBreakdown, @scoreReason,
-          @dataConfidence, @discoverySource, @externalId, @sourceConfidence, @latitude, @longitude, @websiteCheckedAt, @analysisVersion,
-          @dateDiscovered, @dateLastResearched, @researchStatus,
-          @qualificationStatus, @pipelineStage, @campaignId, @jobId, @isDuplicateOf, @stagesCompleted,
-          @linkInBioUrl, @detectedLinks, @serviceArea, @locationConfidence, @locationEvidence, @notes
-        )
-        ON CONFLICT(id) DO UPDATE SET
-          phone=excluded.phone, email=excluded.email, website=excluded.website,
-          website_status=excluded.website_status, website_quality=excluded.website_quality,
-          online_booking_status=excluded.online_booking_status, booking_provider=excluded.booking_provider,
-          booking_method=excluded.booking_method, staff_count=excluded.staff_count,
-          staff_count_confidence=excluded.staff_count_confidence, rating=excluded.rating,
-          review_count=excluded.review_count, instagram=excluded.instagram, facebook=excluded.facebook,
-          social_activity=excluded.social_activity, location_count=excluded.location_count,
-          services=excluded.services, prospect_score=excluded.prospect_score,
-          score_breakdown=excluded.score_breakdown, score_reason=excluded.score_reason,
-          data_confidence=excluded.data_confidence, source_confidence=excluded.source_confidence,
-          latitude=excluded.latitude, longitude=excluded.longitude,
-          website_checked_at=excluded.website_checked_at,
-          date_last_researched=excluded.date_last_researched,
-          research_status=excluded.research_status, qualification_status=excluded.qualification_status,
-          pipeline_stage=excluded.pipeline_stage, is_duplicate_of=excluded.is_duplicate_of,
-          stages_completed=excluded.stages_completed, link_in_bio_url=excluded.link_in_bio_url,
-          detected_links=excluded.detected_links, service_area=excluded.service_area,
-          location_confidence=excluded.location_confidence, location_evidence=excluded.location_evidence,
-          notes=excluded.notes`
-      )
-      .run({
-        ...lead,
-        services: JSON.stringify(lead.services),
-        scoreBreakdown: JSON.stringify(lead.scoreBreakdown),
-        stagesCompleted: JSON.stringify(lead.stagesCompleted),
-        linkInBioUrl: lead.linkInBioUrl,
-        detectedLinks: JSON.stringify(lead.detectedLinks),
-        serviceArea: lead.serviceArea,
-        locationConfidence: lead.locationConfidence,
-        locationEvidence: JSON.stringify(lead.locationEvidence),
-      });
+    await this.upsertMany([lead]);
     return lead;
   }
-
 
   /**
    * Bulk upsert, chunked.
@@ -509,12 +483,25 @@ export class SqliteLeadsRepository implements LeadsRepository {
     // live database: 2,391ms with the name tiebreak, 3.9ms with this one.
     // Ties come out in id order rather than alphabetically, which is stable,
     // which is what paging actually needs.
+    //
+    // "least-recently-checked" exists because ordering a re-check queue by
+    // score is a trap. Leads stay in that queue after being processed — a site
+    // that is still unreachable is still worth another go later — so sorting
+    // by score hands the same top 800 back on every run, forever. That is not
+    // hypothetical: it ran for about thirteen hours, re-reading the same 800
+    // websites every five minutes while 39,000 leads behind them never moved.
+    // Oldest-first is self-correcting: processing a lead stamps it and sends
+    // it to the back.
     const order =
       filter.orderBy === "score"
         ? "prospect_score DESC NULLS LAST, id"
         : filter.orderBy === "name"
           ? "business_name ASC"
-          : "date_discovered DESC";
+          : filter.orderBy === "least-recently-checked"
+            ? "website_checked_at ASC NULLS FIRST, id"
+            : filter.orderBy === "least-recently-looked-up"
+              ? "directory_checked_at ASC NULLS FIRST, id"
+              : "date_discovered DESC";
     // The limit is interpolated rather than bound because SQLite and Postgres
     // disagree about parameterising LIMIT; it is coerced to an integer first so
     // nothing from a query string can reach the statement.

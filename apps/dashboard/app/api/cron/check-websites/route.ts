@@ -106,9 +106,29 @@ export async function GET(request: NextRequest) {
    * Falling through automatically is what "runs on its own" has to mean: new
    * leads first because they have never been looked at, then the backlog.
    */
-  const QUEUES: { mode: string; filter: Parameters<typeof repos.leads.count>[0] }[] = [
-    { mode: "new", filter: { awaitingWebsiteCheck: true } },
-    { mode: "recheck", filter: { needsWebsiteRecheck: recheckBefore } },
+  /**
+   * Each queue carries its own ordering, and the difference matters more than
+   * it looks.
+   *
+   * A lead leaves the "new" queue permanently the moment it is read, so best
+   * prospects first is right: it decides what gets read soonest, not what gets
+   * read at all.
+   *
+   * A lead does NOT leave the re-check queue when it is re-checked — a site
+   * that is still unreachable is still worth another go later. Sorting that
+   * queue by score therefore returns the same top rows every single run. It
+   * did exactly that for about thirteen hours: 800 websites re-read every
+   * five minutes, 39,000 leads behind them untouched, and a log line saying
+   * "checked 800" each time so it looked like progress. Oldest-checked-first
+   * cannot do that, because doing the work is what moves a lead to the back.
+   */
+  const QUEUES: {
+    mode: string;
+    filter: Parameters<typeof repos.leads.count>[0];
+    orderBy: "score" | "least-recently-checked";
+  }[] = [
+    { mode: "new", filter: { awaitingWebsiteCheck: true }, orderBy: "score" },
+    { mode: "recheck", filter: { needsWebsiteRecheck: recheckBefore }, orderBy: "least-recently-checked" },
   ];
 
   let queue: Awaited<ReturnType<typeof repos.leads.list>> = [];
@@ -116,7 +136,7 @@ export async function GET(request: NextRequest) {
   let mode = QUEUES[0].mode;
 
   for (const candidate of QUEUES) {
-    queue = await repos.leads.list({ ...candidate.filter, orderBy: "score", limit: batchSize });
+    queue = await repos.leads.list({ ...candidate.filter, orderBy: candidate.orderBy, limit: batchSize });
     queueFilter = candidate.filter;
     mode = candidate.mode;
     if (queue.length > 0) break;

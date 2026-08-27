@@ -193,6 +193,16 @@ export interface Lead {
    * sorting them together produces a list that looks authoritative and isn't.
    */
   analysisVersion: number | null;
+  /**
+   * When the booking platforms were last searched for this business.
+   *
+   * Its own column rather than a reuse of dateLastResearched, which every
+   * stage stamps. A shared timestamp cannot answer "has anyone looked this
+   * business up on Booksy yet", so the queue would either re-search leads
+   * that were just searched — at half a cent a time — or skip fresh imports
+   * for a week because the importer happened to stamp them on the way in.
+   */
+  directoryCheckedAt: string | null;
   dateDiscovered: string; // ISO timestamp
   dateLastResearched: string | null;
   researchStatus: ResearchStatus;
@@ -494,8 +504,16 @@ export interface LeadFilter {
    */
   limit?: number;
   offset?: number;
-  /** Highest score first is what you want when working a call list; newest first is what you want when checking an import. */
-  orderBy?: "score" | "discovered" | "name";
+  /**
+   * Highest score first is what you want when working a call list; newest
+   * first is what you want when checking an import.
+   *
+   * The two "least-recently" orders are for queues whose members stay in the
+   * queue after being processed. Score order cannot serve those: the same top
+   * rows would be handed back on every run and the queue would never drain.
+   * Ordering by the stamp the work itself writes makes each pass move on.
+   */
+  orderBy?: "score" | "discovered" | "name" | "least-recently-checked" | "least-recently-looked-up";
   /** Only leads that have a website nobody has read yet — the work queue for the Website Analyst. */
   awaitingWebsiteCheck?: boolean;
   /**
@@ -540,6 +558,17 @@ export interface LeadFilter {
    * current method to be.
    */
   readyForReview?: { ready: boolean; analysisVersion: number };
+  /**
+   * The booking-directory queue: leads whose booking question is still open
+   * after the Website Analyst has had its turn.
+   *
+   * The value is a cut-off — leads searched since then are left alone. That
+   * cooldown is what stops the queue looping: a business that could not be
+   * found and could not be ruled out stays UNKNOWN, and without a bound the
+   * next run would search it again immediately, forever, ahead of the leads
+   * nobody has searched at all.
+   */
+  awaitingDirectoryLookup?: string;
   /** ISO timestamps bounding when the lead was discovered. A report over "yesterday" must not read the whole table to find yesterday. */
   discoveredSince?: string;
   discoveredBefore?: string;

@@ -63,7 +63,11 @@ export async function lookupBookingDirectories(
     unavailable.push({ platform: platform.label, reason: outcome.reason });
   }
 
-  const updated: Lead = { ...lead, dateLastResearched: deps.now };
+  // Stamped whether or not the search settled anything. "We looked and could
+  // not find them" is a fact worth remembering: without it the queue would
+  // re-search the same unresolvable leads on every run, at half a cent each,
+  // ahead of the ones nobody has searched at all.
+  const updated: Lead = { ...lead, dateLastResearched: deps.now, directoryCheckedAt: deps.now };
   let summary: string;
   let resolved: boolean;
 

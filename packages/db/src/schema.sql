@@ -75,6 +75,10 @@ CREATE TABLE IF NOT EXISTS leads (
   -- Null predates versioning; anything below the current version is held back
   -- from the working list rather than ranked beside freshly-researched leads.
   analysis_version INTEGER,
+  -- When the booking platforms were last searched for this business. Its own
+  -- column so the directory queue can tell "never looked up" from "looked up
+  -- and still not found", which date_last_researched cannot express.
+  directory_checked_at TEXT,
   date_discovered TEXT NOT NULL,
   date_last_researched TEXT,
   research_status TEXT NOT NULL,
@@ -107,6 +111,12 @@ CREATE INDEX IF NOT EXISTS idx_leads_discovered ON leads(date_discovered);
 -- than sorting every matching row. See the note in leadsRepo.list().
 CREATE INDEX IF NOT EXISTS idx_leads_awaiting_check ON leads(website_checked_at, prospect_score, id);
 CREATE INDEX IF NOT EXISTS idx_leads_score_id ON leads(prospect_score, id);
+-- The two research queues, both drained oldest-first. Keyed on the timestamp
+-- the work itself writes, not on score: leads stay in these queues after being
+-- processed, so a score ordering hands back the same top rows on every run and
+-- nothing behind them ever moves.
+CREATE INDEX IF NOT EXISTS idx_leads_recheck_oldest ON leads(website_checked_at, id);
+CREATE INDEX IF NOT EXISTS idx_leads_directory_queue ON leads(directory_checked_at, id);
 
 CREATE TABLE IF NOT EXISTS mock_crm_records (
   id TEXT PRIMARY KEY,

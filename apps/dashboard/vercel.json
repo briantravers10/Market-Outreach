@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/check-websites",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/lookup-directories",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

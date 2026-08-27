@@ -158,6 +158,7 @@ export function observationToLead(observation: OvertureObservation, context: Obs
     // Freshly discovered: no research method has been applied yet, so it is
     // held out of the working list until the sweep reaches it.
     analysisVersion: null,
+    directoryCheckedAt: null,
     dateDiscovered: context.now,
     dateLastResearched: context.now,
     researchStatus: "ENRICHED",

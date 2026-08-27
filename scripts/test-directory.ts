@@ -82,6 +82,7 @@ function makeLead(overrides: Partial<Lead> = {}): Lead {
     bookingProvider: null,
     locationEvidence: [],
     analysisVersion: null,
+    directoryCheckedAt: null,
     scoreBreakdown: [],
     services: [],
     detectedLinks: [],
@@ -437,6 +438,7 @@ async function main(): Promise<void> {
     check("the question is resolved", result.resolved);
     check("the evidence links to the profile", result.lead.locationEvidence.some((e) => e.includes("booksy.com")));
     check("the summary says they are not a prospect", result.summary.includes("not a prospect"));
+    check("a settled lookup is recorded too", result.lead.directoryCheckedAt === workerDeps.now);
   }
 
   {
@@ -461,6 +463,14 @@ async function main(): Promise<void> {
     check("the lead is not resolved", !result.resolved);
     check("it is not stamped with the current method", result.lead.analysisVersion === null);
     check("and the unreachable platform is reported", result.unavailable.length === 1);
+    // Stamped even though nothing was settled. Without this the queue re-searches
+    // the same unresolvable leads on every run, at half a cent each, ahead of the
+    // leads nobody has searched at all.
+    check(
+      "an unresolved lookup is still recorded as having happened",
+      result.lead.directoryCheckedAt === workerDeps.now,
+      String(result.lead.directoryCheckedAt)
+    );
   }
 
   {

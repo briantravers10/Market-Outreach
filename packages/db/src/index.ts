@@ -86,4 +86,5 @@ export function createRepositories(dbPath?: string): Repositories {
     communications: new SqlCommunicationsRepository(db),
   };
 }
+export { SqliteLeadsRepository } from "./repositories/leadsRepo";
 export { SqlCommunicationsRepository } from "./repositories/commsRepo";

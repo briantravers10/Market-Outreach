@@ -29,7 +29,8 @@
     "test-site-crawl": "npx tsx scripts/test-site-crawl.ts",
     "import-overture": "npx tsx scripts/import-overture.ts",
     "setup-crm": "npx tsx scripts/setup-crm.ts",
-    "test-manager": "npx tsx scripts/test-manager.ts"
+    "test-manager": "npx tsx scripts/test-manager.ts",
+    "test-queues": "npx tsx scripts/test-queues.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

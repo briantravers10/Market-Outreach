@@ -396,6 +396,7 @@ export class ProspectingManager {
     // Freshly discovered: no research method has been applied yet, so it is
     // held out of the working list until the sweep reaches it.
     analysisVersion: null,
+    directoryCheckedAt: null,
           dateDiscovered: nowIso(),
           dateLastResearched: null,
           researchStatus: "ANALYZED",
