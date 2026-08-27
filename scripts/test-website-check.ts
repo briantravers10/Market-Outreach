@@ -186,6 +186,74 @@ async function main() {
     `${incumbent.scoreAfter} vs ${noBooking.scoreAfter}`);
   check("the provider is recorded for the call", incumbent.lead.bookingProvider === "Vagaro");
 
+  section("Reading a site never undoes a person's answer");
+
+  {
+    // The case: someone finds a website the automated search missed, types it
+    // in, and says the business books by phone — perhaps because they rang
+    // them. The page then gets read, because how neglected it looks and how
+    // many staff it names are most of the score. What it must NOT do is
+    // overwrite what the person established. A page with no visible booking
+    // button, or one carrying a stale Vagaro link, is exactly the case where a
+    // phone call is the better evidence.
+    const handChecked: Lead = {
+      ...before,
+      website: "https://fadelab.com/",
+      websiteCheckedAt: null,
+      onlineBookingStatus: "NONE",
+      bookingProvider: null,
+      bookingMethod: "PHONE_ONLY",
+      verifiedBy: "owner@example.com",
+      verifiedAt: "2026-08-27T09:00:00.000Z",
+    };
+
+    const read = await checkWebsite(handChecked, {
+      ...deps,
+      fetcher: new StubSiteFetcher({
+        "https://fadelab.com/": { html: `${MODERN}<a href="https://vagaro.com/fadelab">Book</a>` },
+      }),
+    });
+
+    check(
+      "the page claiming a booking link does not override the person",
+      read.lead.onlineBookingStatus === "NONE",
+      read.lead.onlineBookingStatus
+    );
+    check("nor does it invent a provider", read.lead.bookingProvider === null, String(read.lead.bookingProvider));
+    check(
+      "but the disagreement is recorded rather than hidden",
+      read.lead.locationEvidence.some((e) => e.includes("stands")),
+      read.lead.locationEvidence.join(" | ")
+    );
+    check(
+      "and the page is still read for everything else",
+      read.lead.websiteQuality !== "UNKNOWN" && read.lead.stagesCompleted.includes("website_analysis"),
+      read.lead.websiteQuality
+    );
+    check("so the score reflects the site", read.scoreAfter !== read.scoreBefore, `${read.scoreBefore} -> ${read.scoreAfter}`);
+  }
+
+  {
+    // A person who answered only the website question leaves booking open, and
+    // the page is then free to answer it.
+    const websiteOnly: Lead = {
+      ...before,
+      websiteCheckedAt: null,
+      onlineBookingStatus: "UNKNOWN",
+      verifiedBy: "owner@example.com",
+      verifiedAt: "2026-08-27T09:00:00.000Z",
+    };
+    const read = await checkWebsite(websiteOnly, {
+      ...deps,
+      fetcher: new StubSiteFetcher({ "https://fadelab.com/": { html: MODERN } }),
+    });
+    check(
+      "an unanswered booking question is still settled by the page",
+      read.lead.onlineBookingStatus === "NONE",
+      read.lead.onlineBookingStatus
+    );
+  }
+
   section("A dead site is marked checked, not left to retry forever");
   const dead = await checkWebsite(before, { ...deps, fetcher: new StubSiteFetcher({}) });
   check("stamped as checked", dead.lead.websiteCheckedAt === deps.now);

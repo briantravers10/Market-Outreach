@@ -116,9 +116,26 @@ export function applyVerification(lead: Lead, input: VerificationInput): Verific
       changes.push(website ? `Website address set to ${website}` : "Website address cleared");
       updated.website = website ?? null;
     }
-    // Marked as read, by a person. Without this the site sits in the
-    // "never read" queue forever despite someone having just looked at it.
-    updated.websiteCheckedAt = input.verifiedAt;
+    /**
+     * Whether the site still needs reading by the analyst.
+     *
+     * A person answers "does a website exist", which is not the same question
+     * as "what is on it" — its quality, how many staff it names, whether there
+     * is a booking link buried two pages in. Those are most of the score and a
+     * person typing a URL has not supplied any of them.
+     *
+     * So a NEW address is deliberately left unread, to be picked up and
+     * analysed. Marking it read was the bug: someone finds a site the
+     * automated search missed, types it in, and it is stamped as checked
+     * without anyone or anything ever having opened it — so the lead scores as
+     * though the page were blank.
+     *
+     * Nothing to read (they have no website), or the same address we already
+     * read, is stamped as before. There is no work outstanding in either case.
+     */
+    const addressIsNew = Boolean(website) && website !== lead.website;
+    const neverRead = lead.websiteCheckedAt === null;
+    updated.websiteCheckedAt = addressIsNew || (website && neverRead) ? null : input.verifiedAt;
   }
 
   let settlesBooking = false;

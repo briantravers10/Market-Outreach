@@ -315,6 +315,79 @@ async function main(): Promise<void> {
     check("and is not counted as held", held === 0, String(held));
   }
 
+  section("A website you supply actually gets read");
+
+  {
+    // The round trip that prompted this. Someone finds a site the automated
+    // search missed and types it in. Their answer settles booking; the PAGE
+    // still has to be opened, because how neglected it looks and how many
+    // staff it names are most of the score, and typing a URL supplies none of
+    // that.
+    const repo = makeRepo();
+    const { lead: verified } = applyVerification(
+      lead({ id: "found-a-site", website: null, websiteStatus: "NONE", websiteCheckedAt: null }),
+      {
+        hasWebsite: true,
+        website: "https://bellahair.example/",
+        bookingProvider: "none",
+        verifiedBy: WHO,
+        verifiedAt: WHEN,
+      }
+    );
+
+    check("the address is stored", verified.website === "https://bellahair.example/");
+    check(
+      "and is deliberately left UNREAD so the analyst opens it",
+      verified.websiteCheckedAt === null,
+      "stamping it read was the bug: the page scores as though it were blank"
+    );
+
+    await repo.upsert(verified);
+    const queue = await repo.list({ awaitingWebsiteCheck: true });
+    check(
+      "so it appears in the reading queue despite being hand-checked",
+      queue.some((l) => l.id === "found-a-site"),
+      queue.map((l) => l.id).join(", ")
+    );
+  }
+
+  {
+    // Nothing outstanding: no site to read.
+    const { lead: verified } = applyVerification(lead({ website: "https://gone.example/" }), {
+      hasWebsite: false,
+      verifiedBy: WHO,
+      verifiedAt: WHEN,
+    });
+    check("'no website' leaves nothing to read", verified.websiteCheckedAt === WHEN && verified.website === null);
+  }
+
+  {
+    // Confirming an address we already read is not new work either.
+    const already = lead({ website: "https://known.example/", websiteCheckedAt: "2026-08-20T00:00:00.000Z" });
+    const { lead: verified } = applyVerification(already, {
+      hasWebsite: true,
+      website: "https://known.example/",
+      verifiedBy: WHO,
+      verifiedAt: WHEN,
+    });
+    check("confirming a site we already read does not re-queue it", verified.websiteCheckedAt === WHEN);
+  }
+
+  {
+    const repo = makeRepo();
+    const { lead: verified } = applyVerification(
+      lead({ id: "unread-site", website: "https://never-read.example/", websiteCheckedAt: null }),
+      { bookingProvider: "Booksy", verifiedBy: WHO, verifiedAt: WHEN }
+    );
+    await repo.upsert(verified);
+    const queue = await repo.list({ awaitingWebsiteCheck: true });
+    check(
+      "a site nobody had read stays queued even after a booking answer",
+      queue.some((l) => l.id === "unread-site"),
+      "the person answered booking, not what the page says"
+    );
+  }
+
   section("Seeing the work that was paid for");
 
   {

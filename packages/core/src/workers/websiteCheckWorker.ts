@@ -104,17 +104,46 @@ export async function checkWebsite(
   } else {
     updated.websiteStatus = "EXISTS";
     updated.websiteQuality = analysis.websiteQuality;
-    updated.onlineBookingStatus = analysis.onlineBookingStatus;
-    updated.bookingProvider = analysis.bookingProvider;
-    updated.bookingMethod = analysis.bookingMethod;
     updated.detectedLinks = analysis.detectedLinks;
     updated.stagesCompleted = withStage(updated.stagesCompleted, "website_analysis");
     updated.researchStatus = "ANALYZED";
+
+    /**
+     * A person's booking answer is never overwritten by reading their site.
+     *
+     * This matters because of how a hand-supplied website gets here. Someone
+     * finds a site the automated search missed and types it in; the site then
+     * has to be READ, because whether it looks neglected and how many staff it
+     * names are most of the score. But reading it must not undo the thing the
+     * person actually established — they may have rung the business, which
+     * beats anything a page says, and a page with no visible booking button is
+     * exactly the case where a phone call is the better evidence.
+     *
+     * So the site's own booking signal is recorded as evidence and then
+     * discarded in favour of the human answer.
+     */
+    if (lead.verifiedAt && lead.onlineBookingStatus !== "UNKNOWN") {
+      if (analysis.onlineBookingStatus !== lead.onlineBookingStatus) {
+        updated.locationEvidence = [
+          ...updated.locationEvidence,
+          `Their site suggests ${analysis.onlineBookingStatus.replace(/_/g, " ").toLowerCase()}, but ${lead.verifiedBy ?? "a person"} checked this by hand and that answer stands.`,
+        ];
+      }
+    } else {
+      updated.onlineBookingStatus = analysis.onlineBookingStatus;
+      updated.bookingProvider = analysis.bookingProvider;
+      updated.bookingMethod = analysis.bookingMethod;
+    }
   }
 
   // The evidence is appended rather than replaced: how we found them is still
-  // true after we have read their site.
-  updated.locationEvidence = [...lead.locationEvidence, ...analysis.evidence];
+  // true after we have read their site. Anything the block above added — such
+  // as a note that a person's answer overrode the page — is kept.
+  updated.locationEvidence = [
+    ...lead.locationEvidence,
+    ...analysis.evidence,
+    ...updated.locationEvidence.slice(lead.locationEvidence.length),
+  ];
 
   const result = await scoreLead(updated, deps.scoringConfig, deps.reasoning);
   updated.prospectScore = result.score;

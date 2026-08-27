@@ -245,8 +245,23 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
     params.stagePattern = `%"${filter.hasStage}"%`;
   }
   if (filter.awaitingWebsiteCheck) {
+    /**
+     * Sites nobody has read yet — including one a PERSON supplied.
+     *
+     * The other queues skip hand-checked leads, and this one deliberately does
+     * not. Someone typing in a website the automated search missed has told us
+     * the site exists; they have not told us whether it looks neglected or how
+     * many staff it names, and those are most of the score. The worker is what
+     * protects their answer: it will not overwrite a human booking verdict
+     * with whatever the page implies.
+     *
+     * The booking-status condition is dropped for a verified lead for the same
+     * reason — someone who established "they book by phone" AND found a site
+     * still wants that site read.
+     */
     clauses.push(
-      "website IS NOT NULL AND website_checked_at IS NULL AND online_booking_status = 'UNKNOWN' AND verified_at IS NULL"
+      `website IS NOT NULL AND website_checked_at IS NULL
+       AND (online_booking_status = 'UNKNOWN' OR verified_at IS NOT NULL)`
     );
   }
   if (filter.unreachableCheckedBefore) {
