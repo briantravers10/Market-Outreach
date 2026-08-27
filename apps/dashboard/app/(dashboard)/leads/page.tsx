@@ -28,6 +28,8 @@ interface LeadsSearchParams {
   page?: string;
   /** "1" to see the holding area instead of the working list. */
   holding?: string;
+  /** "1" to see businesses that already book online — kept, not discarded. */
+  booked?: string;
 }
 
 export const dynamic = "force-dynamic";
@@ -47,6 +49,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const industryLabels = new Map(industries.map((i) => [i.id, i.label]));
 
   const holding = params.holding === "1";
+  const booked = params.booked === "1";
   const page = Math.max(1, Number(params.page) || 1);
   const sort = params.sort === "discovered" || params.sort === "name" ? params.sort : "score";
 
@@ -73,12 +76,24 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     // and says why each lead is in it — but it is never the default, and it is
     // never mixed in.
     readyForReview: { ready: !holding, analysisVersion: ANALYSIS_VERSION },
+    // The three views are exclusive: prospects (no booking), already-booking,
+    // and still-being-researched. A business on Booksy is a slower sale, not a
+    // dead one — what is being sold is free — so they stay findable rather
+    // than being filtered out of existence.
+    ...(holding ? {} : { hasBookingProvider: booked }),
   };
 
   const [readyCount, holdingCount] = await Promise.all([
-    repos.leads.count({ readyForReview: { ready: true, analysisVersion: ANALYSIS_VERSION } }),
+    repos.leads.count({
+      readyForReview: { ready: true, analysisVersion: ANALYSIS_VERSION },
+      hasBookingProvider: false,
+    }),
     repos.leads.count({ readyForReview: { ready: false, analysisVersion: ANALYSIS_VERSION } }),
   ]);
+  const bookedCount = await repos.leads.count({
+    readyForReview: { ready: true, analysisVersion: ANALYSIS_VERSION },
+    hasBookingProvider: true,
+  });
 
   // The name search has no SQL column behind it, so it filters what this page
   // fetched. Asking for one row more than we show is how the pager knows there
@@ -104,17 +119,22 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   return (
     <div>
       <div className="page-header">
-        <h1>{holding ? "Still being researched" : "Leads"}</h1>
+        <h1>{holding ? "Still being researched" : booked ? "Already books online" : "Leads"}</h1>
         <p>
           {holding
             ? "These are not ready to call. Each one is waiting on something — the reason is on the right. They move across on their own as the research finishes; nothing here needs you."
-            : "Businesses that have finished being researched, so the booking answer behind every score is known. Filter, then export to review in Excel or Numbers."}
+            : booked
+              ? "These already book through a platform, so they score low — but they are kept, not discarded. What you sell is free, which makes them a slower sale rather than no sale. Worth a look if you ever want more names."
+              : "Businesses that have finished being researched, so the booking answer behind every score is known. Filter, then export to review in Excel or Numbers."}
         </p>
       </div>
 
       <div className="lead-tabs">
-        <Link href="/leads" className={holding ? "lead-tab" : "lead-tab lead-tab-active"}>
+        <Link href="/leads" className={!holding && !booked ? "lead-tab lead-tab-active" : "lead-tab"}>
           Ready to work <span className="lead-tab-count">{readyCount.toLocaleString()}</span>
+        </Link>
+        <Link href="/leads?booked=1" className={booked ? "lead-tab lead-tab-active" : "lead-tab"}>
+          Already books online <span className="lead-tab-count">{bookedCount.toLocaleString()}</span>
         </Link>
         <Link href="/leads?holding=1" className={holding ? "lead-tab lead-tab-active" : "lead-tab"}>
           Still being researched <span className="lead-tab-count">{holdingCount.toLocaleString()}</span>
@@ -214,7 +234,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               <th>Confidence</th>
               <th>Website</th>
               <th>Booking</th>
-              <th>{holding ? "Waiting on" : "Qualification"}</th>
+              <th>{holding ? "Waiting on" : booked ? "Books through" : "Qualification"}</th>
             </tr>
           </thead>
           <tbody>
@@ -233,7 +253,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     : lead.bookingMethod.replace(/_/g, " ").toLowerCase()}
                 </td>
                 <td>
-                  {holding ? (
+                  {booked ? (
+                    <span className="muted" style={{ fontSize: 12.5 }}>
+                      {lead.bookingProvider ?? "an unrecognised tool"}
+                    </span>
+                  ) : holding ? (
                     <span className="muted" style={{ fontSize: 12 }}>
                       {describeHoldReason(assessReadiness(lead).reason ?? "never-researched")}
                     </span>

@@ -472,6 +472,13 @@ export interface LeadFilter {
   websiteStatus?: WebsiteStatus;
   onlineBookingStatus?: OnlineBookingStatus;
   bookingProvider?: string;
+  /**
+   * true  — already books through some platform. Kept, not discarded: what is
+   *         being sold is free, so an owner on a paid tool is a slower sale
+   *         rather than no sale. They score low and stay findable.
+   * false — no online booking anywhere. The core prospect.
+   */
+  hasBookingProvider?: boolean;
   minStaffCount?: number;
   minReviewCount?: number;
   dataConfidence?: ConfidenceLevel;

@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/cron/check-websites",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }

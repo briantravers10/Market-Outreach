@@ -252,6 +252,16 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
     clauses.push(ready ? readyClause : `NOT ${readyClause}`);
     params.readyVersion = analysisVersion;
   }
+  if (filter.hasBookingProvider !== undefined) {
+    // Keyed on the booking STATUS rather than on bookingProvider being
+    // non-null: a business can be found booking through a tool we did not
+    // recognise, and that is still a business that books online.
+    clauses.push(
+      filter.hasBookingProvider
+        ? "online_booking_status IN ('THIRD_PARTY_BOOKING_SYSTEM', 'INTEGRATED_BOOKING_SYSTEM')"
+        : "online_booking_status = 'NONE'"
+    );
+  }
   if (filter.needsWebsiteRecheck) {
     clauses.push(
       `website IS NOT NULL AND website_checked_at IS NOT NULL AND website_checked_at < @recheckBefore
