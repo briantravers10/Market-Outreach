@@ -162,8 +162,48 @@ function getPool(connectionString: string): Pool {
   return sharedPool;
 }
 
+/**
+ * Failures that happened while GETTING a connection, before any SQL was sent.
+ *
+ * The distinction is what makes retrying safe. A statement that timed out
+ * mid-execution may well have committed, and re-running it could double a
+ * write; a statement that never reached the server cannot have done anything.
+ * Only the second kind is matched here, and the list is deliberately narrow —
+ * anything unrecognised is treated as "may have run" and is not retried.
+ */
+function isConnectionAcquisitionFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /connection terminated due to connection timeout/i.test(message) ||
+    /timeout exceeded when trying to connect/i.test(message) ||
+    /connection terminated unexpectedly/i.test(message) ||
+    /ECONNRESET/.test(message) ||
+    /ECONNREFUSED/.test(message)
+  );
+}
+
 export function createPostgresClient(connectionString: string): SqlClient {
   const pool = getPool(connectionString);
+
+  /**
+   * One retry, and only when the query provably never ran.
+   *
+   * Two cron jobs firing on the same minute was enough to exhaust the pooler
+   * and kill an entire run of work on its very first query — a batch of a
+   * hundred and twenty leads abandoned because one connection could not be
+   * obtained for ten seconds. The schedules are staggered now, but a shared
+   * pooler will always have moments of contention, and losing a whole run to
+   * one of them is not a reasonable response to it.
+   */
+  const withRetry = async <T>(run: () => Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (error) {
+      if (!isConnectionAcquisitionFailure(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      return run();
+    }
+  };
 
   return {
     dialect: "postgres",
@@ -171,22 +211,22 @@ export function createPostgresClient(connectionString: string): SqlClient {
       return {
         async get<T>(...params: unknown[]) {
           const { text, values } = toPositional(sql, params);
-          const result = await pool.query(text, values);
+          const result = await withRetry(() => pool.query(text, values));
           return result.rows[0] as T | undefined;
         },
         async all<T>(...params: unknown[]) {
           const { text, values } = toPositional(sql, params);
-          const result = await pool.query(text, values);
+          const result = await withRetry(() => pool.query(text, values));
           return result.rows as T[];
         },
         async run(...params: unknown[]) {
           const { text, values } = toPositional(sql, params);
-          await pool.query(text, values);
+          await withRetry(() => pool.query(text, values));
         },
       };
     },
     async exec(sql) {
-      await pool.query(sql);
+      await withRetry(() => pool.query(sql));
     },
     async close() {
       await pool.end();

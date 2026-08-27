@@ -15,7 +15,7 @@
     },
     {
       "path": "/api/cron/lookup-directories",
-      "schedule": "*/10 * * * *"
+      "schedule": "3,13,23,33,43,53 * * * *"
     }
   ]
 }
