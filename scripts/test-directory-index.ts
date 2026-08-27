@@ -90,8 +90,11 @@ const BOOKSY_LISTING: ListingConfig = {
   firstPage: 1,
   maxPages: 3,
   cityIndex: {
-    urlTemplate: "https://booksy.com/en-us/s/{industry}",
-    cityLinkPattern: "/en-us/s/[a-z0-9-]+/(\\d+)_([a-z0-9-]+)",
+    urlTemplates: ["https://booksy.com/en-us/s/{industry}", "https://booksy.com/sitemap.xml"],
+    cityLinkPatterns: [
+      "/en-us/s/[a-z0-9-]+/(\\d+)_([a-z0-9-]+)",
+      "/en-us/\\d+_[a-z0-9-]+_[a-z0-9-]+_(\\d+)_([a-z0-9-]+)",
+    ],
   },
 };
 
@@ -254,7 +257,7 @@ async function main(): Promise<void> {
       <a href="/en-us/s/hair-salon/15889_miami">Miami</a>
       <a href="/en-us/s/hair-salon/15890_miami-beach">Miami Beach</a>
       <a href="/en-us/s/hair-salon/15889_miami">Miami again</a>`;
-    const ids = extractCityIds(html, BOOKSY_LISTING.cityIndex!.cityLinkPattern);
+    const ids = extractCityIds(html, BOOKSY_LISTING.cityIndex!.cityLinkPatterns);
     check("ids are read off the town index", ids.get("miami") === "15889" && ids.get("miami-beach") === "15890");
     check("a repeated town keeps the first id", ids.size === 2, String(ids.size));
   }
@@ -262,9 +265,41 @@ async function main(): Promise<void> {
   check("a broken pattern yields nothing rather than throwing", extractCityIds("<a href='/x'>", "([").size === 0);
 
   {
+    // A town id also appears in every business profile URL, and a page with no
+    // town links at all is often covered in profile links. That second pattern
+    // is what turns "this page is useless" into "this page names sixty towns".
+    const ids = extractCityIds(
+      `<a href="/en-us/940574_luxe-beauty-by-mily_hair-salon_15889_miami">Luxe Beauty</a>`,
+      BOOKSY_LISTING.cityIndex!.cityLinkPatterns
+    );
+    check("a town id is also read out of a business profile link", ids.get("miami") === "15889", JSON.stringify([...ids]));
+  }
+
+  check(
+    "one broken pattern does not stop the others being tried",
+    extractCityIds(`<a href="/en-us/s/hair-salon/15889_miami">x</a>`, ["([", "/en-us/s/[a-z0-9-]+/(\\d+)_([a-z0-9-]+)"]).get(
+      "miami"
+    ) === "15889"
+  );
+
+  {
     const fetcher = new StubFetcher({ "https://booksy.com/en-us/s/hair-salon": { html: "<a href='/nothing'>x</a>" } });
-    const { ids, error } = await discoverCityIds(BOOKSY_LISTING, "hair-salons", fetcher);
-    check("an index page with no town links reports why", ids.size === 0 && error !== null, String(error));
+    const { ids, error, source } = await discoverCityIds(BOOKSY_LISTING, "hair-salons", fetcher);
+    check("no candidate page yielding ids reports every attempt", ids.size === 0 && error !== null, String(error));
+    check("and names no source", source === null);
+    check("having genuinely tried each candidate", fetcher.requested.length === 2, fetcher.requested.join(", "));
+  }
+
+  {
+    // The real shape of the problem: the first candidate is a dead end and a
+    // later one works. Falling through is the whole point of the list.
+    const fetcher = new StubFetcher({
+      "https://booksy.com/en-us/s/hair-salon": { html: "<a href='/nothing'>x</a>" },
+      "https://booksy.com/sitemap.xml": { html: "<loc>https://booksy.com/en-us/s/hair-salon/15889_miami</loc>" },
+    });
+    const { ids, source } = await discoverCityIds(BOOKSY_LISTING, "hair-salons", fetcher);
+    check("a later candidate page is used when the first has nothing", ids.get("miami") === "15889");
+    check("and the one that worked is named, so the guessing can stop", source?.endsWith("sitemap.xml") === true, String(source));
   }
 
   section("Crawling a town");

@@ -89,15 +89,19 @@ export async function GET(request: NextRequest) {
    */
   const cityIdCache = new Map<string, Map<string, string>>();
   const discoveryErrors: string[] = [];
+  const discoverySources: string[] = [];
 
   const cityIdsFor = async (platformId: string, listing: NonNullable<typeof platforms[number]["listing"]>, industry: string) => {
     if (!listing.cityIndex) return undefined;
     const key = `${platformId}:${industry}`;
     const cached = cityIdCache.get(key);
     if (cached) return cached;
-    const { ids, error } = await discoverCityIds(listing, industry, fetcher);
+    const { ids, error, source } = await discoverCityIds(listing, industry, fetcher);
     cityIdCache.set(key, ids);
     if (error) discoveryErrors.push(`${platformId}/${industry}: ${error}`);
+    // Which candidate page actually worked, so the list of guesses in config
+    // can be trimmed to the one right answer rather than to another guess.
+    if (source) discoverySources.push(`${platformId}/${industry}: ${ids.size} towns from ${source}`);
     return ids;
   };
 
@@ -179,6 +183,7 @@ export async function GET(request: NextRequest) {
     completeCrawls,
     failedCrawls,
     discoveryErrors,
+    discoverySources,
     failures,
     ms: Date.now() - startedAt,
   };

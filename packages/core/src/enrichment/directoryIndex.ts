@@ -85,9 +85,29 @@ export interface ListingConfig {
    * before any directory page can be addressed.
    */
   cityIndex?: {
-    urlTemplate: string;
-    /** Must capture the id first and the town slug second. */
-    cityLinkPattern: string;
+    /**
+     * Pages that might list towns, tried in order until one yields ids.
+     *
+     * A list rather than one URL because the first guess was wrong and there
+     * is no way to find the right one from here: Booksy's category page turns
+     * out not to link to its town pages at all, so nothing could learn that
+     * Miami is 15889. Trying a few plausible places — the category page, the
+     * sitemaps a platform publishes for search engines — and reporting which
+     * one worked lets production answer a question this sandbox cannot.
+     */
+    urlTemplates: string[];
+    /**
+     * Shapes that carry a town id, tried against each page.
+     *
+     * More than one because the id appears in two places on these sites: in a
+     * town's own directory URL (/s/hair-salon/15889_miami) and in every
+     * business profile URL (/940574_luxe-beauty_hair-salon_15889_miami). The
+     * second matters — a page with no town links at all may still be covered
+     * in profile links, and each one names its town.
+     *
+     * Each must capture the id first and the town slug second.
+     */
+    cityLinkPatterns: string[];
   };
 }
 
@@ -183,24 +203,29 @@ export function listingUrlFor(
  * extractor is: a redesign changes classes constantly and URL shapes almost
  * never.
  */
-export function extractCityIds(html: string, pattern: string): Map<string, string> {
+export function extractCityIds(html: string, patterns: string | string[]): Map<string, string> {
   const found = new Map<string, string>();
-  let regex: RegExp;
-  try {
-    regex = new RegExp(pattern, "g");
-  } catch {
-    // A bad pattern in config yields no ids, so every affected town reports
-    // "could not build a URL" and stays unknown. It must not throw.
-    return found;
+
+  for (const pattern of Array.isArray(patterns) ? patterns : [patterns]) {
+    let regex: RegExp;
+    try {
+      regex = new RegExp(pattern, "g");
+    } catch {
+      // A bad pattern in config yields no ids, so every affected town reports
+      // "could not build a URL" and stays unknown. It must not throw, and it
+      // must not stop the other patterns from being tried.
+      continue;
+    }
+
+    for (const match of html.matchAll(regex)) {
+      const [, id, slug] = match;
+      if (!id || !slug) continue;
+      // First one wins: a page links the same town from several places, and
+      // earlier patterns are the more specific ones.
+      if (!found.has(slug)) found.set(slug, id);
+    }
   }
 
-  for (const match of html.matchAll(regex)) {
-    const [, id, slug] = match;
-    if (!id || !slug) continue;
-    // First one wins: an index page links the same town from several places
-    // and the first occurrence is the canonical one.
-    if (!found.has(slug)) found.set(slug, id);
-  }
   return found;
 }
 

@@ -20,8 +20,16 @@
         "firstPage": 1,
         "maxPages": 8,
         "cityIndex": {
-          "urlTemplate": "https://booksy.com/en-us/s/{industry}",
-          "cityLinkPattern": "/en-us/s/[a-z0-9-]+/(\\d+)_([a-z0-9-]+)"
+          "urlTemplates": [
+            "https://booksy.com/en-us/s/{industry}",
+            "https://booksy.com/en-us/sitemap.xml",
+            "https://booksy.com/sitemap.xml",
+            "https://booksy.com/en-us/"
+          ],
+          "cityLinkPatterns": [
+            "/en-us/s/[a-z0-9-]+/(\\d+)_([a-z0-9-]+)",
+            "/en-us/\\d+_[a-z0-9-]+_[a-z0-9-]+_(\\d+)_([a-z0-9-]+)"
+          ]
         }
       }
     },

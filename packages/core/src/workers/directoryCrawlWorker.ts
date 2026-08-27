@@ -171,17 +171,39 @@ export async function discoverCityIds(
   listing: ListingConfig,
   industry: string,
   fetcher: SiteFetcher
-): Promise<{ ids: Map<string, string>; error: string | null }> {
-  if (!listing.cityIndex) return { ids: new Map(), error: null };
+): Promise<{ ids: Map<string, string>; error: string | null; source: string | null }> {
+  if (!listing.cityIndex) return { ids: new Map(), error: null, source: null };
 
-  const url = listing.cityIndex.urlTemplate.replace(
-    "{industry}",
-    listing.industrySlugs?.[industry] ?? industry.replace(/s$/, "")
-  );
-  const page = await fetcher.fetchPage(url);
-  if (page.error) return { ids: new Map(), error: `${url} — ${page.error}` };
-  if (page.status >= 400) return { ids: new Map(), error: `${url} — HTTP ${page.status}` };
+  const slug = listing.industrySlugs?.[industry] ?? industry.replace(/s$/, "");
+  const attempts: string[] = [];
 
-  const ids = extractCityIds(page.html, listing.cityIndex.cityLinkPattern);
-  return { ids, error: ids.size === 0 ? `${url} — no town links matched the pattern` : null };
+  /**
+   * Each candidate page in turn, keeping the first that actually yields ids.
+   *
+   * The first guess — the platform's own category page — turned out not to
+   * link to town pages at all, and there was no way to discover that except by
+   * asking it. Rather than guess again, this tries the handful of places a
+   * town index plausibly lives and reports which one worked, so the config can
+   * be trimmed to the answer instead of to another guess.
+   */
+  for (const template of listing.cityIndex.urlTemplates) {
+    const url = template.replace("{industry}", slug);
+    const page = await fetcher.fetchPage(url);
+
+    if (page.error) {
+      attempts.push(`${url} — ${page.error}`);
+      continue;
+    }
+    if (page.status >= 400) {
+      attempts.push(`${url} — HTTP ${page.status}`);
+      continue;
+    }
+
+    const ids = extractCityIds(page.html, listing.cityIndex.cityLinkPatterns);
+    if (ids.size > 0) return { ids, error: null, source: url };
+
+    attempts.push(`${url} — 200 but no town ids in it`);
+  }
+
+  return { ids: new Map(), error: attempts.join(" | "), source: null };
 }
