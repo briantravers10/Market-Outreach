@@ -60,6 +60,37 @@ const RETRY_AFTER_DAYS = 30;
 /** Brave's cheapest tier, in minor units. Half a cent per search. */
 const COST_PER_SEARCH_MINOR = 0.5;
 
+/**
+ * Collapses a failure message to a short category so counts are readable.
+ *
+ * Deliberately keeps anything it does not recognise, truncated rather than
+ * bucketed as "other" — an unrecognised failure is exactly the one worth
+ * seeing in full, and a catch-all bucket is how a new failure mode hides.
+ */
+function categoriseReason(reason: string): string {
+  if (/timed out/i.test(reason)) return "timeout";
+  const status = reason.match(/HTTP (\d{3})/);
+  if (status) return `http-${status[1]}`;
+  if (/refused the request/i.test(reason)) return "blocked";
+  if (/no profile links/i.test(reason)) return "no-profile-links";
+  if (/empty response/i.test(reason)) return "empty-response";
+  if (/not html/i.test(reason)) return "not-html";
+  if (/no search api key/i.test(reason)) return "no-paid-search-key";
+  if (/spending cap/i.test(reason)) return "cap-reached";
+  return reason.slice(0, 60);
+}
+
+function summariseReasons(byPlatform: Map<string, Map<string, number>>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [platform, reasons] of byPlatform) {
+    out[platform] = [...reasons.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([reason, count]) => `${reason} ×${count}`)
+      .join(", ");
+  }
+  return out;
+}
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET?.trim();
   if (!secret) {
@@ -142,14 +173,20 @@ export async function GET(request: NextRequest) {
   /** Which platforms refused us, and how often. Named in the reply so a broken URL template shows up as a pattern rather than as silence. */
   const blocked = new Map<string, number>();
   /**
-   * One example reason per platform, kept verbatim.
+   * How often each platform failed each way: platform -> reason -> count.
    *
-   * The count alone cannot tell "Booksy blocked us" from "the search URL is
-   * wrong" from "the results are drawn by script and the HTML is empty" — and
-   * those three have completely different fixes. Reporting only the tally
-   * turned a diagnosable failure into a shrug.
+   * Counted rather than sampled. The first version of this kept one example
+   * reason per platform and reported "Booksy: timed out" — which turned out to
+   * be one request in a hundred and twenty, with no way to tell whether the
+   * rest timed out too or failed instantly for some other reason. A single
+   * example from a concurrent batch is not evidence about the batch.
+   *
+   * The distinction is what decides the next move: a 403 across the board
+   * means they block us and the paid fallback is the answer, a 404 means the
+   * search URL is simply wrong and costs nothing to fix, and "no profile
+   * links" means the page is drawn by script and neither would help.
    */
-  const blockedWhy = new Map<string, string>();
+  const blockedWhy = new Map<string, Map<string, number>>();
   const pending: Awaited<ReturnType<typeof lookupBookingDirectories>>["lead"][] = [];
 
   const flush = async () => {
@@ -184,7 +221,10 @@ export async function GET(request: NextRequest) {
     if (result.lead.onlineBookingStatus === "THIRD_PARTY_BOOKING_SYSTEM") foundCount += 1;
     for (const item of result.unavailable) {
       blocked.set(item.platform, (blocked.get(item.platform) ?? 0) + 1);
-      if (!blockedWhy.has(item.platform)) blockedWhy.set(item.platform, item.reason);
+      const byReason = blockedWhy.get(item.platform) ?? new Map<string, number>();
+      const reason = categoriseReason(item.reason);
+      byReason.set(reason, (byReason.get(reason) ?? 0) + 1);
+      blockedWhy.set(item.platform, byReason);
     }
     if (pending.length >= 25) await flush();
   };
@@ -242,7 +282,7 @@ export async function GET(request: NextRequest) {
       paidSearch: Boolean(braveKey),
       capMinor,
       blocked: blockedSummary,
-      why: Object.fromEntries(blockedWhy),
+      why: summariseReasons(blockedWhy),
       ms: Date.now() - startedAt,
     })}`
   );
@@ -253,7 +293,7 @@ export async function GET(request: NextRequest) {
     alreadyBookOnline: foundCount,
     unresolved: checked - resolvedCount,
     blocked: blockedSummary,
-    blockedWhy: Object.fromEntries(blockedWhy),
+    blockedWhy: summariseReasons(blockedWhy),
     paidSearchConfigured: Boolean(braveKey),
     spendCapMinor: capMinor,
     remaining,
