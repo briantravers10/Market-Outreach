@@ -33,9 +33,20 @@ import type { Lead } from "../types";
  */
 export const ANALYSIS_VERSION = 2;
 
+/**
+ * Why a lead is being held back.
+ *
+ * "Booking unknown" is split in two because the two halves need completely
+ * different work and one of them is far larger. A business whose site we read
+ * without finding an answer may still be settled by re-reading it; a business
+ * with no website at all never will be, and only the booking directories can
+ * ever close it. Collapsing them into one bucket hid twenty-four thousand
+ * leads that the website research was never going to reach.
+ */
 export type HoldReason =
   | "never-researched"
-  | "booking-unknown"
+  | "booking-unknown-no-website"
+  | "booking-unknown-after-read"
   | "stale-method"
   | "duplicate";
 
@@ -69,13 +80,18 @@ export function assessReadiness(
   }
 
   if (lead.onlineBookingStatus === "UNKNOWN") {
-    return {
-      ready: false,
-      reason: "booking-unknown",
-      explanation: lead.website
-        ? "Their website would not load, so whether they book online is still unknown."
-        : "No website to read, so whether they book online is still unknown — they may well be on Booksy or Vagaro.",
-    };
+    return lead.website
+      ? {
+          ready: false,
+          reason: "booking-unknown-after-read",
+          explanation: "Their website was read but did not say whether they book online.",
+        }
+      : {
+          ready: false,
+          reason: "booking-unknown-no-website",
+          explanation:
+            "No website to read, so only the booking platforms can answer this — they may well be on Booksy or Vagaro.",
+        };
   }
 
   if ((lead.analysisVersion ?? 0) < ANALYSIS_VERSION) {
@@ -89,13 +105,36 @@ export function assessReadiness(
   return { ready: true, reason: null, explanation: "Fully researched." };
 }
 
+/**
+ * What is actually being done about each hold reason, in one line.
+ *
+ * The owner's question about the holding area was not "how many" but "what am
+ * I waiting for". A count with no answer to that reads as a stall.
+ */
+export function describeHoldRemedy(reason: HoldReason): string {
+  switch (reason) {
+    case "never-researched":
+      return "The Website Analyst will reach them; nothing needed from you.";
+    case "booking-unknown-after-read":
+      return "Queued for a booking-platform search, which can settle it where the site could not.";
+    case "booking-unknown-no-website":
+      return "Only a booking-platform search can settle these. Nothing on their own site will ever answer it.";
+    case "stale-method":
+      return "Being re-read by the current method. This queue drains on its own.";
+    case "duplicate":
+      return "Nothing to do — the other record for this business carries the research.";
+  }
+}
+
 /** Plain-English label for a hold reason, for grouping counts in the dashboard. */
 export function describeHoldReason(reason: HoldReason): string {
   switch (reason) {
     case "never-researched":
       return "Waiting to be researched";
-    case "booking-unknown":
-      return "Booking status unknown";
+    case "booking-unknown-after-read":
+      return "Website read, booking unclear";
+    case "booking-unknown-no-website":
+      return "No website — needs a directory search";
     case "stale-method":
       return "Being re-checked";
     case "duplicate":

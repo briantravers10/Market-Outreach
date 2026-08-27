@@ -3,6 +3,7 @@ import {
   ANALYSIS_VERSION,
   assessReadiness,
   describeHoldReason,
+  describeHoldRemedy,
   getIndustries,
   type LeadFilter,
 } from "@market-outreach/core";
@@ -95,6 +96,36 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     hasBookingProvider: true,
   });
 
+  /**
+   * What is held, and why, counted in the database rather than by reading a
+   * page of leads and tallying them.
+   *
+   * Only computed on the holding tab, because it is five extra COUNT queries
+   * and nobody working a call list needs them. The buckets are exclusive and
+   * exhaustive, so they add up to the holding total shown on the tab — and if
+   * they ever stop adding up, that is visible rather than hidden, which is the
+   * point of showing the arithmetic.
+   */
+  const HOLD_REASONS = [
+    "stale-method",
+    "booking-unknown-no-website",
+    "booking-unknown-after-read",
+    "never-researched",
+    "duplicate",
+  ] as const;
+
+  const holdBreakdown = holding
+    ? await Promise.all(
+        HOLD_REASONS.map(async (reason) => ({
+          reason,
+          label: describeHoldReason(reason),
+          remedy: describeHoldRemedy(reason),
+          count: await repos.leads.count({ heldReason: { reason, analysisVersion: ANALYSIS_VERSION } }),
+        }))
+      )
+    : [];
+  const breakdownTotal = holdBreakdown.reduce((sum, row) => sum + row.count, 0);
+
   // The name search has no SQL column behind it, so it filters what this page
   // fetched. Asking for one row more than we show is how the pager knows there
   // is a next page without counting the whole table.
@@ -140,6 +171,35 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           Still being researched <span className="lead-tab-count">{holdingCount.toLocaleString()}</span>
         </Link>
       </div>
+
+      {holding && holdBreakdown.length > 0 && (
+        <div className="panel">
+          <h2>What everyone is waiting on</h2>
+          <div className="hold-breakdown">
+            {holdBreakdown.map((row) => (
+              <div key={row.reason} className={row.count === 0 ? "hold-row hold-row-empty" : "hold-row"}>
+                <div className="hold-row-bar">
+                  <span
+                    className="hold-row-fill"
+                    style={{
+                      width: breakdownTotal > 0 ? `${Math.max(row.count > 0 ? 1.5 : 0, (row.count / breakdownTotal) * 100)}%` : "0%",
+                    }}
+                  />
+                </div>
+                <div className="hold-row-text">
+                  <strong>{row.count.toLocaleString()}</strong> <span>{row.label}</span>
+                  <p className="muted">{row.remedy}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="muted" style={{ fontSize: 12.5, marginBottom: 0 }}>
+            These add up to {breakdownTotal.toLocaleString()}, the whole holding area — every lead here is in exactly
+            one of these, so nothing is sitting somewhere nobody is watching. All five drain on their own; none of
+            them is waiting on you.
+          </p>
+        </div>
+      )}
 
       <form className="filter-bar" method="get">
         <div className="filter-field">

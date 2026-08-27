@@ -265,6 +265,38 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
         : "online_booking_status = 'NONE'"
     );
   }
+  if (filter.heldReason) {
+    // These mirror assessReadiness() in the same order it checks them, and the
+    // order is what makes the buckets exclusive: a duplicate is only counted as
+    // a duplicate, never also as booking-unknown. Together with readyForReview
+    // they partition the table, so the breakdown adds up to the total — a
+    // breakdown that does not add up implies leads are somewhere nobody looks.
+    const version = filter.heldReason.analysisVersion;
+    params.heldVersion = version;
+    switch (filter.heldReason.reason) {
+      case "duplicate":
+        clauses.push("is_duplicate_of IS NOT NULL");
+        break;
+      case "never-researched":
+        clauses.push("is_duplicate_of IS NULL AND website IS NOT NULL AND website_checked_at IS NULL");
+        break;
+      case "booking-unknown-after-read":
+        clauses.push(
+          `is_duplicate_of IS NULL AND online_booking_status = 'UNKNOWN'
+           AND website IS NOT NULL AND website_checked_at IS NOT NULL`
+        );
+        break;
+      case "booking-unknown-no-website":
+        clauses.push("is_duplicate_of IS NULL AND online_booking_status = 'UNKNOWN' AND website IS NULL");
+        break;
+      case "stale-method":
+        clauses.push(
+          `is_duplicate_of IS NULL AND online_booking_status <> 'UNKNOWN'
+           AND COALESCE(analysis_version, 0) < @heldVersion`
+        );
+        break;
+    }
+  }
   if (filter.awaitingDirectoryLookup) {
     // Still unanswered, and the Website Analyst has already had its turn —
     // either it read the site and found nothing conclusive, or there is no

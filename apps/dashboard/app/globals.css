@@ -1406,3 +1406,42 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
 .spend-form .field-label { display: block; }
 .spend-form .auth-input { width: 100%; margin-bottom: 12px; }
 .spend-form-submit { display: flex; align-items: center; margin-bottom: 12px; }
+
+/* ---------------------------------------------------------------------------
+   Holding-area breakdown
+   Bars rather than a table: the question it answers is "which of these is the
+   big one", and a column of numbers makes that a reading exercise. A non-zero
+   count always paints at least a sliver, because a bar of literally zero width
+   next to a count of 40 reads as a rendering fault.
+   --------------------------------------------------------------------------- */
+.hold-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.hold-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 160px) 1fr;
+  gap: 14px;
+  align-items: center;
+}
+.hold-row-empty { opacity: 0.45; }
+.hold-row-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--hairline-strong);
+  overflow: hidden;
+}
+.hold-row-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.hold-row-text strong { font-variant-numeric: tabular-nums; }
+.hold-row-text p { margin: 2px 0 0; font-size: 12.5px; }
+
+@media (max-width: 640px) {
+  .hold-row { grid-template-columns: 1fr; gap: 6px; }
+}

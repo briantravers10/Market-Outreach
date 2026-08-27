@@ -221,7 +221,7 @@ export type { SearchApiResult, SearchApiTransport, SpendGuard } from "./enrichme
 export { createBraveTransport, RecordingSpendGuard } from "./enrichment/braveSearch";
 export { lookupBookingDirectories } from "./workers/directoryLookupWorker";
 export type { DirectoryLookupResult } from "./workers/directoryLookupWorker";
-export { ANALYSIS_VERSION, assessReadiness, describeHoldReason } from "./scoring/readiness";
+export { ANALYSIS_VERSION, assessReadiness, describeHoldReason, describeHoldRemedy } from "./scoring/readiness";
 export type { HoldReason, Readiness } from "./scoring/readiness";
 export {
   analyzeSite,

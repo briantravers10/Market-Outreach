@@ -9,7 +9,13 @@
  *
  *   npm run test-readiness
  */
-import { ANALYSIS_VERSION, assessReadiness, describeHoldReason, type Lead } from "@market-outreach/core";
+import {
+  ANALYSIS_VERSION,
+  assessReadiness,
+  describeHoldReason,
+  describeHoldRemedy,
+  type Lead,
+} from "@market-outreach/core";
 
 let passed = 0;
 let failed = 0;
@@ -67,8 +73,8 @@ function main(): void {
     // The 19,390 case: fetch failed, so the booking question is open.
     const r = assessReadiness(ready({ onlineBookingStatus: "UNKNOWN" }));
     check("an unanswered booking question is held", !r.ready);
-    check("and the reason is booking-unknown", r.reason === "booking-unknown", String(r.reason));
-    check("the explanation mentions the website not loading", r.explanation.includes("would not load"));
+    check("and the reason is booking-unknown-after-read", r.reason === "booking-unknown-after-read", String(r.reason));
+    check("the explanation says the site was read but did not answer", r.explanation.includes("did not say"));
   }
 
   {
@@ -76,7 +82,14 @@ function main(): void {
     // bank the points; wrong, because they may well be on Booksy.
     const r = assessReadiness(ready({ website: null, websiteCheckedAt: null, onlineBookingStatus: "UNKNOWN" }));
     check("a business with no website is held, not assumed", !r.ready);
-    check("its reason is the unanswered question, not 'never researched'", r.reason === "booking-unknown", String(r.reason));
+    // Kept separate from the read-but-unclear case on purpose: no amount of
+    // re-reading a site that does not exist will ever settle this one, so it
+    // must be visibly a different queue rather than folded into the same bucket.
+    check(
+      "its reason names the missing website, not 'never researched'",
+      r.reason === "booking-unknown-no-website",
+      String(r.reason)
+    );
     check("and the explanation names the possibility", r.explanation.includes("Booksy"));
   }
 
@@ -114,9 +127,19 @@ function main(): void {
 
   section("Every reason has words");
 
-  for (const reason of ["never-researched", "booking-unknown", "stale-method", "duplicate"] as const) {
+  for (const reason of [
+    "never-researched",
+    "booking-unknown-after-read",
+    "booking-unknown-no-website",
+    "stale-method",
+    "duplicate",
+  ] as const) {
     const label = describeHoldReason(reason);
     check(`"${reason}" has a label`, label.length > 0 && !label.includes("_"), label);
+    // A count with no answer to "what am I waiting for" reads as a stall, so
+    // every reason owes the owner a sentence about what is being done.
+    const remedy = describeHoldRemedy(reason);
+    check(`"${reason}" says what is being done about it`, remedy.length > 20, remedy);
   }
 
   console.log(`\n${"=".repeat(40)}`);

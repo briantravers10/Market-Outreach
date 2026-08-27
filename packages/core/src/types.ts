@@ -21,6 +21,7 @@
 import type { DetectedLink } from "./enrichment/linkClassifier";
 import type { CommunicationsRepository } from "./comms/types";
 import type { CostRepository, SettingsRepository } from "./spend/types";
+import type { HoldReason } from "./scoring/readiness";
 import type {
   ConversationsRepository,
   InstructionsRepository,
@@ -558,6 +559,19 @@ export interface LeadFilter {
    * current method to be.
    */
   readyForReview?: { ready: boolean; analysisVersion: number };
+  /**
+   * One bucket of the holding area, for counting what is held and why.
+   *
+   * The buckets are mutually exclusive and, together with ready-for-review,
+   * they partition the table — so the breakdown always adds up to the total.
+   * A breakdown that does not add up is worse than no breakdown, because it
+   * quietly implies leads are somewhere nobody is looking.
+   *
+   * Takes the current version as a parameter for the same reason
+   * readyForReview does: so a query cannot drift from what the code believes
+   * the current method to be.
+   */
+  heldReason?: { reason: HoldReason; analysisVersion: number };
   /**
    * The booking-directory queue: leads whose booking question is still open
    * after the Website Analyst has had its turn.
