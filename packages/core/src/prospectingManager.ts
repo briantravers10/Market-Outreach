@@ -397,6 +397,8 @@ export class ProspectingManager {
     // held out of the working list until the sweep reaches it.
     analysisVersion: null,
     directoryCheckedAt: null,
+    verifiedBy: null,
+    verifiedAt: null,
           dateDiscovered: nowIso(),
           dateLastResearched: null,
           researchStatus: "ANALYZED",

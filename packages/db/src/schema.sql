@@ -79,6 +79,11 @@ CREATE TABLE IF NOT EXISTS leads (
   -- column so the directory queue can tell "never looked up" from "looked up
   -- and still not found", which date_last_researched cannot express.
   directory_checked_at TEXT,
+  -- Who last checked this business by hand, and when. A person's answer
+  -- outranks every automated one permanently, so every queue skips a row with
+  -- verified_at set.
+  verified_by TEXT,
+  verified_at TEXT,
   date_discovered TEXT NOT NULL,
   date_last_researched TEXT,
   research_status TEXT NOT NULL,

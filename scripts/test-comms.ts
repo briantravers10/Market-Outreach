@@ -73,7 +73,7 @@ function stubLead(overrides: Partial<Lead> = {}): Lead {
     rating: null, reviewCount: null, instagram: null, facebook: null, socialActivity: "UNKNOWN",
     locationCount: null, services: [], prospectScore: 70, scoreBreakdown: [], scoreReason: null,
     dataConfidence: "LOW", discoverySource: "test", externalId: null, sourceConfidence: null,
-    latitude: null, longitude: null, websiteCheckedAt: null, analysisVersion: null, directoryCheckedAt: null,
+    latitude: null, longitude: null, websiteCheckedAt: null, analysisVersion: null, directoryCheckedAt: null, verifiedBy: null, verifiedAt: null,
     dateDiscovered: "2026-08-25T00:00:00.000Z",
     dateLastResearched: null, researchStatus: "ENRICHED", qualificationStatus: "QUALIFIED",
     pipelineStage: "RESEARCH", linkInBioUrl: null, detectedLinks: [], serviceArea: null,

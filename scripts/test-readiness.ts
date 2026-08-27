@@ -37,13 +37,17 @@ function section(title: string): void {
   console.log("-".repeat(title.length));
 }
 
-type Subject = Pick<Lead, "onlineBookingStatus" | "analysisVersion" | "websiteCheckedAt" | "isDuplicateOf" | "website">;
+type Subject = Pick<
+  Lead,
+  "onlineBookingStatus" | "analysisVersion" | "websiteCheckedAt" | "isDuplicateOf" | "website" | "verifiedAt"
+>;
 
 /** A lead that has been fully researched by the current method. */
 function ready(overrides: Partial<Subject> = {}): Subject {
   return {
     website: "https://salon.example/",
     websiteCheckedAt: "2026-08-26T12:00:00.000Z",
+    verifiedAt: null,
     onlineBookingStatus: "NONE",
     analysisVersion: ANALYSIS_VERSION,
     isDuplicateOf: null,
@@ -124,6 +128,38 @@ function main(): void {
     !assessReadiness({ ...ready(), analysisVersion: ANALYSIS_VERSION }).ready === false &&
       assessReadiness({ ...ready(), analysisVersion: ANALYSIS_VERSION - 1 }).reason === "stale-method"
   );
+
+  section("A person's answer outranks the machine's");
+
+  {
+    // The paid-researcher case. Someone works through the holding area, and
+    // then the analysis improves and the version is bumped. Their answers must
+    // not be dragged back into the queue — that is a day's wages undone
+    // silently, and invisibly, because the lead just goes back to unknown.
+    const r = assessReadiness(
+      ready({ analysisVersion: 1, verifiedAt: "2026-08-27T09:00:00.000Z" })
+    );
+    check("a hand-checked lead is ready despite a stale version stamp", r.ready, r.explanation);
+    check("and the page says a person checked it", r.explanation.includes("hand"), r.explanation);
+  }
+
+  {
+    const r = assessReadiness(
+      ready({ onlineBookingStatus: "UNKNOWN", verifiedAt: "2026-08-27T09:00:00.000Z" })
+    );
+    check(
+      "someone recording only the website has NOT made the lead ready",
+      !r.ready,
+      "the booking question is what the pitch rests on; a half-filled form must not open the gate"
+    );
+  }
+
+  {
+    const r = assessReadiness(
+      ready({ isDuplicateOf: "other-lead", verifiedAt: "2026-08-27T09:00:00.000Z" })
+    );
+    check("a duplicate stays a duplicate even if someone checked it", !r.ready && r.reason === "duplicate");
+  }
 
   section("Every reason has words");
 

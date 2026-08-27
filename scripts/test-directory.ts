@@ -83,6 +83,8 @@ function makeLead(overrides: Partial<Lead> = {}): Lead {
     locationEvidence: [],
     analysisVersion: null,
     directoryCheckedAt: null,
+    verifiedBy: null,
+    verifiedAt: null,
     scoreBreakdown: [],
     services: [],
     detectedLinks: [],

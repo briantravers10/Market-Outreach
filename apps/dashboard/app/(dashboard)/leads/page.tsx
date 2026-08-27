@@ -31,6 +31,8 @@ interface LeadsSearchParams {
   holding?: string;
   /** "1" to see businesses that already book online — kept, not discarded. */
   booked?: string;
+  /** "1" to see only what people checked by hand — the audit view. */
+  checked?: string;
 }
 
 export const dynamic = "force-dynamic";
@@ -51,6 +53,15 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   const holding = params.holding === "1";
   const booked = params.booked === "1";
+  /**
+   * The audit view: everything a person answered by hand, newest first.
+   *
+   * This is what makes the work delegable. If someone is being paid by the day
+   * to work through the holding area, being able to see exactly what they
+   * claimed — and sample it — is the difference between paying for research
+   * and paying for a filled-in form.
+   */
+  const checked = params.checked === "1";
   const page = Math.max(1, Number(params.page) || 1);
   const sort = params.sort === "discovered" || params.sort === "name" ? params.sort : "score";
 
@@ -76,12 +87,12 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     // business that already books online. The holding area is one click away
     // and says why each lead is in it — but it is never the default, and it is
     // never mixed in.
-    readyForReview: { ready: !holding, analysisVersion: ANALYSIS_VERSION },
+    ...(checked ? { humanVerified: true } : { readyForReview: { ready: !holding, analysisVersion: ANALYSIS_VERSION } }),
     // The three views are exclusive: prospects (no booking), already-booking,
     // and still-being-researched. A business on Booksy is a slower sale, not a
     // dead one — what is being sold is free — so they stay findable rather
     // than being filtered out of existence.
-    ...(holding ? {} : { hasBookingProvider: booked }),
+    ...(holding || checked ? {} : { hasBookingProvider: booked }),
   };
 
   const [readyCount, holdingCount] = await Promise.all([
@@ -95,6 +106,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     readyForReview: { ready: true, analysisVersion: ANALYSIS_VERSION },
     hasBookingProvider: true,
   });
+  const checkedCount = await repos.leads.count({ humanVerified: true });
 
   /**
    * What is held, and why, counted in the database rather than by reading a
@@ -114,7 +126,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     "duplicate",
   ] as const;
 
-  const holdBreakdown = holding
+  const holdBreakdown = holding && !checked
     ? await Promise.all(
         HOLD_REASONS.map(async (reason) => ({
           reason,
@@ -150,9 +162,19 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   return (
     <div>
       <div className="page-header">
-        <h1>{holding ? "Still being researched" : booked ? "Already books online" : "Leads"}</h1>
+        <h1>
+          {checked
+            ? "Checked by hand"
+            : holding
+              ? "Still being researched"
+              : booked
+                ? "Already books online"
+                : "Leads"}
+        </h1>
         <p>
-          {holding
+          {checked
+            ? "Every business someone looked at themselves, with who answered and when. Nothing automated overwrites these — a sweep skips a lead a person has checked — so this is also the record of work done, if you are paying someone by the day to fill in what the research could not."
+            : holding
             ? "These are not ready to call. Each one is waiting on something — the reason is on the right. They move across on their own as the research finishes; nothing here needs you."
             : booked
               ? "These already book through a platform, so they score low — but they are kept, not discarded. What you sell is free, which makes them a slower sale rather than no sale. Worth a look if you ever want more names."
@@ -161,14 +183,17 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       </div>
 
       <div className="lead-tabs">
-        <Link href="/leads" className={!holding && !booked ? "lead-tab lead-tab-active" : "lead-tab"}>
+        <Link href="/leads" className={!holding && !booked && !checked ? "lead-tab lead-tab-active" : "lead-tab"}>
           Ready to work <span className="lead-tab-count">{readyCount.toLocaleString()}</span>
         </Link>
-        <Link href="/leads?booked=1" className={booked ? "lead-tab lead-tab-active" : "lead-tab"}>
+        <Link href="/leads?booked=1" className={booked && !checked ? "lead-tab lead-tab-active" : "lead-tab"}>
           Already books online <span className="lead-tab-count">{bookedCount.toLocaleString()}</span>
         </Link>
-        <Link href="/leads?holding=1" className={holding ? "lead-tab lead-tab-active" : "lead-tab"}>
+        <Link href="/leads?holding=1" className={holding && !checked ? "lead-tab lead-tab-active" : "lead-tab"}>
           Still being researched <span className="lead-tab-count">{holdingCount.toLocaleString()}</span>
+        </Link>
+        <Link href="/leads?checked=1" className={checked ? "lead-tab lead-tab-active" : "lead-tab"}>
+          Checked by hand <span className="lead-tab-count">{checkedCount.toLocaleString()}</span>
         </Link>
       </div>
 
@@ -294,7 +319,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
               <th>Confidence</th>
               <th>Website</th>
               <th>Booking</th>
-              <th>{holding ? "Waiting on" : booked ? "Books through" : "Qualification"}</th>
+              <th>
+                {checked ? "Checked by" : holding ? "Waiting on" : booked ? "Books through" : "Qualification"}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -313,7 +340,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     : lead.bookingMethod.replace(/_/g, " ").toLowerCase()}
                 </td>
                 <td>
-                  {booked ? (
+                  {checked ? (
+                    <span className="muted" style={{ fontSize: 12.5 }}>
+                      {lead.verifiedBy}
+                      <br />
+                      {lead.verifiedAt?.slice(0, 10)}
+                    </span>
+                  ) : booked ? (
                     <span className="muted" style={{ fontSize: 12.5 }}>
                       {lead.bookingProvider ?? "an unrecognised tool"}
                     </span>
@@ -330,7 +363,16 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             {leads.length === 0 && (
               <tr>
                 <td colSpan={9} className="empty-state">
-                  {!holding && readyCount === 0 && holdingCount > 0 ? (
+                  {checked ? (
+                    /* Not an error either — nobody has checked anything by
+                       hand yet, which is the normal state until someone does. */
+                    <>
+                      <strong>Nobody has checked a lead by hand yet.</strong>
+                      <br />
+                      Open any lead and there is a &ldquo;Check this one yourself&rdquo; box on it. What you enter
+                      there beats anything the research decides, permanently, and appears here with your name on it.
+                    </>
+                  ) : !holding && readyCount === 0 && holdingCount > 0 ? (
                     /* An empty working list with a full holding area is not an
                        error and must not read like one. It is the gate doing
                        its job while the research catches up, and saying so is

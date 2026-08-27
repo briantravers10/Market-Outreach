@@ -205,6 +205,19 @@ export interface Lead {
    * for a week because the importer happened to stamp them on the way in.
    */
   directoryCheckedAt: string | null;
+  /**
+   * Who last checked this business by hand, and when.
+   *
+   * A person's answer outranks every automated one, permanently. Deliberately
+   * not expressed as a very high analysisVersion: that number means "which
+   * robot method produced this" and gets bumped whenever the research
+   * improves, and a bump would drag hand-checked leads back into the queue
+   * along with the rest. If someone is being paid to work through the holding
+   * area, the next cron silently undoing their day is the failure mode worth
+   * designing against.
+   */
+  verifiedBy: string | null;
+  verifiedAt: string | null;
   dateDiscovered: string; // ISO timestamp
   dateLastResearched: string | null;
   researchStatus: ResearchStatus;
@@ -584,6 +597,8 @@ export interface LeadFilter {
    * the current method to be.
    */
   heldReason?: { reason: HoldReason; analysisVersion: number };
+  /** true for leads a person has checked by hand, false for the rest. The audit view, and the researcher's day's work. */
+  humanVerified?: boolean;
   /**
    * The booking-directory queue: leads whose booking question is still open
    * after the Website Analyst has had its turn.

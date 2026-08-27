@@ -59,7 +59,10 @@ export interface Readiness {
 }
 
 export function assessReadiness(
-  lead: Pick<Lead, "onlineBookingStatus" | "analysisVersion" | "websiteCheckedAt" | "isDuplicateOf" | "website">
+  lead: Pick<
+    Lead,
+    "onlineBookingStatus" | "analysisVersion" | "websiteCheckedAt" | "isDuplicateOf" | "website" | "verifiedAt"
+  >
 ): Readiness {
   if (lead.isDuplicateOf) {
     return {
@@ -67,6 +70,22 @@ export function assessReadiness(
       reason: "duplicate",
       explanation: "Folded into another record for the same business.",
     };
+  }
+
+  /**
+   * A person looked at this one, and said so.
+   *
+   * Checked before every automated condition, and above the version check in
+   * particular. The version check exists to re-open leads whenever the robot
+   * research improves, and applying it here would drag hand-checked leads back
+   * into the holding area every time it is bumped — which, if someone is being
+   * paid by the day to fill that area in, quietly throws away their work.
+   *
+   * The booking question still has to have an answer. Someone recording only
+   * "yes they have a website" has not established the thing the pitch rests on.
+   */
+  if (lead.verifiedAt && lead.onlineBookingStatus !== "UNKNOWN") {
+    return { ready: true, reason: null, explanation: "Checked by hand." };
   }
 
   // Never looked at. Distinct from "looked at and could not tell", because the

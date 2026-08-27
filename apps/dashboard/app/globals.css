@@ -1445,3 +1445,23 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
 @media (max-width: 640px) {
   .hold-row { grid-template-columns: 1fr; gap: 6px; }
 }
+
+/* ---------------------------------------------------------------------------
+   Manual verification form
+   Two questions and a note. Wide enough that the note is not a slit, and it
+   collapses to one column on a phone — which is where it will actually be used,
+   standing outside a salon.
+   --------------------------------------------------------------------------- */
+.verify-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin: 14px 0;
+}
+.verify-form-wide { grid-column: 1 / -1; }
+.verify-form-submit { grid-column: 1 / -1; }
+
+@media (max-width: 640px) {
+  .verify-form { grid-template-columns: 1fr; }
+}

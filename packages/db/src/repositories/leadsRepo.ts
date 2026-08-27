@@ -45,6 +45,8 @@ interface LeadRow {
   website_checked_at: string | null;
   analysis_version: number | null;
   directory_checked_at: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
   date_discovered: string;
   date_last_researched: string | null;
   research_status: string;
@@ -100,6 +102,8 @@ function rowToLead(row: LeadRow): Lead {
     websiteCheckedAt: row.website_checked_at,
     analysisVersion: row.analysis_version ?? null,
     directoryCheckedAt: row.directory_checked_at ?? null,
+    verifiedBy: row.verified_by ?? null,
+    verifiedAt: row.verified_at ?? null,
     dateDiscovered: row.date_discovered,
     dateLastResearched: row.date_last_researched,
     researchStatus: row.research_status as Lead["researchStatus"],
@@ -131,7 +135,7 @@ const LEAD_COLUMNS = [
   "website_status", "website_quality", "online_booking_status", "booking_provider", "booking_method",
   "staff_count", "staff_count_confidence", "rating", "review_count", "instagram", "facebook",
   "social_activity", "location_count", "services", "prospect_score", "score_breakdown", "score_reason",
-  "data_confidence", "discovery_source", "external_id", "source_confidence", "latitude", "longitude", "website_checked_at", "analysis_version", "directory_checked_at",
+  "data_confidence", "discovery_source", "external_id", "source_confidence", "latitude", "longitude", "website_checked_at", "analysis_version", "directory_checked_at", "verified_by", "verified_at",
   "date_discovered", "date_last_researched", "research_status", "qualification_status", "pipeline_stage",
   "campaign_id", "job_id", "is_duplicate_of", "stages_completed", "link_in_bio_url", "detected_links",
   "service_area", "location_confidence", "location_evidence", "notes",
@@ -180,6 +184,8 @@ function leadToRow(lead: Lead): Record<string, unknown> {
     website_checked_at: lead.websiteCheckedAt,
     analysis_version: lead.analysisVersion,
     directory_checked_at: lead.directoryCheckedAt,
+    verified_by: lead.verifiedBy,
+    verified_at: lead.verifiedAt,
     date_discovered: lead.dateDiscovered,
     date_last_researched: lead.dateLastResearched,
     research_status: lead.researchStatus,
@@ -239,7 +245,9 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
     params.stagePattern = `%"${filter.hasStage}"%`;
   }
   if (filter.awaitingWebsiteCheck) {
-    clauses.push("website IS NOT NULL AND website_checked_at IS NULL AND online_booking_status = 'UNKNOWN'");
+    clauses.push(
+      "website IS NOT NULL AND website_checked_at IS NULL AND online_booking_status = 'UNKNOWN' AND verified_at IS NULL"
+    );
   }
   if (filter.unreachableCheckedBefore) {
     clauses.push("website IS NOT NULL AND website_status = 'UNREACHABLE' AND website_checked_at < @unreachableBefore");
@@ -250,8 +258,12 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
     // Ready means: not a duplicate, the booking question is answered, and it
     // was answered by the current method. Anything else is still being worked
     // on and must not reach a call list.
+    // Mirrors assessReadiness(): a hand-checked lead with a booking answer is
+    // ready whatever the automated version stamp says, because a version bump
+    // must not drag paid work back into the holding area.
     const readyClause =
-      "(is_duplicate_of IS NULL AND online_booking_status <> 'UNKNOWN' AND analysis_version >= @readyVersion)";
+      `(is_duplicate_of IS NULL AND online_booking_status <> 'UNKNOWN'
+        AND (verified_at IS NOT NULL OR analysis_version >= @readyVersion))`;
     clauses.push(ready ? readyClause : `NOT ${readyClause}`);
     params.readyVersion = analysisVersion;
   }
@@ -264,6 +276,9 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
         ? "online_booking_status IN ('THIRD_PARTY_BOOKING_SYSTEM', 'INTEGRATED_BOOKING_SYSTEM')"
         : "online_booking_status = 'NONE'"
     );
+  }
+  if (filter.humanVerified !== undefined) {
+    clauses.push(filter.humanVerified ? "verified_at IS NOT NULL" : "verified_at IS NULL");
   }
   if (filter.heldReason) {
     // These mirror assessReadiness() in the same order it checks them, and the
@@ -278,7 +293,9 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
         clauses.push("is_duplicate_of IS NOT NULL");
         break;
       case "never-researched":
-        clauses.push("is_duplicate_of IS NULL AND website IS NOT NULL AND website_checked_at IS NULL");
+        clauses.push(
+          "is_duplicate_of IS NULL AND verified_at IS NULL AND website IS NOT NULL AND website_checked_at IS NULL"
+        );
         break;
       case "booking-unknown-after-read":
         clauses.push(
@@ -291,7 +308,7 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
         break;
       case "stale-method":
         clauses.push(
-          `is_duplicate_of IS NULL AND online_booking_status <> 'UNKNOWN'
+          `is_duplicate_of IS NULL AND online_booking_status <> 'UNKNOWN' AND verified_at IS NULL
            AND COALESCE(analysis_version, 0) < @heldVersion`
         );
         break;
@@ -305,15 +322,19 @@ function buildWhere(filter: LeadFilter): { where: string; params: Record<string,
     // Duplicates are excluded because a duplicate never reaches the call list
     // whatever the answer is, and paid lookups should not be spent on one.
     clauses.push(
-      `online_booking_status = 'UNKNOWN' AND is_duplicate_of IS NULL
+      `online_booking_status = 'UNKNOWN' AND is_duplicate_of IS NULL AND verified_at IS NULL
        AND (website IS NULL OR website_checked_at IS NOT NULL)
        AND (directory_checked_at IS NULL OR directory_checked_at < @directoryBefore)`
     );
     params.directoryBefore = filter.awaitingDirectoryLookup;
   }
   if (filter.needsWebsiteRecheck) {
+    // verified_at excluded here and in every other queue. A person's answer is
+    // not a version of the robot's answer to be improved on — it replaces it,
+    // and re-sweeping a hand-checked lead would overwrite paid work.
     clauses.push(
       `website IS NOT NULL AND website_checked_at IS NOT NULL AND website_checked_at < @recheckBefore
+       AND verified_at IS NULL
        AND (website_status = 'UNREACHABLE'
             OR online_booking_status = 'NONE'
             OR (website_status = 'EXISTS' AND online_booking_status = 'UNKNOWN'))`

@@ -241,6 +241,13 @@ export type { CrawlDeps, CrawlResult, CrawlScope } from "./workers/directoryCraw
 export { lookupBookingDirectories } from "./workers/directoryLookupWorker";
 export type { DirectoryLookupResult } from "./workers/directoryLookupWorker";
 export { ANALYSIS_VERSION, assessReadiness, describeHoldReason, describeHoldRemedy } from "./scoring/readiness";
+export {
+  applyVerification,
+  bookingStatusFor,
+  isHumanVerified,
+  KNOWN_BOOKING_PROVIDERS,
+} from "./scoring/manualVerification";
+export type { VerificationInput, VerificationOutcome } from "./scoring/manualVerification";
 export type { HoldReason, Readiness } from "./scoring/readiness";
 export {
   analyzeSite,

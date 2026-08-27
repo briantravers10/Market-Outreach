@@ -159,6 +159,8 @@ export function observationToLead(observation: OvertureObservation, context: Obs
     // held out of the working list until the sweep reaches it.
     analysisVersion: null,
     directoryCheckedAt: null,
+    verifiedBy: null,
+    verifiedAt: null,
     dateDiscovered: context.now,
     dateLastResearched: context.now,
     researchStatus: "ENRICHED",

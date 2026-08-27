@@ -153,6 +153,8 @@ function lead(overrides: Partial<Lead> = {}): Lead {
     websiteCheckedAt: null,
     analysisVersion: null,
     directoryCheckedAt: null,
+    verifiedBy: null,
+    verifiedAt: null,
     dateDiscovered: "2026-08-01T00:00:00.000Z",
     dateLastResearched: null,
     researchStatus: "PENDING",

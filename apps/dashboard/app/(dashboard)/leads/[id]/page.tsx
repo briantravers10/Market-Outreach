@@ -7,6 +7,7 @@ import { ConfidenceBadge, QualificationBadge, ScorePill } from "../../../../comp
 import { PipelineChecklist } from "../../../../components/PipelineChecklist";
 import { PayloadPreview } from "../../../../components/PayloadPreview";
 import { LinkInBio } from "../../../../components/LinkInBio";
+import { VerifyPanel } from "../../../../components/VerifyPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <h1>{lead.businessName}</h1>
         <p>{industryLabel} · {lead.city}, {lead.state} {lead.zip}</p>
       </div>
+
+      <VerifyPanel lead={lead} returnTo={`/leads/${lead.id}`} />
 
       <AddToCrmPanel
         leadId={lead.id}
