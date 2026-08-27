@@ -66,6 +66,21 @@ const CONCURRENCY = 4;
  */
 const INDEX_FRESH_DAYS = 45;
 
+/**
+ * How long a FAILED crawl is left alone before being tried again.
+ *
+ * Without this, failures crowd out real work. A run picks the busiest towns
+ * first, always in the same order, so the same failures come round every five
+ * minutes and consume the batch before a single new town is reached. That is
+ * not hypothetical: switching on three platforms whose URL shapes turned out
+ * to be wrong took completed crawls from seven per run to zero, because sixty
+ * slots per run went to re-proving the same failures.
+ *
+ * Long enough that a permanently broken platform costs almost nothing, short
+ * enough that a site which was briefly down recovers within the hour.
+ */
+const FAILED_RETRY_HOURS = 6;
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET?.trim();
   if (!secret) {
@@ -89,6 +104,7 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   const nowIso = now.toISOString();
   const staleBefore = new Date(now.getTime() - INDEX_FRESH_DAYS * 86_400_000).toISOString();
+  const retryFailedBefore = new Date(now.getTime() - FAILED_RETRY_HOURS * 3_600_000).toISOString();
   const fetcher = new HttpSiteFetcher(12_000);
   const startedAt = Date.now();
 
@@ -96,7 +112,7 @@ export async function GET(request: NextRequest) {
   // database for "scopes without a fresh crawl" would need a join against a
   // table it does not know about; asking for the busiest few hundred and
   // skipping the done ones costs one query and stays simple.
-  const scopes = await repos.leads.directoryScopes(Math.max(200, batchSize * 4));
+  const scopes = await repos.leads.directoryScopes(Math.max(400, batchSize * 8));
 
   /**
    * Town ids, discovered once per platform-and-trade and reused.
@@ -130,6 +146,7 @@ export async function GET(request: NextRequest) {
   let listingsWritten = 0;
   const failures: string[] = [];
   const workingTemplates = new Map<string, string>();
+  let skippedRecentFailures = 0;
 
   /**
    * Platforms that have refused us during this run.
@@ -157,10 +174,15 @@ export async function GET(request: NextRequest) {
 
     const key = coverageKey({ platform: platform.id, ...scope });
     const existing = await repos.directoryIndex.getCrawl(key);
-    // A completed, fresh index needs nothing. A failed one is retried, because
-    // the reason was often temporary and re-establishing a permanent failure
-    // costs one request.
+    // A completed, fresh index needs nothing.
     if (existing?.status === "complete" && existing.crawledAt > staleBefore) return;
+    // A recent failure is left alone rather than re-proved on every run. The
+    // reason for a failure is often temporary, so it IS retried — just not
+    // twelve times an hour, ahead of towns nobody has looked at yet.
+    if (existing?.status === "failed" && existing.crawledAt > retryFailedBefore) {
+      skippedRecentFailures += 1;
+      return;
+    }
 
     attempted += 1;
     const listing = platform.listing!;
@@ -243,6 +265,7 @@ export async function GET(request: NextRequest) {
     // candidate lists in config can be trimmed to the proven answer.
     workingTemplates: Object.fromEntries(workingTemplates),
     refusedUs: [...refusing],
+    skippedRecentFailures,
     failures,
     ms: Date.now() - startedAt,
   };

@@ -1,6 +1,6 @@
 {
   "description": "Booking platforms to look a business up on when their own website cannot answer the question. Answers the single most valuable fact about a prospect: are they already booking online? A business FOUND on one of these is a WORSE prospect \u2014 they have an incumbent \u2014 so a false positive here costs a good lead, and a false negative costs a wasted phone call.",
-  "verificationNote": "Booksy and Vagaro are PROVEN: both crawl cleanly against their live town directories, and their town-id and profile-URL patterns were confirmed by real runs. They are requiredForNone, meaning absence from both (plus nothing on the business's own website) is what licenses a 'no online booking' verdict. Square, StyleSeat and Fresha are crawled for what they can positively tell us \u2014 found there means they book online, which is a complete answer on its own \u2014 but are NOT requiredForNone, because their URL shapes are still candidates. An unproven platform must never be able to freeze every lead in the database by failing to answer. Promote one to requiredForNone once its crawls have been clean for a while. Each lead's evidence names the platforms actually searched, so the scope of a NONE never has to be taken on trust.",
+  "verificationNote": "PROVEN, from real runs: Booksy (https://booksy.com/en-us/s/{industry}/{cityId}_{city}) and Vagaro (https://www.vagaro.com/listings/{industry}/{city}--{state}). Both crawl cleanly and are requiredForNone \u2014 absence from both, plus nothing on the business's own website, is what licenses a 'no online booking' verdict. DISPROVEN, also from real runs, which is why the other three are off: Fresha returns HTTP 410 Gone on every URL shape tried, which is a deliberate block rather than a wrong guess; Square returns 404 on every shape, so its directory URL is simply unknown; StyleSeat returns 200 with no profile links in the HTML, meaning its results are drawn by script and no URL will ever expose them to a crawler. Do not re-enable any of these on a guess \u2014 nine candidate URLs have already been tried and logged. Getting them would need either a real browser or the paid search fallback, and neither is worth it while two platforms cover the question.",
   "matching": {
     "minimumNameSimilarity": 0.82,
     "requireCityMatch": true,
@@ -60,7 +60,7 @@
       "domain": "squareup.com",
       "searchUrlTemplate": "https://squareup.com/appointments/search?q={query}",
       "profilePathPattern": "/appointments/book/",
-      "enabled": true,
+      "enabled": false,
       "listing": {
         "pageParam": null,
         "firstPage": 1,
@@ -79,7 +79,7 @@
       "domain": "styleseat.com",
       "searchUrlTemplate": "https://www.styleseat.com/m/search?q={query}",
       "profilePathPattern": "^/m/v/",
-      "enabled": true,
+      "enabled": false,
       "listing": {
         "pageParam": "page",
         "firstPage": 1,
@@ -98,7 +98,7 @@
       "domain": "fresha.com",
       "searchUrlTemplate": "https://www.fresha.com/search?q={query}",
       "profilePathPattern": "^/a/",
-      "enabled": true,
+      "enabled": false,
       "listing": {
         "pageParam": "page",
         "firstPage": 1,
