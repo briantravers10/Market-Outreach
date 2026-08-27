@@ -115,29 +115,72 @@ export async function GET(request: NextRequest) {
   const scopes = await repos.leads.directoryScopes(Math.max(400, batchSize * 8));
 
   /**
-   * Town ids, discovered once per platform-and-trade and reused.
+   * Town ids, pooled per platform and remembered between runs.
    *
    * Booksy addresses towns by an opaque number — /s/hair-salon/15889_miami —
-   * which has to be read off its own index of towns before any directory page
-   * can be requested. Discovering that per town would be one extra fetch per
-   * town for information one page already carries in full.
+   * read off its own index pages. Two things about that number matter here.
+   *
+   * It belongs to the TOWN, not the trade: 15889 is Miami whether the page is
+   * hair salons or tattoo studios. So ids are pooled across every industry
+   * rather than kept per industry, and each trade's index page contributes the
+   * twenty-odd towns it happens to list to a set that serves all of them.
+   *
+   * And it accumulates. Each index page lists only the largest towns, which is
+   * why Pensacola, Tallahassee and Jacksonville kept failing — no single page
+   * names them. Persisting the pool means every run starts from everything
+   * learned so far instead of rediscovering the same twenty towns and stalling
+   * on the same gaps.
    */
-  const cityIdCache = new Map<string, Map<string, string>>();
+  const CITY_ID_KEY = "booking_directory_city_ids";
+  const cityIdPool = new Map<string, Map<string, string>>();
   const discoveryErrors: string[] = [];
   const discoverySources: string[] = [];
+  const askedIndex = new Set<string>();
+  let poolGrewBy = 0;
 
-  const cityIdsFor = async (platformId: string, listing: NonNullable<typeof platforms[number]["listing"]>, industry: string) => {
+  try {
+    const stored = await repos.settings.get(CITY_ID_KEY);
+    if (stored) {
+      for (const [platformId, ids] of Object.entries(JSON.parse(stored) as Record<string, Record<string, string>>)) {
+        cityIdPool.set(platformId, new Map(Object.entries(ids)));
+      }
+    }
+  } catch {
+    // A malformed or missing pool just means starting over, which is slower
+    // rather than wrong. It must never stop the crawl.
+  }
+
+  const cityIdsFor = async (
+    platformId: string,
+    listing: NonNullable<(typeof platforms)[number]["listing"]>,
+    industry: string
+  ) => {
     if (!listing.cityIndex) return undefined;
-    const key = `${platformId}:${industry}`;
-    const cached = cityIdCache.get(key);
-    if (cached) return cached;
+    const pool = cityIdPool.get(platformId) ?? new Map<string, string>();
+    cityIdPool.set(platformId, pool);
+
+    // One index fetch per trade per run: a trade already asked contributes
+    // nothing more, and the pool already holds what it gave.
+    const askedKey = `${platformId}:${industry}`;
+    if (askedIndex.has(askedKey)) return pool;
+    askedIndex.add(askedKey);
+
     const { ids, error, source } = await discoverCityIds(listing, industry, fetcher);
-    cityIdCache.set(key, ids);
+    let added = 0;
+    for (const [slug, id] of ids) {
+      if (!pool.has(slug)) {
+        pool.set(slug, id);
+        added += 1;
+      }
+    }
+    poolGrewBy += added;
+
     if (error) discoveryErrors.push(`${platformId}/${industry}: ${error}`);
-    // Which candidate page actually worked, so the list of guesses in config
-    // can be trimmed to the one right answer rather than to another guess.
-    if (source) discoverySources.push(`${platformId}/${industry}: ${ids.size} towns from ${source}`);
-    return ids;
+    // Which candidate page worked, and what it added that was new — so the
+    // config can be trimmed to the proven answer, and a page that only ever
+    // repeats what we have is visible as such.
+    if (source) discoverySources.push(`${platformId}/${industry}: +${added} new of ${ids.size} from ${source}`);
+    return pool;
   };
 
   let attempted = 0;
@@ -230,6 +273,19 @@ export async function GET(request: NextRequest) {
     })
   );
 
+  // Everything learned about town ids, kept for the next run. Written after
+  // the work rather than during it, so a run that dies mid-way costs at most
+  // this run's discoveries rather than corrupting the pool.
+  if (poolGrewBy > 0) {
+    try {
+      const serialised: Record<string, Record<string, string>> = {};
+      for (const [platformId, ids] of cityIdPool) serialised[platformId] = Object.fromEntries(ids);
+      await repos.settings.set(CITY_ID_KEY, JSON.stringify(serialised));
+    } catch {
+      // Losing the pool costs a rediscovery next run, nothing more.
+    }
+  }
+
   const [indexedListings, completeCrawls, failedCrawls] = await Promise.all([
     repos.directoryIndex.countListings(),
     repos.directoryIndex.countCrawls("complete"),
@@ -266,6 +322,8 @@ export async function GET(request: NextRequest) {
     workingTemplates: Object.fromEntries(workingTemplates),
     refusedUs: [...refusing],
     skippedRecentFailures,
+    townIdsKnown: Object.fromEntries([...cityIdPool].map(([id, ids]) => [id, ids.size])),
+    townIdsLearnedThisRun: poolGrewBy,
     failures,
     ms: Date.now() - startedAt,
   };
