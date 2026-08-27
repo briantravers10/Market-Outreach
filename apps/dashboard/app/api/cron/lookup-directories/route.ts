@@ -148,9 +148,23 @@ export async function GET(request: NextRequest) {
     await repos.leads.upsertMany(pending.splice(0, pending.length));
   };
 
-  for (const lead of queue) {
-    if (Date.now() - startedAt > WORK_DEADLINE_MS) break;
+  /**
+   * Several leads at once, but each lead's platforms in order.
+   *
+   * The per-lead loop has to stay sequential: finding a business on the first
+   * platform is a complete answer, and firing all five in parallel would pay
+   * for four searches whose results are thrown away.
+   *
+   * Across leads, though, sequential does not finish. One lead can mean five
+   * requests to five slow hosts, so a batch of 120 done one at a time would
+   * spend the whole deadline on perhaps forty of them. Six at a time is enough
+   * to fill the invocation without turning us into something the platforms
+   * would rightly rate-limit.
+   */
+  const CONCURRENCY = 6;
+  let cursor = 0;
 
+  const runOne = async (lead: (typeof queue)[number]) => {
     const result = await lookupBookingDirectories(lead, deps);
     checked += 1;
     // Written whether or not the question was settled: an unresolved lead
@@ -160,9 +174,25 @@ export async function GET(request: NextRequest) {
     if (result.resolved) resolvedCount += 1;
     if (result.lead.onlineBookingStatus === "THIRD_PARTY_BOOKING_SYSTEM") foundCount += 1;
     for (const item of result.unavailable) blocked.set(item.platform, (blocked.get(item.platform) ?? 0) + 1);
-
     if (pending.length >= 25) await flush();
-  }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+      for (;;) {
+        if (Date.now() - startedAt > WORK_DEADLINE_MS) return;
+        const index = cursor;
+        cursor += 1;
+        if (index >= queue.length) return;
+        try {
+          await runOne(queue[index]);
+        } catch {
+          // One lead's lookup blowing up must not take the batch with it. The
+          // lead keeps no stamp, so it stays queued and comes round again.
+        }
+      }
+    })
+  );
 
   await flush();
   // Whatever this run spent gets written even if it stopped short of a full
