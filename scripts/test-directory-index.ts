@@ -711,6 +711,94 @@ async function main(): Promise<void> {
     check("a config with no required flags still resolves", result.resolved);
   }
 
+  section("A town that cannot be addressed does not freeze the lead");
+
+  {
+    // The deadlock this exists to break. Booksy addresses towns by an internal
+    // number published on a handful of index pages naming 42 towns out of 625.
+    // For everywhere else there is no page to request — not a failure retrying
+    // fixes. Treated as "not checked yet", those leads could never resolve, so
+    // they never left the queue, so their towns never left the crawl list, and
+    // the crawler ran out of reachable work with forty thousand leads waiting.
+    const repo = makeRepo();
+    await repo.recordCrawl(
+      crawl({
+        platform: "booksy",
+        status: "failed",
+        detail: "No working directory URL for Stuart. Tried: shape 1: no URL — Booksy addresses towns by an id and Stuart's is unknown",
+      })
+    );
+    await repo.recordCrawl(
+      crawl({ platform: "vagaro", id: coverageKey({ platform: "vagaro", city: "Miami", state: "FL", industry: "hair-salons" }) })
+    );
+    await repo.putListings([listing("Someone Else", "https://booksy.com/en-us/9_else")]);
+
+    const result = await matchAgainstDirectories(lead(), { ...matchDeps, index: repo });
+    check(
+      "an unaddressable required platform does not block the answer",
+      result.lead.onlineBookingStatus === "NONE",
+      result.lead.onlineBookingStatus
+    );
+    check(
+      "the evidence says plainly that it could not be searched",
+      result.lead.locationEvidence.some((e) => e.includes("could not be searched") && e.includes("Booksy")),
+      result.lead.locationEvidence.join(" | ")
+    );
+    check(
+      "and confidence is capped, because a narrower search is a weaker finding",
+      result.lead.dataConfidence !== "HIGH",
+      String(result.lead.dataConfidence)
+    );
+  }
+
+  {
+    // The line that must not blur: "nobody has tried" is not "cannot be done".
+    // Conflating them would let a NONE be recorded off no search whatever.
+    const repo = makeRepo();
+    await repo.recordCrawl(
+      crawl({ platform: "vagaro", id: coverageKey({ platform: "vagaro", city: "Miami", state: "FL", industry: "hair-salons" }) })
+    );
+    // Booksy: no crawl row at all.
+    const result = await matchAgainstDirectories(lead(), { ...matchDeps, index: repo });
+    check(
+      "a required platform nobody has TRIED still blocks the answer",
+      result.lead.onlineBookingStatus === "UNKNOWN",
+      result.lead.onlineBookingStatus
+    );
+  }
+
+  {
+    // A transient failure is not structural either — it retries.
+    const repo = makeRepo();
+    await repo.recordCrawl(crawl({ platform: "booksy", status: "failed", detail: "HTTP 500 on page 2 of Miami" }));
+    await repo.recordCrawl(
+      crawl({ platform: "vagaro", id: coverageKey({ platform: "vagaro", city: "Miami", state: "FL", industry: "hair-salons" }) })
+    );
+    const result = await matchAgainstDirectories(lead(), { ...matchDeps, index: repo });
+    check("a server error is not treated as unaddressable", result.lead.onlineBookingStatus === "UNKNOWN");
+  }
+
+  {
+    // And if NO required platform managed to answer, there is nothing to
+    // resolve on, however excusable each individual gap is.
+    const repo = makeRepo();
+    const unaddressable = (platform: string) =>
+      crawl({
+        platform,
+        id: coverageKey({ platform, city: "Miami", state: "FL", industry: "hair-salons" }),
+        status: "failed",
+        detail: "no URL — addresses towns by an id and Miami's is unknown",
+      });
+    await repo.recordCrawl(unaddressable("booksy"));
+    await repo.recordCrawl(unaddressable("vagaro"));
+    const result = await matchAgainstDirectories(lead(), { ...matchDeps, index: repo });
+    check(
+      "every required platform being unsearchable resolves nothing",
+      result.lead.onlineBookingStatus === "UNKNOWN",
+      "otherwise a town nothing can search would report 'no online booking' off no search at all"
+    );
+  }
+
   section("The index survives a re-crawl");
 
   {

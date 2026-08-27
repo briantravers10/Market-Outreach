@@ -62,10 +62,31 @@ export interface DirectoryMatchDeps {
  * required, so a config with the flag missing everywhere still behaves like
  * the previous version rather than silently never resolving anything.
  */
-function requiredChecked(enabled: DirectoryPlatform[], checked: string[]): boolean {
+/**
+ * Whether a crawl failed for a reason no retry can fix.
+ *
+ * Specifically: the platform has no addressable directory page for this town.
+ * Distinguished by the crawl worker, which reports it without making a request
+ * at all, so this is a structural fact rather than a transient one.
+ *
+ * A missing crawl row is NOT this — that just means nobody has tried yet, and
+ * conflating the two would let "we have not got to it" masquerade as "it
+ * cannot be done", which is how a NONE gets recorded off no search whatever.
+ */
+function crawlCannotBeAddressed(crawl: DirectoryCrawl | null): boolean {
+  if (!crawl || crawl.status !== "failed") return false;
+  return /addresses towns by an id|no URL/i.test(crawl.detail ?? "");
+}
+
+function requiredChecked(enabled: DirectoryPlatform[], checked: string[], excused: Set<string>): boolean {
   const required = enabled.filter((p) => p.requiredForNone);
   if (required.length === 0) return checked.length > 0;
-  return required.every((p) => checked.includes(p.label));
+  // A platform that cannot be searched for this town is excused, but at least
+  // one required platform must actually have answered — otherwise a town where
+  // none of them can be addressed would resolve on no evidence at all.
+  const answered = required.filter((p) => checked.includes(p.label));
+  if (answered.length === 0) return false;
+  return required.every((p) => checked.includes(p.label) || excused.has(p.label));
 }
 
 export async function matchAgainstDirectories(
@@ -90,6 +111,8 @@ export async function matchAgainstDirectories(
    * nothing".
    */
   const missingIndexes: { platform: string; reason: string }[] = [];
+  /** Required platforms that can never be searched for this town, as opposed to not yet. */
+  const unsearchable: string[] = [];
   /** Every unread platform, blocking or not, for the log. */
   const unreadPlatforms: string[] = [];
   const checked: string[] = [];
@@ -114,13 +137,41 @@ export async function matchAgainstDirectories(
       checked.push(platform.label);
       continue;
     }
+
     unreadPlatforms.push(platform.label);
-    if (platform.requiredForNone) missingIndexes.push({ platform: platform.label, reason: verdict.reason });
+
+    /**
+     * A required platform that CANNOT be searched for this town, as opposed to
+     * one that simply has not been yet.
+     *
+     * Booksy addresses towns by an internal number published on a handful of
+     * index pages, and those pages name 42 towns out of the 625 in this data.
+     * For everywhere else there is no page to request — not a failure that
+     * retrying fixes, a town its directory cannot be addressed for at all.
+     *
+     * Treating that as "not checked yet" deadlocked the whole pipeline: those
+     * leads could never resolve, so they never left the queue, so the towns
+     * never left the crawl list, so the crawler ran out of reachable work
+     * while forty thousand leads sat unanswered.
+     *
+     * So it degrades rather than blocks. The other platforms settle the
+     * question, the lead says exactly which platforms were and were not
+     * searched, and confidence drops to reflect the narrower search. The
+     * alternative — perfect coverage or no answer — produces no answers.
+     */
+    if (platform.requiredForNone) {
+      if (crawlCannotBeAddressed(crawl)) {
+        unsearchable.push(platform.label);
+      } else {
+        missingIndexes.push({ platform: platform.label, reason: verdict.reason });
+      }
+    }
   }
 
   const updated: Lead = { ...lead, dateLastResearched: deps.now, directoryCheckedAt: deps.now };
   let summary: string;
   let resolved: boolean;
+  let narrowedSearch = false;
 
   if (listedOn) {
     // Found is a complete answer on its own. It does not matter whether the
@@ -135,18 +186,28 @@ export async function matchAgainstDirectories(
     ];
     resolved = true;
     summary = `${lead.businessName}: already books via ${listedOn.platform.label} — a slower sale, not a dead one.`;
-  } else if (missingIndexes.length === 0 && requiredChecked(enabled, checked)) {
+  } else if (missingIndexes.length === 0 && requiredChecked(enabled, checked, new Set(unsearchable))) {
     updated.onlineBookingStatus = "NONE";
     updated.bookingMethod = lead.instagram || lead.facebook ? "SOCIAL_DM" : "PHONE_ONLY";
     updated.analysisVersion = ANALYSIS_VERSION;
-    // Names the platforms actually searched. "No online booking" can never be
-    // checked everywhere, so the honest form of the claim is the list.
+    // Names the platforms actually searched, and any that could not be. "No
+    // online booking" can never be checked everywhere, so the honest form of
+    // the claim is the list — and the gaps in it.
     updated.locationEvidence = [
       ...lead.locationEvidence,
-      `Not listed on ${checked.join(" or ")} for ${lead.city} ${lead.industry.replace(/-/g, " ")}.`,
+      unsearchable.length > 0
+        ? `Not listed on ${checked.join(" or ")} for ${lead.city} ${lead.industry.replace(/-/g, " ")}. ` +
+          `${unsearchable.join(" and ")} could not be searched — no directory page exists for this town.`
+        : `Not listed on ${checked.join(" or ")} for ${lead.city} ${lead.industry.replace(/-/g, " ")}.`,
     ];
+    // A narrower search is a weaker finding, and the score should say so
+    // rather than reading identically to a complete one.
+    if (unsearchable.length > 0) narrowedSearch = true;
     resolved = true;
-    summary = `${lead.businessName}: not on ${checked.join(" or ")} — a real prospect.`;
+    summary =
+      `${lead.businessName}: not on ${checked.join(" or ")}` +
+      (unsearchable.length > 0 ? ` (${unsearchable.join(", ")} unsearchable here)` : "") +
+      " — a real prospect.";
   } else {
     const blocking = missingIndexes.length > 0 ? missingIndexes.map((m) => m.platform) : unreadPlatforms;
     updated.locationEvidence = [
@@ -165,7 +226,11 @@ export async function matchAgainstDirectories(
     updated.prospectScore = result.score;
     updated.scoreBreakdown = result.breakdown;
     updated.scoreReason = result.scoreReason;
-    updated.dataConfidence = result.confidence;
+    // Never better than MEDIUM when a required platform could not be searched.
+    // The score is the same either way, and a HIGH-confidence badge on a
+    // partial search is the badge doing the opposite of its job.
+    updated.dataConfidence =
+      narrowedSearch && result.confidence === "HIGH" ? "MEDIUM" : result.confidence;
     updated.qualificationStatus = qualificationStatusForScore(result.score, deps.scoringConfig);
   }
 

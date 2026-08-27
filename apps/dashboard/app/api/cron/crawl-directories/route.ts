@@ -114,7 +114,20 @@ export async function GET(request: NextRequest) {
   // database for "scopes without a fresh crawl" would need a join against a
   // table it does not know about; asking for the busiest few hundred and
   // skipping the done ones costs one query and stays simple.
-  const scopes = await repos.leads.directoryScopes(Math.max(400, batchSize * 8));
+  /**
+   * Every town-and-trade with leads waiting, not just the busiest few hundred.
+   *
+   * The candidate list used to be capped at a few hundred, and once those were
+   * all crawled a run reported "attempted 0" and did nothing — while thousands
+   * of towns behind them had never been looked at. The cap was doing the job
+   * of the batch size, which is a different job: the batch limits how much
+   * WORK a run does, the candidate list decides what work is even visible.
+   *
+   * These rows are three short strings and a count, and there are a few
+   * thousand of them, so fetching the lot costs one query and removes a whole
+   * class of silent stall.
+   */
+  const scopes = await repos.leads.directoryScopes(20_000);
   // One query for what has already been crawled, rather than one per unit.
   const crawlStates = await repos.directoryIndex.crawlStates();
 
@@ -343,6 +356,7 @@ export async function GET(request: NextRequest) {
   }
 
   const summary = {
+    scopesVisible: scopes.length,
     attempted,
     completed,
     failed: failedCount,
