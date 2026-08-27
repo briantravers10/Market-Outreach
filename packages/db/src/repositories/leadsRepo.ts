@@ -546,6 +546,25 @@ export class SqliteLeadsRepository implements LeadsRepository {
     return rows.map(rowToLead);
   }
 
+  async directoryScopes(
+    limit: number
+  ): Promise<{ city: string; state: string; industry: string; waiting: number }[]> {
+    const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 100;
+    const rows = (await this.db
+      .prepare(
+        `SELECT city, state, industry, COUNT(*) AS waiting
+         FROM leads
+         WHERE online_booking_status = 'UNKNOWN' AND is_duplicate_of IS NULL
+           AND (website IS NULL OR website_checked_at IS NOT NULL)
+           AND city <> '' AND state <> ''
+         GROUP BY city, state, industry
+         ORDER BY COUNT(*) DESC, city ASC, industry ASC
+         LIMIT ${safeLimit}`
+      )
+      .all({})) as { city: string; state: string; industry: string; waiting: number }[];
+    return rows.map((row) => ({ ...row, waiting: Number(row.waiting) }));
+  }
+
   async findPossibleDuplicates(lead: Pick<Lead, "businessName" | "address" | "phone" | "city">): Promise<Lead[]> {
     const rows = await this.db
       .prepare(

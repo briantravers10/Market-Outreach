@@ -187,7 +187,15 @@ export function searchUrlFor(platform: DirectoryPlatform, query: string): string
 export function extractCandidatesFromHtml(
   html: string,
   baseUrl: string,
-  platform: DirectoryPlatform
+  platform: DirectoryPlatform,
+  /**
+   * A search-results page has a handful of relevant hits and a long tail of
+   * unrelated ones, so 30 is generous there. A town directory page is
+   * different — every listing on it is wanted — and the caller raises this
+   * accordingly. Truncating a directory silently would turn businesses on the
+   * back half of the page into businesses "not on the platform".
+   */
+  limit = 30
 ): DirectoryCandidate[] {
   let pattern: RegExp;
   try {
@@ -224,7 +232,7 @@ export function extractCandidatesFromHtml(
       locationText: `${name} ${decodeURIComponent(url.pathname).replace(/[-_/]/g, " ")}`,
     });
 
-    if (candidates.length >= 30) break;
+    if (candidates.length >= limit) break;
   }
 
   return candidates;

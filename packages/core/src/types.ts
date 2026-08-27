@@ -22,6 +22,7 @@ import type { DetectedLink } from "./enrichment/linkClassifier";
 import type { CommunicationsRepository } from "./comms/types";
 import type { CostRepository, SettingsRepository } from "./spend/types";
 import type { HoldReason } from "./scoring/readiness";
+import type { DirectoryIndexRepository } from "./enrichment/directoryIndex";
 import type {
   ConversationsRepository,
   InstructionsRepository,
@@ -455,6 +456,17 @@ export interface LeadsRepository {
   /** Row count matching a filter, without hydrating the rows. */
   count(filter?: LeadFilter): Promise<number>;
   /**
+   * The towns and trades that still have leads waiting on a booking answer,
+   * busiest first.
+   *
+   * The unit of work for the directory crawl is a town-and-trade, not a lead —
+   * reading "hair salons in Miami" once answers the question for every hair
+   * salon in Miami. Busiest first because the effort is the same whether a
+   * town holds four hundred leads or four, so the order decides how quickly
+   * the holding area empties.
+   */
+  directoryScopes(limit: number): Promise<{ city: string; state: string; industry: string; waiting: number }[]>;
+  /**
    * Counts grouped by one column, computed in SQL.
    *
    * Exists because the dashboards were reducing the entire leads table in
@@ -694,6 +706,8 @@ export interface Repositories {
   crm: CrmRepository;
   costs: CostRepository;
   settings: SettingsRepository;
+  /** Booking-platform town directories: what has been read, and who was in it. */
+  directoryIndex: DirectoryIndexRepository;
   outreach: OutreachRepository;
   agentActivity: AgentActivityRepository;
   humanReview: HumanReviewRepository;

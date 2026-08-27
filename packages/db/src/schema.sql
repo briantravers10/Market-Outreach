@@ -469,3 +469,46 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- ---------------------------------------------------------------------------
+-- Booking-platform town directories
+--
+-- What these platforms publish is a directory per town and trade, not a
+-- per-business search. Reading one town once answers the booking question for
+-- every lead in it, which is why this is a table rather than a per-lead
+-- lookup.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS directory_listings (
+  id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL,
+  city TEXT NOT NULL,
+  state TEXT NOT NULL,
+  industry TEXT NOT NULL,
+  business_name TEXT NOT NULL,
+  profile_url TEXT NOT NULL,
+  crawled_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_directory_listings_scope
+  ON directory_listings(platform, state, city, industry);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_directory_listings_profile
+  ON directory_listings(platform, profile_url, industry);
+
+-- Whether a town-and-trade was actually read, and how it went.
+--
+-- This is what makes a "no online booking" safe to record. Without it the
+-- matcher cannot tell "we read this town and they are not in it" from "we
+-- never read this town", and those two must never produce the same answer.
+CREATE TABLE IF NOT EXISTS directory_crawls (
+  id TEXT PRIMARY KEY,
+  platform TEXT NOT NULL,
+  city TEXT NOT NULL,
+  state TEXT NOT NULL,
+  industry TEXT NOT NULL,
+  status TEXT NOT NULL,
+  listings_found INTEGER NOT NULL DEFAULT 0,
+  pages_read INTEGER NOT NULL DEFAULT 0,
+  detail TEXT,
+  crawled_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_directory_crawls_scope
+  ON directory_crawls(state, city, industry);

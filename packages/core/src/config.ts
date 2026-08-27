@@ -204,6 +204,8 @@ export function getIndustries(): Industry[] {
   return industriesCache;
 }
 
+import type { ListingConfig } from "./enrichment/directoryIndex";
+
 let bookingDirectoriesCache: BookingDirectoriesConfig | null = null;
 
 export interface BookingDirectoriesConfig {
@@ -214,9 +216,12 @@ export interface BookingDirectoriesConfig {
     id: string;
     label: string;
     domain: string;
+    /** Dead: these platforms have no per-business search URL. Kept only so the paid-search fallback keeps its shape. */
     searchUrlTemplate: string;
     profilePathPattern: string;
     enabled: boolean;
+    /** How this platform's town directory is addressed. Absent means it cannot be crawled. */
+    listing?: ListingConfig;
   }[];
 }
 

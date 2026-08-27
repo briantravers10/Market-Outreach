@@ -1,10 +1,10 @@
 {
-  "description": "Booking platforms to look a business up on when their own website cannot answer the question. Answers the single most valuable fact about a prospect: are they already booking online? A business FOUND on one of these is a WORSE prospect — they have an incumbent — so a false positive here costs a good lead, and a false negative costs a wasted phone call.",
-  "verificationNote": "searchUrlTemplate values are UNVERIFIED. They were written without being able to reach these sites, so the first real run must confirm each one before its results are trusted. A template that 404s or redirects is reported as 'unavailable' rather than 'not found', so an unverified pattern cannot quietly mark every business as having no booking.",
+  "description": "Booking platforms to look a business up on when their own website cannot answer the question. Answers the single most valuable fact about a prospect: are they already booking online? A business FOUND on one of these is a WORSE prospect \u2014 they have an incumbent \u2014 so a false positive here costs a good lead, and a false negative costs a wasted phone call.",
+  "verificationNote": "The per-business searchUrlTemplate values are DEAD and kept only for the paid-search fallback, which does not use them. The first real run proved they cannot work: these platforms publish town directories, not per-business search URLs, so every request returned 404. The `listing` block below is the live path \u2014 read one town's directory once and answer the question for every lead in it. Those URL shapes come from indexed pages (booksy.com/en-us/s/hair-salon/15889_miami, vagaro.com/listings/hair-salon/miami--fl) but the pagination and town-id patterns are still UNVERIFIED, and a crawl that cannot finish is recorded as failed rather than as an empty town.",
   "matching": {
     "minimumNameSimilarity": 0.82,
     "requireCityMatch": true,
-    "notes": "Both conditions must hold. Salon names repeat constantly across a state — there are dozens of 'Hair Studio' listings in Florida alone — so a name match without a city match is not evidence of anything."
+    "notes": "Both conditions must hold. Salon names repeat constantly across a state \u2014 there are dozens of 'Hair Studio' listings in Florida alone \u2014 so a name match without a city match is not evidence of anything."
   },
   "platforms": [
     {
@@ -13,7 +13,17 @@
       "domain": "booksy.com",
       "searchUrlTemplate": "https://booksy.com/en-us/s/{query}",
       "profilePathPattern": "/en-us/[0-9]+_",
-      "enabled": true
+      "enabled": true,
+      "listing": {
+        "urlTemplate": "https://booksy.com/en-us/s/{industry}/{cityId}_{city}",
+        "pageParam": "page",
+        "firstPage": 1,
+        "maxPages": 8,
+        "cityIndex": {
+          "urlTemplate": "https://booksy.com/en-us/s/{industry}",
+          "cityLinkPattern": "/en-us/s/[a-z0-9-]+/(\\d+)_([a-z0-9-]+)"
+        }
+      }
     },
     {
       "id": "vagaro",
@@ -21,7 +31,13 @@
       "domain": "vagaro.com",
       "searchUrlTemplate": "https://www.vagaro.com/search?q={query}",
       "profilePathPattern": "^/[a-z0-9-]+$",
-      "enabled": true
+      "enabled": true,
+      "listing": {
+        "urlTemplate": "https://www.vagaro.com/listings/{industry}/{city}--{state}",
+        "pageParam": "page",
+        "firstPage": 1,
+        "maxPages": 8
+      }
     },
     {
       "id": "square",
@@ -29,7 +45,13 @@
       "domain": "squareup.com",
       "searchUrlTemplate": "https://squareup.com/appointments/search?q={query}",
       "profilePathPattern": "/appointments/book/",
-      "enabled": true
+      "enabled": false,
+      "listing": {
+        "urlTemplate": "https://squareup.com/appointments/book/{city}-{state}/{industry}",
+        "pageParam": null,
+        "firstPage": 1,
+        "maxPages": 1
+      }
     },
     {
       "id": "styleseat",
@@ -37,7 +59,13 @@
       "domain": "styleseat.com",
       "searchUrlTemplate": "https://www.styleseat.com/m/search?q={query}",
       "profilePathPattern": "^/m/v/",
-      "enabled": true
+      "enabled": false,
+      "listing": {
+        "urlTemplate": "https://www.styleseat.com/m/search/{city}-{state}/{industry}",
+        "pageParam": "page",
+        "firstPage": 1,
+        "maxPages": 4
+      }
     },
     {
       "id": "fresha",
@@ -45,7 +73,13 @@
       "domain": "fresha.com",
       "searchUrlTemplate": "https://www.fresha.com/search?q={query}",
       "profilePathPattern": "^/a/",
-      "enabled": true
+      "enabled": false,
+      "listing": {
+        "urlTemplate": "https://www.fresha.com/a/{city}-{state}/{industry}",
+        "pageParam": "page",
+        "firstPage": 1,
+        "maxPages": 4
+      }
     },
     {
       "id": "glossgenius",

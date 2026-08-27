@@ -219,6 +219,25 @@ export {
 } from "./enrichment/directoryLookups";
 export type { SearchApiResult, SearchApiTransport, SpendGuard } from "./enrichment/directoryLookups";
 export { createBraveTransport, RecordingSpendGuard } from "./enrichment/braveSearch";
+export {
+  coverageKey,
+  extractCityIds,
+  industrySlugFor,
+  listingUrlFor,
+  lookupInIndex,
+  slugify,
+} from "./enrichment/directoryIndex";
+export type {
+  DirectoryCrawl,
+  DirectoryIndexRepository,
+  DirectoryListing,
+  IndexVerdict,
+  ListingConfig,
+} from "./enrichment/directoryIndex";
+export { crawlDirectory, discoverCityIds } from "./workers/directoryCrawlWorker";
+export { matchAgainstDirectories } from "./workers/directoryMatchWorker";
+export type { DirectoryMatchDeps, DirectoryMatchResult } from "./workers/directoryMatchWorker";
+export type { CrawlDeps, CrawlResult, CrawlScope } from "./workers/directoryCrawlWorker";
 export { lookupBookingDirectories } from "./workers/directoryLookupWorker";
 export type { DirectoryLookupResult } from "./workers/directoryLookupWorker";
 export { ANALYSIS_VERSION, assessReadiness, describeHoldReason, describeHoldRemedy } from "./scoring/readiness";

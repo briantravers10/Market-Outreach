@@ -9,6 +9,7 @@ import { SqliteCampaignsRepository } from "./repositories/campaignsRepo";
 import { SqliteCrmRepository } from "./repositories/crmRepo";
 import { SqlCostsRepository } from "./repositories/costsRepo";
 import { SqlSettingsRepository } from "./repositories/settingsRepo";
+import { SqlDirectoryIndexRepository } from "./repositories/directoryIndexRepo";
 import { SqliteOutreachRepository } from "./repositories/outreachRepo";
 import { SqliteAgentActivityRepository } from "./repositories/agentActivityRepo";
 import { SqliteHumanReviewRepository } from "./repositories/humanReviewRepo";
@@ -72,6 +73,7 @@ export function createRepositories(dbPath?: string): Repositories {
     crm: new SqliteCrmRepository(db),
     costs: new SqlCostsRepository(db),
     settings: new SqlSettingsRepository(db),
+    directoryIndex: new SqlDirectoryIndexRepository(db),
     outreach: new SqliteOutreachRepository(db),
     agentActivity: new SqliteAgentActivityRepository(db),
     humanReview: new SqliteHumanReviewRepository(db),
@@ -87,4 +89,5 @@ export function createRepositories(dbPath?: string): Repositories {
   };
 }
 export { SqliteLeadsRepository } from "./repositories/leadsRepo";
+export { SqlDirectoryIndexRepository } from "./repositories/directoryIndexRepo";
 export { SqlCommunicationsRepository } from "./repositories/commsRepo";

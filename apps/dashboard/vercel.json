@@ -14,8 +14,12 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/crawl-directories",
+      "schedule": "3,18,33,48 * * * *"
+    },
+    {
       "path": "/api/cron/lookup-directories",
-      "schedule": "3,13,23,33,43,53 * * * *"
+      "schedule": "8,23,38,53 * * * *"
     }
   ]
 }

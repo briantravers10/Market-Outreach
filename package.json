@@ -30,7 +30,8 @@
     "import-overture": "npx tsx scripts/import-overture.ts",
     "setup-crm": "npx tsx scripts/setup-crm.ts",
     "test-manager": "npx tsx scripts/test-manager.ts",
-    "test-queues": "npx tsx scripts/test-queues.ts"
+    "test-queues": "npx tsx scripts/test-queues.ts",
+    "test-directory-index": "npx tsx scripts/test-directory-index.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
