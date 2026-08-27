@@ -139,18 +139,15 @@
     }
   ],
   "confidence": {
-    "description": "Data confidence is computed separately from prospect score, based on how many key fields were reliably resolved during enrichment.",
+    "description": "How much of what matters for a call has actually been established. Every check here is obtainable from what this system collects \u2014 which was the bug in the previous version: it measured seven fields, three of which (staff count, rating, review count) were never populated for a single lead, so HIGH was arithmetically unreachable and the badge degenerated into 'has a website / does not'. That labelled the best prospects in the database, the ones with no website, as the least trustworthy data. Establishing that a business has NO website resolves the web check rather than failing it: it is an answer, and for this operation the most valuable one.",
     "keyFields": [
-      "phone",
-      "email",
-      "website",
-      "online_booking_status",
-      "staff_count",
-      "rating",
-      "review_count"
+      "contact_route",
+      "web_presence",
+      "booking",
+      "current_method"
     ],
     "thresholds": {
-      "high": 0.8,
+      "high": 1.0,
       "medium": 0.5
     }
   },

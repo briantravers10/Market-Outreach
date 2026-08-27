@@ -12,6 +12,7 @@ import {
   normalizePhone,
   realWebsite,
   computeDataConfidence,
+  type Lead,
   scoreLead,
   getScoringConfig,
   MockReasoningProvider,
@@ -137,6 +138,119 @@ async function main() {
   const mobile = observationToLead(observation({ address: "", industry: "makeup-artists" }), context);
   check("location confidence drops", mobile.locationConfidence === "LOW");
   check("the lead survives without a street address", mobile.businessName === "Viana Beauty Salon");
+
+  section("Confidence measures things that can actually be known");
+
+  {
+    const cfg = getScoringConfig();
+
+    /**
+     * The bug this pins. Confidence used to be measured over seven fields,
+     * three of which — staff count, rating, review count — were never
+     * populated for a single lead in seventy-seven thousand. HIGH needed 80%
+     * of seven, so it was arithmetically unreachable, and the badge quietly
+     * degenerated into "has a website / does not": it labelled the best
+     * prospects in the database, the ones with no website, as the least
+     * trustworthy data.
+     */
+    const fullyKnown: Lead = {
+      ...lead,
+      phone: "3055550101",
+      website: null,
+      websiteStatus: "NONE",
+      websiteCheckedAt: "2026-08-27T00:00:00.000Z",
+      onlineBookingStatus: "NONE",
+      analysisVersion: 2,
+    };
+    const best = computeDataConfidence(fullyKnown, cfg);
+    check(
+      "a lead with NO website but every question answered reads HIGH",
+      best.level === "HIGH",
+      `${best.level} — ${best.reason}`
+    );
+    check(
+      "and its reason lists what is established rather than a fraction",
+      best.reason.includes("book online"),
+      best.reason
+    );
+
+    // The inversion, stated directly: having no website must not be worth less
+    // than having one, all else equal.
+    const withSite = computeDataConfidence(
+      { ...fullyKnown, website: "https://salon.example/", websiteStatus: "EXISTS" },
+      cfg
+    );
+    check(
+      "having no website is worth no less than having one",
+      best.resolvedRatio >= withSite.resolvedRatio,
+      `${best.resolvedRatio} vs ${withSite.resolvedRatio}`
+    );
+
+    // And HIGH has to be reachable at all, which it previously was not.
+    check("HIGH is attainable from data this system actually collects", best.level === "HIGH");
+  }
+
+  {
+    const cfg = getScoringConfig();
+    const answered: Lead = {
+      ...lead,
+      phone: "3055550101",
+      onlineBookingStatus: "NONE",
+      websiteStatus: "NONE",
+      website: null,
+      analysisVersion: 1,
+    };
+    const stale = computeDataConfidence(answered, cfg);
+    check("an older research method costs confidence but is not fatal", stale.level === "MEDIUM", stale.level);
+    check("and the reason says which method", stale.reason.includes("older method"), stale.reason);
+  }
+
+  {
+    const cfg = getScoringConfig();
+    // The booking question is what the pitch rests on and what the readiness
+    // gate holds a lead back for. Missing it is not "three-quarters
+    // trustworthy" — it is a lead nobody should be ringing yet.
+    const noBookingAnswer: Lead = {
+      ...lead,
+      phone: "3055550101",
+      email: "hi@salon.example",
+      website: "https://salon.example/",
+      websiteStatus: "EXISTS",
+      onlineBookingStatus: "UNKNOWN",
+      analysisVersion: 2,
+    };
+    const result = computeDataConfidence(noBookingAnswer, cfg);
+    check(
+      "an unanswered booking question caps confidence at LOW",
+      result.level === "LOW",
+      `${result.level} — three of four checks pass, and it still must not read as trustworthy`
+    );
+  }
+
+  {
+    const cfg = getScoringConfig();
+    const unreachable: Lead = {
+      ...lead,
+      phone: "3055550101",
+      website: "https://dead.example/",
+      websiteStatus: "UNREACHABLE",
+      onlineBookingStatus: "NONE",
+      analysisVersion: 2,
+    };
+    check(
+      "a site we tried and could not reach still counts as established",
+      computeDataConfidence(unreachable, cfg).level === "HIGH",
+      "we looked; that is the finding"
+    );
+  }
+
+  {
+    // A config naming nothing this code can check would otherwise divide by
+    // zero and grade every lead identically — the exact failure being fixed.
+    const broken = { ...getScoringConfig(), confidence: { description: "", keyFields: ["nonsense"], thresholds: { high: 1, medium: 0.5 } } };
+    const result = computeDataConfidence(lead, broken);
+    check("an unrecognised config grades LOW and says so", result.level === "LOW" && result.reason.includes("configured"), result.reason);
+  }
 
   section("UNKNOWN must not inflate data confidence");
   const config = getScoringConfig();

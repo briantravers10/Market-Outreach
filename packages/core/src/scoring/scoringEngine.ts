@@ -1,6 +1,7 @@
 import type { ConfidenceLevel, Lead, ScoreFactorResult, ScoreResult } from "../types";
 import type { ScoringConfig, ScoringFactorConfig } from "../config";
 import type { ReasoningProvider } from "../reasoning/reasoningProvider";
+import { ANALYSIS_VERSION } from "./readiness";
 
 /**
  * One evaluator per factor `id` in config/scoring-config.json. Each returns
@@ -94,47 +95,118 @@ const EVALUATORS: Record<string, FactorEvaluator> = {
   }),
 };
 
+/**
+ * The facts that decide whether a row can be trusted, and how each is settled.
+ *
+ * Every one of these is obtainable from what this system actually collects.
+ * That is the whole point, and it was the bug: confidence used to be measured
+ * over seven fields, three of which — staff count, rating, review count —
+ * were never populated for a single lead in seventy-seven thousand. The top
+ * grade needed 80% of seven, so HIGH was arithmetically unreachable and the
+ * badge silently degenerated into "has a website / does not", labelling the
+ * best prospects in the database as the least trustworthy data.
+ *
+ * "No website" resolves this rather than failing it. Establishing that a
+ * business has no site is an answer, and for this operation it is the single
+ * most valuable one — treating it as a gap inverted the whole measure.
+ */
+interface ConfidenceCheck {
+  label: string;
+  missing: string;
+  test: (lead: Lead, currentVersion: number) => boolean;
+  /**
+   * A check whose absence caps the grade at LOW however many others pass.
+   *
+   * Counting every fact equally is wrong here. Whether a business books online
+   * is what the entire pitch rests on and what the readiness gate holds leads
+   * back for — a lead missing it is not "three-quarters trustworthy", it is
+   * one nobody should be ringing yet. A threshold cannot express that, because
+   * a threshold only knows how many passed, not which.
+   */
+  decisive?: boolean;
+}
+
+const CONFIDENCE_CHECKS: Record<string, ConfidenceCheck> = {
+  contact_route: {
+    label: "a way to reach them",
+    missing: "no phone, email or social profile",
+    test: (lead) => Boolean(lead.phone || lead.email || lead.instagram || lead.facebook),
+  },
+  web_presence: {
+    label: "their web presence",
+    missing: "nobody has established whether they have a website",
+    // Either an address, or a checked absence. UNREACHABLE counts: we tried
+    // and that IS what we found.
+    test: (lead) => Boolean(lead.website) || lead.websiteStatus === "NONE" || lead.websiteStatus === "UNREACHABLE",
+  },
+  booking: {
+    label: "whether they book online",
+    missing: "the booking question is unanswered",
+    test: (lead) => lead.onlineBookingStatus !== "UNKNOWN",
+    decisive: true,
+  },
+  current_method: {
+    label: "researched by the current method",
+    missing: "researched by an older method",
+    test: (lead, currentVersion) => Boolean(lead.verifiedAt) || (lead.analysisVersion ?? 0) >= currentVersion,
+  },
+};
+
 export function computeDataConfidence(
   lead: Lead,
-  config: ScoringConfig
+  config: ScoringConfig,
+  /**
+   * The research version that counts as current.
+   *
+   * Passed rather than imported so this stays a pure function of its inputs
+   * and the scoring module does not depend on the readiness module.
+   */
+  currentVersion = 2
 ): { level: ConfidenceLevel; reason: string; resolvedRatio: number } {
   const { keyFields, thresholds } = config.confidence;
-  const leadRecord = lead as unknown as Record<string, unknown>;
-  const fieldToLeadKey: Record<string, keyof Lead> = {
-    phone: "phone",
-    email: "email",
-    website: "website",
-    online_booking_status: "onlineBookingStatus",
-    staff_count: "staffCount",
-    rating: "rating",
-    review_count: "reviewCount",
-  };
+  const checks = keyFields.filter((field) => field in CONFIDENCE_CHECKS);
 
-  let resolved = 0;
-  for (const field of keyFields) {
-    const leadKey = fieldToLeadKey[field];
-    const value = leadKey ? leadRecord[leadKey] : undefined;
-    // UNKNOWN is excluded; NONE is not. They used to be treated the same, which
-    // was defensible when NONE doubled as the unresearched default — but now
-    // that UNKNOWN carries "nobody looked", NONE means the opposite: somebody
-    // looked and the answer is none. Excluding it would mean reading a
-    // prospect's website could never improve how well-researched they are,
-    // which is precisely backwards.
-    const isResolved =
-      value !== null &&
-      value !== undefined &&
-      value !== "UNKNOWN" &&
-      !(typeof value === "string" && value.trim() === "");
-    if (isResolved) resolved += 1;
+  // A config naming nothing this code knows how to check would otherwise
+  // divide by zero and grade everything the same, which is the failure this
+  // whole rewrite exists to remove.
+  if (checks.length === 0) {
+    return { level: "LOW", resolvedRatio: 0, reason: "No confidence checks are configured." };
   }
 
-  const ratio = keyFields.length === 0 ? 0 : resolved / keyFields.length;
-  const level: ConfidenceLevel = ratio >= thresholds.high ? "HIGH" : ratio >= thresholds.medium ? "MEDIUM" : "LOW";
+  const missing: string[] = [];
+  let resolved = 0;
+  let decisiveMissing = false;
+  for (const field of checks) {
+    const check = CONFIDENCE_CHECKS[field];
+    if (check.test(lead, currentVersion)) {
+      resolved += 1;
+    } else {
+      missing.push(check.missing);
+      if (check.decisive) decisiveMissing = true;
+    }
+  }
+
+  const ratio = resolved / checks.length;
+  const level: ConfidenceLevel = decisiveMissing
+    ? "LOW"
+    : ratio >= thresholds.high
+      ? "HIGH"
+      : ratio >= thresholds.medium
+        ? "MEDIUM"
+        : "LOW";
 
   return {
     level,
     resolvedRatio: ratio,
-    reason: `${resolved}/${keyFields.length} key research fields resolved (${Math.round(ratio * 100)}%).`,
+    // Names what is missing rather than reporting a fraction. "3/4 resolved"
+    // tells you nothing you can act on; "the booking question is unanswered"
+    // tells you exactly what would improve it.
+    reason:
+      missing.length === 0
+        ? `Everything that matters for a call is established: ${checks
+            .map((f) => CONFIDENCE_CHECKS[f].label)
+            .join(", ")}.`
+        : `Missing: ${missing.join("; ")}.`,
   };
 }
 
@@ -143,7 +215,7 @@ export async function scoreLead(
   config: ScoringConfig,
   reasoning: ReasoningProvider
 ): Promise<ScoreResult> {
-  const { level: confidenceLevel, reason: confidenceReason } = computeDataConfidence(lead, config);
+  const { level: confidenceLevel, reason: confidenceReason } = computeDataConfidence(lead, config, ANALYSIS_VERSION);
 
   const breakdown: ScoreFactorResult[] = [];
   for (const factor of config.factors) {
