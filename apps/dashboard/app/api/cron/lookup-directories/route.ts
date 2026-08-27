@@ -141,6 +141,15 @@ export async function GET(request: NextRequest) {
   let checked = 0;
   /** Which platforms refused us, and how often. Named in the reply so a broken URL template shows up as a pattern rather than as silence. */
   const blocked = new Map<string, number>();
+  /**
+   * One example reason per platform, kept verbatim.
+   *
+   * The count alone cannot tell "Booksy blocked us" from "the search URL is
+   * wrong" from "the results are drawn by script and the HTML is empty" — and
+   * those three have completely different fixes. Reporting only the tally
+   * turned a diagnosable failure into a shrug.
+   */
+  const blockedWhy = new Map<string, string>();
   const pending: Awaited<ReturnType<typeof lookupBookingDirectories>>["lead"][] = [];
 
   const flush = async () => {
@@ -173,7 +182,10 @@ export async function GET(request: NextRequest) {
     pending.push(result.lead);
     if (result.resolved) resolvedCount += 1;
     if (result.lead.onlineBookingStatus === "THIRD_PARTY_BOOKING_SYSTEM") foundCount += 1;
-    for (const item of result.unavailable) blocked.set(item.platform, (blocked.get(item.platform) ?? 0) + 1);
+    for (const item of result.unavailable) {
+      blocked.set(item.platform, (blocked.get(item.platform) ?? 0) + 1);
+      if (!blockedWhy.has(item.platform)) blockedWhy.set(item.platform, item.reason);
+    }
     if (pending.length >= 25) await flush();
   };
 
@@ -230,6 +242,7 @@ export async function GET(request: NextRequest) {
       paidSearch: Boolean(braveKey),
       capMinor,
       blocked: blockedSummary,
+      why: Object.fromEntries(blockedWhy),
       ms: Date.now() - startedAt,
     })}`
   );
@@ -240,6 +253,7 @@ export async function GET(request: NextRequest) {
     alreadyBookOnline: foundCount,
     unresolved: checked - resolvedCount,
     blocked: blockedSummary,
+    blockedWhy: Object.fromEntries(blockedWhy),
     paidSearchConfigured: Boolean(braveKey),
     spendCapMinor: capMinor,
     remaining,
