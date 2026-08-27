@@ -480,6 +480,24 @@ export interface LeadsRepository {
    */
   directoryScopes(limit: number): Promise<{ city: string; state: string; industry: string; waiting: number }[]>;
   /**
+   * How each research queue is actually doing: how many are in it, and how
+   * many distinct leads it has moved recently.
+   *
+   * Exists because a stalled queue and a working one looked identical from the
+   * dashboard. The website re-check spun on the same 800 leads for thirteen
+   * hours, logging a healthy "checked 800" every five minutes, while 39,000
+   * behind them never moved. The signature of that is the pair of numbers:
+   * plenty in the queue, almost nothing distinct coming out. One number alone
+   * cannot show it, which is why both are here.
+   */
+  queueHealth(since: string): Promise<{
+    websiteQueue: number;
+    websiteMovedSince: number;
+    directoryQueue: number;
+    directoryMovedSince: number;
+    oldestWebsiteCheck: string | null;
+  }>;
+  /**
    * Counts grouped by one column, computed in SQL.
    *
    * Exists because the dashboards were reducing the entire leads table in

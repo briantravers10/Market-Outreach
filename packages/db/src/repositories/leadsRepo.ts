@@ -586,6 +586,53 @@ export class SqliteLeadsRepository implements LeadsRepository {
     return rows.map((row) => ({ ...row, waiting: Number(row.waiting) }));
   }
 
+  async queueHealth(since: string): Promise<{
+    websiteQueue: number;
+    websiteMovedSince: number;
+    directoryQueue: number;
+    directoryMovedSince: number;
+    oldestWebsiteCheck: string | null;
+  }> {
+    // COUNT(DISTINCT id) is the whole point on the "moved" figures. A queue
+    // spinning on the same rows rewrites their timestamps over and over, so a
+    // count of writes would look healthy; a count of distinct leads carrying a
+    // recent stamp cannot be faked that way.
+    const row = (await this.db
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM leads
+             WHERE website IS NOT NULL AND website_checked_at IS NOT NULL AND verified_at IS NULL
+               AND (website_status = 'UNREACHABLE' OR online_booking_status = 'NONE'
+                    OR (website_status = 'EXISTS' AND online_booking_status = 'UNKNOWN'))) AS website_queue,
+           (SELECT COUNT(DISTINCT id) FROM leads WHERE website_checked_at > @since) AS website_moved,
+           (SELECT COUNT(*) FROM leads
+             WHERE online_booking_status = 'UNKNOWN' AND is_duplicate_of IS NULL AND verified_at IS NULL
+               AND (website IS NULL OR website_checked_at IS NOT NULL)) AS directory_queue,
+           (SELECT COUNT(DISTINCT id) FROM leads WHERE directory_checked_at > @since) AS directory_moved,
+           (SELECT MIN(website_checked_at) FROM leads
+             WHERE website IS NOT NULL AND website_checked_at IS NOT NULL AND verified_at IS NULL
+               AND (website_status = 'UNREACHABLE' OR online_booking_status = 'NONE'
+                    OR (website_status = 'EXISTS' AND online_booking_status = 'UNKNOWN'))) AS oldest_check`
+      )
+      .get({ since })) as
+      | {
+          website_queue: number;
+          website_moved: number;
+          directory_queue: number;
+          directory_moved: number;
+          oldest_check: string | null;
+        }
+      | undefined;
+
+    return {
+      websiteQueue: Number(row?.website_queue ?? 0),
+      websiteMovedSince: Number(row?.website_moved ?? 0),
+      directoryQueue: Number(row?.directory_queue ?? 0),
+      directoryMovedSince: Number(row?.directory_moved ?? 0),
+      oldestWebsiteCheck: row?.oldest_check ?? null,
+    };
+  }
+
   async findPossibleDuplicates(lead: Pick<Lead, "businessName" | "address" | "phone" | "city">): Promise<Lead[]> {
     const rows = await this.db
       .prepare(

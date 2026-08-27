@@ -5,6 +5,7 @@ import { bucketsFor, leadCountsByCampaign } from "../../../lib/leadStats";
 import { KpiTile } from "../../../components/KpiTile";
 import { AgentStatusBadge } from "../../../components/AgentStatusBadge";
 import { LiveRefresh } from "../../../components/LiveRefresh";
+import { QueueHealth } from "../../../components/QueueHealth";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,25 @@ export default async function OverviewPage() {
     jobsHumanReview: jobs.filter((j) => j.status === "human_review").length,
   };
   const agents = await summarizeAllAgents(repos.agentActivity, repos.humanReview);
+
+  const anHourAgo = new Date(Date.now() - 3_600_000).toISOString();
+  const health = await repos.leads.queueHealth(anHourAgo);
+  const queueRows = [
+    {
+      name: "Reading websites",
+      queued: health.websiteQueue,
+      movedLastHour: health.websiteMovedSince,
+      detail: health.oldestWebsiteCheck
+        ? `Working oldest-first; the oldest was last read ${health.oldestWebsiteCheck.slice(0, 10)}`
+        : "Nothing has been read yet",
+    },
+    {
+      name: "Searching booking platforms",
+      queued: health.directoryQueue,
+      movedLastHour: health.directoryMovedSince,
+      detail: "Businesses whose booking question their own website could not answer",
+    },
+  ];
   const activeCampaigns = campaigns.filter((c) => c.status === "running");
 
   return (
@@ -53,6 +73,8 @@ export default async function OverviewPage() {
         <KpiTile label="Failed Jobs" value={summary.jobsFailedOrRetry} />
         <KpiTile label="Human-Review Items" value={summary.jobsHumanReview} />
       </div>
+
+      <QueueHealth rows={queueRows} />
 
       <div className="grid-2">
         <div className="panel">
