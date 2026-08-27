@@ -32,11 +32,30 @@ import { isDemoMode } from "../../../../lib/demo";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-/** Town-and-trade pairs per run. Small: each is up to eight page fetches. */
-const DEFAULT_BATCH = 6;
-const WORK_DEADLINE_MS = 210_000;
+/**
+ * Town-and-trade crawls per run.
+ *
+ * Raised from 6 on measurement rather than hope: a run of 7 took 78 seconds of
+ * a 210-second budget, so roughly 11 seconds each. There are about 3,800
+ * town-and-trade pairs and five platforms, and six per fifteen minutes would
+ * have taken the better part of two weeks.
+ */
+const DEFAULT_BATCH = 60;
+const WORK_DEADLINE_MS = 230_000;
 /** Between page fetches on the same platform. Politeness, and it keeps us under their rate limits. */
-const PAGE_DELAY_MS = 1_500;
+const PAGE_DELAY_MS = 1_200;
+
+/**
+ * Towns crawled at once.
+ *
+ * The delay between pages is per-crawl, so running several concurrently
+ * shortens the wall clock without making any single platform's requests come
+ * faster than the delay allows — except that concurrent crawls may hit the
+ * same platform. Four is chosen to be obviously survivable rather than
+ * optimal: Booksy has already rate-limited us once, and the whole index is
+ * worth having next week and worth nothing at all if we get blocked today.
+ */
+const CONCURRENCY = 4;
 
 /**
  * How long an index stays good.
@@ -66,7 +85,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No platform has a directory URL configured." }, { status: 503 });
   }
 
-  const batchSize = resolveBatchSize(request.nextUrl.searchParams.get("batch"), DEFAULT_BATCH, 40);
+  const batchSize = resolveBatchSize(request.nextUrl.searchParams.get("batch"), DEFAULT_BATCH, 300);
   const now = new Date();
   const nowIso = now.toISOString();
   const staleBefore = new Date(now.getTime() - INDEX_FRESH_DAYS * 86_400_000).toISOString();
@@ -77,7 +96,7 @@ export async function GET(request: NextRequest) {
   // database for "scopes without a fresh crawl" would need a join against a
   // table it does not know about; asking for the busiest few hundred and
   // skipping the done ones costs one query and stays simple.
-  const scopes = await repos.leads.directoryScopes(batchSize * 40);
+  const scopes = await repos.leads.directoryScopes(Math.max(200, batchSize * 4));
 
   /**
    * Town ids, discovered once per platform-and-trade and reused.
@@ -110,48 +129,84 @@ export async function GET(request: NextRequest) {
   let failedCount = 0;
   let listingsWritten = 0;
   const failures: string[] = [];
+  const workingTemplates = new Map<string, string>();
 
-  outer: for (const scope of scopes) {
-    if (attempted >= batchSize) break;
-    if (Date.now() - startedAt > WORK_DEADLINE_MS) break;
+  /**
+   * Platforms that have refused us during this run.
+   *
+   * A 429 means slow down, and the useful response is to stop asking THIS
+   * platform for the rest of the run rather than to keep going and collect
+   * more of them. Other platforms are unaffected — one site rate-limiting us
+   * is no reason to stop reading a different one.
+   */
+  const refusing = new Set<string>();
 
-    for (const platform of platforms) {
-      if (Date.now() - startedAt > WORK_DEADLINE_MS) break outer;
+  // The unit of work is a platform-and-town pair, flattened so the pool can
+  // pick up the next one without waiting for a whole town to finish.
+  const units: { platform: (typeof platforms)[number]; scope: (typeof scopes)[number] }[] = [];
+  for (const scope of scopes) {
+    for (const platform of platforms) units.push({ platform, scope });
+  }
 
-      const key = coverageKey({ platform: platform.id, ...scope });
-      const existing = await repos.directoryIndex.getCrawl(key);
-      // A completed, fresh index needs nothing. A failed one is retried,
-      // because the reason was often temporary and a permanent failure costs
-      // one request to re-establish.
-      if (existing?.status === "complete" && existing.crawledAt > staleBefore) continue;
+  let cursor = 0;
+  const claim = () => (attempted >= batchSize ? null : units[cursor++] ?? null);
 
-      attempted += 1;
-      const listing = platform.listing!;
-      const cityIds = await cityIdsFor(platform.id, listing, scope.industry);
+  const runOne = async (unit: { platform: (typeof platforms)[number]; scope: (typeof scopes)[number] }) => {
+    const { platform, scope } = unit;
+    if (refusing.has(platform.id)) return;
 
-      const { crawl, listings } = await crawlDirectory(platform, scope, {
-        fetcher,
-        listing,
-        now: nowIso,
-        newId: () => randomUUID(),
-        cityIds,
-        delayMs: PAGE_DELAY_MS,
-      });
+    const key = coverageKey({ platform: platform.id, ...scope });
+    const existing = await repos.directoryIndex.getCrawl(key);
+    // A completed, fresh index needs nothing. A failed one is retried, because
+    // the reason was often temporary and re-establishing a permanent failure
+    // costs one request.
+    if (existing?.status === "complete" && existing.crawledAt > staleBefore) return;
 
-      if (listings.length > 0) listingsWritten += await repos.directoryIndex.putListings(listings);
-      await repos.directoryIndex.recordCrawl(crawl);
+    attempted += 1;
+    const listing = platform.listing!;
+    const cityIds = await cityIdsFor(platform.id, listing, scope.industry);
 
-      if (crawl.status === "complete") {
-        completed += 1;
-      } else {
-        failedCount += 1;
-        // One example per platform is enough to diagnose without flooding.
-        if (failures.length < platforms.length * 2) {
-          failures.push(`${platform.id} ${scope.city}/${scope.industry}: ${crawl.detail}`);
-        }
+    const { crawl, listings, usedTemplate } = await crawlDirectory(platform, scope, {
+      fetcher,
+      listing,
+      now: nowIso,
+      newId: () => randomUUID(),
+      cityIds,
+      delayMs: PAGE_DELAY_MS,
+    });
+
+    if (listings.length > 0) listingsWritten += await repos.directoryIndex.putListings(listings);
+    await repos.directoryIndex.recordCrawl(crawl);
+
+    if (crawl.status === "complete") {
+      completed += 1;
+      if (usedTemplate) workingTemplates.set(platform.id, usedTemplate);
+    } else {
+      failedCount += 1;
+      if (/HTTP 429|HTTP 403|refused the request/.test(crawl.detail ?? "")) refusing.add(platform.id);
+      // A couple of examples per platform is enough to diagnose without
+      // flooding the log with the same message six hundred times.
+      if (failures.length < platforms.length * 2) {
+        failures.push(`${platform.id} ${scope.city}/${scope.industry}: ${crawl.detail}`);
       }
     }
-  }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, units.length) }, async () => {
+      for (;;) {
+        if (Date.now() - startedAt > WORK_DEADLINE_MS) return;
+        const unit = claim();
+        if (!unit) return;
+        try {
+          await runOne(unit);
+        } catch {
+          // One town blowing up must not take the batch with it. No crawl row
+          // is written, so it is simply picked up again next time.
+        }
+      }
+    })
+  );
 
   const [indexedListings, completeCrawls, failedCrawls] = await Promise.all([
     repos.directoryIndex.countListings(),
@@ -184,6 +239,10 @@ export async function GET(request: NextRequest) {
     failedCrawls,
     discoveryErrors,
     discoverySources,
+    // Which URL shape each platform is actually being served by, so the
+    // candidate lists in config can be trimmed to the proven answer.
+    workingTemplates: Object.fromEntries(workingTemplates),
+    refusedUs: [...refusing],
     failures,
     ms: Date.now() - startedAt,
   };

@@ -27,6 +27,8 @@ import {
 export interface CrawlResult {
   crawl: DirectoryCrawl;
   listings: DirectoryListing[];
+  /** The URL shape that worked, so a list of candidates can be trimmed to the answer. */
+  usedTemplate: string | null;
 }
 
 export interface CrawlScope {
@@ -58,14 +60,57 @@ export async function crawlDirectory(
   const failed = (detail: string, pagesRead = 0): CrawlResult => ({
     crawl: { ...base, status: "failed", listingsFound: 0, pagesRead, detail, crawledAt: deps.now },
     listings: [],
+    usedTemplate: null,
   });
 
   const cityId = deps.cityIds?.get(slugify(scope.city)) ?? null;
-  const firstUrl = listingUrlFor(deps.listing, { ...scope, cityId }, deps.listing.firstPage);
-  if (!firstUrl) {
-    return failed(
-      `No directory URL for ${scope.city} — ${platform.label} addresses towns by an id and this one has not been discovered.`
-    );
+
+  /**
+   * Which candidate URL shape actually works for this platform.
+   *
+   * Page one is fetched against each shape in turn until one yields profile
+   * links, and everything after that uses the winner. Only page one pays for
+   * the search: once a shape is known good, paging follows it directly.
+   */
+  let templateIndex = -1;
+  const firstPageAttempts: string[] = [];
+
+  for (let candidate = 0; candidate < deps.listing.urlTemplates.length; candidate += 1) {
+    const url = listingUrlFor(deps.listing, { ...scope, cityId }, deps.listing.firstPage, candidate);
+    if (!url) {
+      firstPageAttempts.push(
+        `shape ${candidate + 1}: no URL — ${platform.label} addresses towns by an id and ${scope.city}'s is unknown`
+      );
+      continue;
+    }
+
+    if (candidate > 0 && deps.delayMs) await sleep(deps.delayMs);
+    const probe = await deps.fetcher.fetchPage(url);
+
+    if (probe.error) {
+      firstPageAttempts.push(`${url} — ${probe.error}`);
+      continue;
+    }
+    if (probe.status === 403 || probe.status === 429) {
+      // A refusal is not a wrong URL, and trying the next shape would just be
+      // more traffic to somewhere already turning us away.
+      return failed(`${platform.label} refused the request (HTTP ${probe.status}).`, 1);
+    }
+    if (probe.status >= 400) {
+      firstPageAttempts.push(`${url} — HTTP ${probe.status}`);
+      continue;
+    }
+    if (extractCandidatesFromHtml(probe.html, probe.finalUrl, platform, 200).length === 0) {
+      firstPageAttempts.push(`${url} — 200 but no profile links in it`);
+      continue;
+    }
+
+    templateIndex = candidate;
+    break;
+  }
+
+  if (templateIndex === -1) {
+    return failed(`No working directory URL for ${scope.city}. Tried: ${firstPageAttempts.join(" | ")}`, 0);
   }
 
   const listings: DirectoryListing[] = [];
@@ -73,7 +118,7 @@ export async function crawlDirectory(
   let pagesRead = 0;
 
   for (let page = deps.listing.firstPage; page < deps.listing.firstPage + deps.listing.maxPages; page += 1) {
-    const url = listingUrlFor(deps.listing, { ...scope, cityId }, page);
+    const url = listingUrlFor(deps.listing, { ...scope, cityId }, page, templateIndex);
     if (!url) break;
 
     if (pagesRead > 0 && deps.delayMs) await sleep(deps.delayMs);
@@ -157,6 +202,7 @@ export async function crawlDirectory(
       crawledAt: deps.now,
     },
     listings,
+    usedTemplate: deps.listing.urlTemplates[templateIndex] ?? null,
   };
 }
 

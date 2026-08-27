@@ -28,6 +28,24 @@ export interface DirectoryPlatform {
   searchUrlTemplate: string;
   profilePathPattern: string;
   enabled: boolean;
+  /**
+   * Whether absence from this platform counts toward "no online booking".
+   *
+   * Two different jobs, and conflating them deadlocks the system. A platform
+   * we can read reliably makes a NONE stronger: not on Booksy AND not on
+   * Vagaro AND nothing on their own site is a real finding. But requiring
+   * every platform to be readable means adding a sixth one — or having one
+   * change its markup — stops every lead everywhere from ever resolving.
+   *
+   * So a platform can be crawled for what it positively tells us (found here,
+   * therefore they book online — a complete answer on its own) without being
+   * required for the negative. New and unproven platforms start this way and
+   * are promoted once they have crawled cleanly for a while.
+   *
+   * The evidence line on each lead names exactly which platforms were checked,
+   * so "no online booking" never has to be taken on trust about scope.
+   */
+  requiredForNone?: boolean;
 }
 
 /** One candidate listing, however it was found. */

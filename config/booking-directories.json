@@ -1,6 +1,6 @@
 {
   "description": "Booking platforms to look a business up on when their own website cannot answer the question. Answers the single most valuable fact about a prospect: are they already booking online? A business FOUND on one of these is a WORSE prospect \u2014 they have an incumbent \u2014 so a false positive here costs a good lead, and a false negative costs a wasted phone call.",
-  "verificationNote": "The per-business searchUrlTemplate values are DEAD and kept only for the paid-search fallback, which does not use them. The first real run proved they cannot work: these platforms publish town directories, not per-business search URLs, so every request returned 404. The `listing` block below is the live path \u2014 read one town's directory once and answer the question for every lead in it. Those URL shapes come from indexed pages (booksy.com/en-us/s/hair-salon/15889_miami, vagaro.com/listings/hair-salon/miami--fl) but the pagination and town-id patterns are still UNVERIFIED, and a crawl that cannot finish is recorded as failed rather than as an empty town.",
+  "verificationNote": "Booksy and Vagaro are PROVEN: both crawl cleanly against their live town directories, and their town-id and profile-URL patterns were confirmed by real runs. They are requiredForNone, meaning absence from both (plus nothing on the business's own website) is what licenses a 'no online booking' verdict. Square, StyleSeat and Fresha are crawled for what they can positively tell us \u2014 found there means they book online, which is a complete answer on its own \u2014 but are NOT requiredForNone, because their URL shapes are still candidates. An unproven platform must never be able to freeze every lead in the database by failing to answer. Promote one to requiredForNone once its crawls have been clean for a while. Each lead's evidence names the platforms actually searched, so the scope of a NONE never has to be taken on trust.",
   "matching": {
     "minimumNameSimilarity": 0.82,
     "requireCityMatch": true,
@@ -15,7 +15,6 @@
       "profilePathPattern": "/en-us/[0-9]+_",
       "enabled": true,
       "listing": {
-        "urlTemplate": "https://booksy.com/en-us/s/{industry}/{cityId}_{city}",
         "pageParam": "page",
         "firstPage": 1,
         "maxPages": 8,
@@ -30,8 +29,12 @@
             "/en-us/s/[a-z0-9-]+/(\\d+)_([a-z0-9-]+)",
             "/en-us/\\d+_[a-z0-9-]+_[a-z0-9-]+_(\\d+)_([a-z0-9-]+)"
           ]
-        }
-      }
+        },
+        "urlTemplates": [
+          "https://booksy.com/en-us/s/{industry}/{cityId}_{city}"
+        ]
+      },
+      "requiredForNone": true
     },
     {
       "id": "vagaro",
@@ -41,11 +44,15 @@
       "profilePathPattern": "^/[a-z0-9-]+$",
       "enabled": true,
       "listing": {
-        "urlTemplate": "https://www.vagaro.com/listings/{industry}/{city}--{state}",
         "pageParam": "page",
         "firstPage": 1,
-        "maxPages": 8
-      }
+        "maxPages": 8,
+        "urlTemplates": [
+          "https://www.vagaro.com/listings/{industry}/{city}--{state}",
+          "https://www.vagaro.com/listings/{city}--{state}/{industry}"
+        ]
+      },
+      "requiredForNone": true
     },
     {
       "id": "square",
@@ -53,13 +60,18 @@
       "domain": "squareup.com",
       "searchUrlTemplate": "https://squareup.com/appointments/search?q={query}",
       "profilePathPattern": "/appointments/book/",
-      "enabled": false,
+      "enabled": true,
       "listing": {
-        "urlTemplate": "https://squareup.com/appointments/book/{city}-{state}/{industry}",
         "pageParam": null,
         "firstPage": 1,
-        "maxPages": 1
-      }
+        "maxPages": 3,
+        "urlTemplates": [
+          "https://squareup.com/appointments/search/{city}-{state}/{industry}",
+          "https://squareup.com/appointments/book/{city}-{state}/{industry}",
+          "https://squareup.com/us/en/appointments/{industry}/{city}-{state}"
+        ]
+      },
+      "requiredForNone": false
     },
     {
       "id": "styleseat",
@@ -67,13 +79,18 @@
       "domain": "styleseat.com",
       "searchUrlTemplate": "https://www.styleseat.com/m/search?q={query}",
       "profilePathPattern": "^/m/v/",
-      "enabled": false,
+      "enabled": true,
       "listing": {
-        "urlTemplate": "https://www.styleseat.com/m/search/{city}-{state}/{industry}",
         "pageParam": "page",
         "firstPage": 1,
-        "maxPages": 4
-      }
+        "maxPages": 3,
+        "urlTemplates": [
+          "https://www.styleseat.com/m/search/{city}-{state}/{industry}",
+          "https://www.styleseat.com/{industry}/{state}/{city}",
+          "https://www.styleseat.com/m/l/{state}/{city}/{industry}"
+        ]
+      },
+      "requiredForNone": false
     },
     {
       "id": "fresha",
@@ -81,13 +98,18 @@
       "domain": "fresha.com",
       "searchUrlTemplate": "https://www.fresha.com/search?q={query}",
       "profilePathPattern": "^/a/",
-      "enabled": false,
+      "enabled": true,
       "listing": {
-        "urlTemplate": "https://www.fresha.com/a/{city}-{state}/{industry}",
         "pageParam": "page",
         "firstPage": 1,
-        "maxPages": 4
-      }
+        "maxPages": 3,
+        "urlTemplates": [
+          "https://www.fresha.com/a/{city}-{state}",
+          "https://www.fresha.com/s/{industry}/{city}-{state}",
+          "https://www.fresha.com/browse/{industry}/{city}-{state}"
+        ]
+      },
+      "requiredForNone": false
     },
     {
       "id": "glossgenius",

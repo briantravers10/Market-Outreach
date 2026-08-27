@@ -220,6 +220,8 @@ export interface BookingDirectoriesConfig {
     searchUrlTemplate: string;
     profilePathPattern: string;
     enabled: boolean;
+    /** Whether absence here counts toward "no online booking". Unproven platforms are crawled but not required. */
+    requiredForNone?: boolean;
     /** How this platform's town directory is addressed. Absent means it cannot be crawled. */
     listing?: ListingConfig;
   }[];

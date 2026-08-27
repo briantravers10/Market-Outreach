@@ -70,8 +70,19 @@ export interface DirectoryIndexRepository {
 
 /** How a platform's town directory is addressed. */
 export interface ListingConfig {
-  /** Placeholders: {industry} {city} {state} {cityId}. */
-  urlTemplate: string;
+  /**
+   * Candidate URL shapes for a town's directory, tried in order until one
+   * returns profile links.
+   *
+   * A list because a shape cannot be verified from anywhere except a machine
+   * that can reach the platform. Three of the five configured here were
+   * written blind and every one of them 404'd; guessing a replacement and
+   * shipping it as fact would repeat exactly that. Trying a few and reporting
+   * which worked lets the deployment settle it.
+   *
+   * Placeholders: {industry} {city} {state} {cityId}.
+   */
+  urlTemplates: string[];
   /** Query parameter for page 2 and beyond. Null when the directory is a single page. */
   pageParam: string | null;
   /** Page numbering starts here — some platforms are 0-based. */
@@ -174,12 +185,17 @@ export interface ListingUrlScope {
 export function listingUrlFor(
   config: ListingConfig,
   scope: ListingUrlScope,
-  page?: number
+  page?: number,
+  /** Which candidate shape to use. Out of range yields null, which ends the search. */
+  templateIndex = 0
 ): string | null {
-  const needsCityId = config.urlTemplate.includes("{cityId}");
+  const template = config.urlTemplates[templateIndex];
+  if (!template) return null;
+
+  const needsCityId = template.includes("{cityId}");
   if (needsCityId && !scope.cityId) return null;
 
-  const url = config.urlTemplate
+  const url = template
     .replace("{industry}", industrySlugFor(config, scope.industry))
     .replace("{city}", slugify(scope.city))
     .replace("{state}", scope.state.toLowerCase())

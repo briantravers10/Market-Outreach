@@ -55,6 +55,19 @@ export interface DirectoryMatchDeps {
   crawls?: DirectoryCrawl[];
 }
 
+/**
+ * Whether the platforms that must be searched actually were.
+ *
+ * Falls back to "at least one platform answered" when nothing is marked
+ * required, so a config with the flag missing everywhere still behaves like
+ * the previous version rather than silently never resolving anything.
+ */
+function requiredChecked(enabled: DirectoryPlatform[], checked: string[]): boolean {
+  const required = enabled.filter((p) => p.requiredForNone);
+  if (required.length === 0) return checked.length > 0;
+  return required.every((p) => checked.includes(p.label));
+}
+
 export async function matchAgainstDirectories(
   lead: Lead,
   deps: DirectoryMatchDeps
@@ -67,7 +80,18 @@ export async function matchAgainstDirectories(
     (await deps.index.crawlsFor({ city: lead.city, state: lead.state, industry: lead.industry }));
   const crawlById = new Map(crawls.map((c) => [c.id, c]));
 
+  /**
+   * Missing indexes that actually block an answer.
+   *
+   * Only platforms marked required count here. A bonus platform we could not
+   * read costs us a chance at a positive finding and nothing else — whereas
+   * treating it as blocking would mean one unreadable platform freezes every
+   * lead in the database, which is how "be careful" turns into "produce
+   * nothing".
+   */
   const missingIndexes: { platform: string; reason: string }[] = [];
+  /** Every unread platform, blocking or not, for the log. */
+  const unreadPlatforms: string[] = [];
   const checked: string[] = [];
   let listedOn: { platform: DirectoryPlatform; profileUrl: string; matchedName: string } | null = null;
 
@@ -90,7 +114,8 @@ export async function matchAgainstDirectories(
       checked.push(platform.label);
       continue;
     }
-    missingIndexes.push({ platform: platform.label, reason: verdict.reason });
+    unreadPlatforms.push(platform.label);
+    if (platform.requiredForNone) missingIndexes.push({ platform: platform.label, reason: verdict.reason });
   }
 
   const updated: Lead = { ...lead, dateLastResearched: deps.now, directoryCheckedAt: deps.now };
@@ -110,23 +135,26 @@ export async function matchAgainstDirectories(
     ];
     resolved = true;
     summary = `${lead.businessName}: already books via ${listedOn.platform.label} — a slower sale, not a dead one.`;
-  } else if (missingIndexes.length === 0 && checked.length > 0) {
+  } else if (missingIndexes.length === 0 && requiredChecked(enabled, checked)) {
     updated.onlineBookingStatus = "NONE";
     updated.bookingMethod = lead.instagram || lead.facebook ? "SOCIAL_DM" : "PHONE_ONLY";
     updated.analysisVersion = ANALYSIS_VERSION;
+    // Names the platforms actually searched. "No online booking" can never be
+    // checked everywhere, so the honest form of the claim is the list.
     updated.locationEvidence = [
       ...lead.locationEvidence,
-      `Not in the ${checked.join(" or ")} ${lead.industry.replace(/-/g, " ")} directory for ${lead.city}.`,
+      `Not listed on ${checked.join(" or ")} for ${lead.city} ${lead.industry.replace(/-/g, " ")}.`,
     ];
     resolved = true;
-    summary = `${lead.businessName}: no online booking anywhere we can see — a real prospect.`;
+    summary = `${lead.businessName}: not on ${checked.join(" or ")} — a real prospect.`;
   } else {
+    const blocking = missingIndexes.length > 0 ? missingIndexes.map((m) => m.platform) : unreadPlatforms;
     updated.locationEvidence = [
       ...lead.locationEvidence,
-      `Booking still unknown — no directory yet for ${missingIndexes.map((m) => m.platform).join(", ")} in ${lead.city}.`,
+      `Booking still unknown — no directory read yet for ${blocking.join(", ")} in ${lead.city}.`,
     ];
     resolved = false;
-    summary = `${lead.businessName}: still unknown — ${missingIndexes.length} directory not read.`;
+    summary = `${lead.businessName}: still unknown — waiting on ${blocking.join(", ")}.`;
   }
 
   // Re-scored only when something was learned. Scoring an unresolved lead

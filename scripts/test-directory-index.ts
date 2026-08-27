@@ -73,6 +73,7 @@ const BOOKSY: DirectoryPlatform = {
   searchUrlTemplate: "https://booksy.com/en-us/s/{query}",
   profilePathPattern: "/en-us/[0-9]+_",
   enabled: true,
+  requiredForNone: true,
 };
 
 const VAGARO: DirectoryPlatform = {
@@ -82,10 +83,11 @@ const VAGARO: DirectoryPlatform = {
   searchUrlTemplate: "https://www.vagaro.com/search?q={query}",
   profilePathPattern: "^/[a-z0-9-]+$",
   enabled: true,
+  requiredForNone: true,
 };
 
 const BOOKSY_LISTING: ListingConfig = {
-  urlTemplate: "https://booksy.com/en-us/s/{industry}/{cityId}_{city}",
+  urlTemplates: ["https://booksy.com/en-us/s/{industry}/{cityId}_{city}"],
   pageParam: "page",
   firstPage: 1,
   maxPages: 3,
@@ -99,7 +101,10 @@ const BOOKSY_LISTING: ListingConfig = {
 };
 
 const VAGARO_LISTING: ListingConfig = {
-  urlTemplate: "https://www.vagaro.com/listings/{industry}/{city}--{state}",
+  urlTemplates: [
+    "https://www.vagaro.com/listings/{industry}/{city}--{state}",
+    "https://www.vagaro.com/listings/{city}--{state}/{industry}",
+  ],
   pageParam: "page",
   firstPage: 1,
   maxPages: 3,
@@ -400,6 +405,53 @@ async function main(): Promise<void> {
     check("and nothing was even requested", fetcher.requested.length === 0, fetcher.requested.join(", "));
   }
 
+  {
+    // Falling through candidate shapes. The first shape 404s, the second
+    // works — which is precisely the situation three of the five configured
+    // platforms are in, and the reason the config holds candidates at all.
+    const alt = "https://www.vagaro.com/listings/miami--fl/hair-salon";
+    const fetcher = new StubFetcher({
+      [alt]: { html: `<a href="/bellahair">Bella Hair Studio</a>` },
+      [`${alt}?page=2`]: { status: 404, html: "" },
+    });
+    const { crawl: result, listings, usedTemplate } = await crawlDirectory(
+      VAGARO,
+      { city: "Miami", state: "FL", industry: "hair-salons" },
+      { fetcher, listing: VAGARO_LISTING, now: "2026-08-27T00:00:00.000Z", newId: nextId }
+    );
+    check("a second URL shape is tried when the first 404s", result.status === "complete", String(result.detail));
+    check("and its listings are kept", listings.length === 1, String(listings.length));
+    check(
+      "and the shape that worked is reported, so the guessing can end",
+      usedTemplate?.includes("{city}--{state}/{industry}") === true,
+      String(usedTemplate)
+    );
+  }
+
+  {
+    // Being refused stops the search rather than trying the other shapes.
+    // More requests to somewhere already turning us away is not diagnosis.
+    const fetcher = new StubFetcher({ [VAGARO_MIAMI]: { status: 429, html: "" } });
+    const { crawl: result } = await crawlDirectory(
+      VAGARO,
+      { city: "Miami", state: "FL", industry: "hair-salons" },
+      { fetcher, listing: VAGARO_LISTING, now: "2026-08-27T00:00:00.000Z", newId: nextId }
+    );
+    check("a 429 stops the shape search instead of hammering them", fetcher.requested.length === 1, fetcher.requested.join(", "));
+    check("and the crawl fails rather than looking empty", result.status === "failed");
+  }
+
+  {
+    const fetcher = new StubFetcher({});
+    const { crawl: result } = await crawlDirectory(
+      VAGARO,
+      { city: "Nowhere", state: "FL", industry: "hair-salons" },
+      { fetcher, listing: VAGARO_LISTING, now: "2026-08-27T00:00:00.000Z", newId: nextId }
+    );
+    check("every shape failing is a failure that lists what was tried", result.status === "failed");
+    check("naming each URL", (result.detail ?? "").split("|").length >= 2, String(result.detail));
+  }
+
   section("Looking a business up in an index");
 
   {
@@ -492,6 +544,99 @@ async function main(): Promise<void> {
       result.lead.directoryCheckedAt === matchDeps.now,
       "without the stamp the queue re-runs the same leads forever, ahead of ones nobody has tried"
     );
+  }
+
+  section("An unproven platform cannot freeze everything");
+
+  {
+    // The deadlock this exists to prevent: add a platform whose URL shape is
+    // still a guess, and if it counted toward the negative, one unreadable
+    // platform would stop every lead in the database from ever resolving.
+    const SQUARE: DirectoryPlatform = {
+      id: "square",
+      label: "Square Appointments",
+      domain: "squareup.com",
+      searchUrlTemplate: "https://squareup.com/x",
+      profilePathPattern: "/appointments/book/",
+      enabled: true,
+      requiredForNone: false,
+    };
+
+    const repo = makeRepo();
+    await repo.recordCrawl(crawl({ platform: "booksy" }));
+    await repo.recordCrawl(
+      crawl({ platform: "vagaro", id: coverageKey({ platform: "vagaro", city: "Miami", state: "FL", industry: "hair-salons" }) })
+    );
+    // Square never crawled.
+    const result = await matchAgainstDirectories(lead(), {
+      ...matchDeps,
+      platforms: [BOOKSY, VAGARO, SQUARE],
+      index: repo,
+    });
+    check(
+      "an unread BONUS platform does not block the answer",
+      result.lead.onlineBookingStatus === "NONE",
+      result.lead.onlineBookingStatus
+    );
+    check(
+      "and the evidence names only what was actually searched",
+      result.lead.locationEvidence.some((e) => e.includes("Booksy") && e.includes("Vagaro") && !e.includes("Square")),
+      result.lead.locationEvidence.join(" | ")
+    );
+
+    // But a required one still does.
+    const repo2 = makeRepo();
+    await repo2.recordCrawl(crawl({ platform: "booksy" }));
+    const blocked = await matchAgainstDirectories(lead(), {
+      ...matchDeps,
+      platforms: [BOOKSY, VAGARO, SQUARE],
+      index: repo2,
+    });
+    check(
+      "an unread REQUIRED platform still blocks it",
+      blocked.lead.onlineBookingStatus === "UNKNOWN",
+      blocked.lead.onlineBookingStatus
+    );
+  }
+
+  {
+    // A bonus platform still gives a complete answer when it FINDS someone.
+    const SQUARE: DirectoryPlatform = {
+      id: "square",
+      label: "Square Appointments",
+      domain: "squareup.com",
+      searchUrlTemplate: "https://squareup.com/x",
+      profilePathPattern: "^/appointments/book/",
+      enabled: true,
+      requiredForNone: false,
+    };
+    const repo = makeRepo();
+    await repo.recordCrawl(
+      crawl({ platform: "square", id: coverageKey({ platform: "square", city: "Miami", state: "FL", industry: "hair-salons" }) })
+    );
+    await repo.putListings([
+      { ...listing("Bella Hair Studio", "https://squareup.com/appointments/book/bella", "square") },
+    ]);
+    const result = await matchAgainstDirectories(lead(), {
+      ...matchDeps,
+      platforms: [SQUARE, BOOKSY],
+      index: repo,
+    });
+    check("being found on a bonus platform settles it outright", result.resolved);
+    check("and names that platform", result.lead.bookingProvider === "Square Appointments", String(result.lead.bookingProvider));
+  }
+
+  {
+    // Config with the flag missing everywhere must behave like the old
+    // version rather than silently never resolving anything.
+    const repo = makeRepo();
+    const noFlags = [{ ...BOOKSY, requiredForNone: undefined }, { ...VAGARO, requiredForNone: undefined }];
+    await repo.recordCrawl(crawl({ platform: "booksy" }));
+    await repo.recordCrawl(
+      crawl({ platform: "vagaro", id: coverageKey({ platform: "vagaro", city: "Miami", state: "FL", industry: "hair-salons" }) })
+    );
+    const result = await matchAgainstDirectories(lead(), { ...matchDeps, platforms: noFlags, index: repo });
+    check("a config with no required flags still resolves", result.resolved);
   }
 
   section("The index survives a re-crawl");
