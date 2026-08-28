@@ -1209,6 +1209,17 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
     flex-direction: row;
     align-items: center;
     gap: 4px;
+    /*
+      Both of these undo desktop rules, and forgetting them was the whole bug.
+      The column sidebar is `height: 100vh` so it fills the window beside the
+      content; left in place on a row it became a nav bar as tall as the entire
+      phone screen, with its links floating in the middle of it and every
+      actual page pushed a full screen below the fold. `overflow-y: auto` has
+      to go too — a row that scrolls vertically eats the horizontal scroll the
+      nav needs.
+    */
+    height: auto;
+    overflow-y: visible;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-right: none;
@@ -1221,7 +1232,8 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
   }
 
   .sidebar-brand { padding: 0 10px 0 2px; flex-shrink: 0; }
-  .sidebar-section { display: flex; flex-direction: row; gap: 4px; flex-shrink: 0; }
+  /* The 18px column gap between nav groups is vertical furniture in a row. */
+  .sidebar-section { display: flex; flex-direction: row; gap: 4px; flex-shrink: 0; margin-bottom: 0; }
   .sidebar-link { white-space: nowrap; padding: 6px 10px; }
   /* The "Not live" caption and the signed-in footer are both vertical-layout
      furniture with nowhere sensible to go in a single row. */
@@ -1549,4 +1561,62 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
   .col-optional { display: none; }
   table { font-size: 12.5px; }
   th, td { padding-left: 8px; padding-right: 8px; }
+}
+
+/* --------------------------------------------------------------------------
+   Filters: a panel on a phone, a bar on a laptop
+   --------------------------------------------------------------------------
+   Ten fields stacked one per row is roughly fifteen hundred pixels before the
+   first lead, so a phone showed a wall of empty dropdowns and no businesses.
+   <details> collapses it natively — no JavaScript, works before hydration —
+   and above the breakpoint the disclosure is forced open and its summary
+   hidden, so nothing changes on a desktop.
+   -------------------------------------------------------------------------- */
+.filter-summary {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .filter-shell {
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
+    margin-bottom: 14px;
+  }
+  .filter-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    list-style: none;
+  }
+  .filter-summary::-webkit-details-marker { display: none; }
+  /* A caret that turns, so the control reads as a disclosure rather than a heading. */
+  .filter-summary::after {
+    content: "";
+    margin-left: auto;
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid var(--text-dim);
+    border-bottom: 1.5px solid var(--text-dim);
+    transform: rotate(45deg);
+    transition: transform 120ms ease;
+  }
+  .filter-shell[open] .filter-summary::after { transform: rotate(-135deg); }
+  .filter-summary-count {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent);
+    border: 1px solid var(--accent-line);
+    border-radius: 999px;
+    padding: 1px 7px;
+  }
+  .filter-shell .filter-bar { padding: 0 14px 14px; }
+  /* Two per row rather than one: a phone fits them, and halving the height is
+     the difference between scrolling past the filters and scrolling through them. */
+  .filter-field { min-width: 0; flex: 1 1 calc(50% - 6px); }
 }

@@ -149,6 +149,17 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     leads = leads.filter((l) => l.businessName.toLowerCase().includes(q));
   }
 
+  /**
+   * Whether any filter is actually set.
+   *
+   * Drives whether the collapsed filter panel starts open on a phone: arriving
+   * at a filtered view with the filters hidden makes the result look like the
+   * whole list, which is worse than the scrolling it saves.
+   */
+  const FILTER_KEYS = ["q", "state", "city", "zip", "industry", "minScore", "websiteStatus", "onlineBookingStatus", "bookingProvider", "minStaffCount", "dataConfidence", "researchStatus", "qualificationStatus"] as const;
+  const activeFilterCount = FILTER_KEYS.filter((key) => Boolean(params[key])).length;
+  const hasActiveFilter = activeFilterCount > 0;
+
   // Paging must preserve every filter and change only the page number.
   const pageHref = (target: number) => {
     const query = new URLSearchParams();
@@ -226,6 +237,20 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </div>
       )}
 
+      {/*
+        Collapsible on a phone, always open on a laptop.
+        Ten filter fields stacked one per row is about fifteen hundred pixels
+        before the first lead — so a phone showed a wall of empty dropdowns and
+        no businesses at all, which is not a filter bar, it is a barrier. The
+        <details> element does this natively: no JavaScript, works before
+        hydration, and the `open` attribute is simply ignored once the CSS
+        forces it open above the breakpoint.
+      */}
+      <details className="filter-shell" open={hasActiveFilter}>
+        <summary className="filter-summary">
+          Filters &amp; sorting
+          {hasActiveFilter && <span className="filter-summary-count">{activeFilterCount} on</span>}
+        </summary>
       <form className="filter-bar" method="get">
         <div className="filter-field">
           <label>Search</label>
@@ -303,6 +328,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         <ExportCsvLink params={{ ...params }} />
         <Link href="/high-priority" className="btn-ghost" style={{ display: "inline-flex", alignItems: "center" }}>80+ only →</Link>
       </form>
+      </details>
 
       <div className="panel">
         <h2>
