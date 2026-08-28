@@ -20,3 +20,10 @@ SECRETS.local.md
 
 __pycache__/
 *.pyc
+
+# Stray database files a local `next start` writes when it resolves a relative
+# data path from a different working directory. They are a copy of data/demo.db
+# and were committed once by a `git add -A`; 950KB of noise in the history.
+/home/
+*.db-wal
+*.db-shm
