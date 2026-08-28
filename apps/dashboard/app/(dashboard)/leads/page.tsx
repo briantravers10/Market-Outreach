@@ -312,11 +312,12 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <thead>
             <tr>
               <th>Business</th>
+              <th className="col-phone">Phone</th>
               <th>City</th>
-              <th>ZIP</th>
-              <th>Industry</th>
+              <th className="col-optional">ZIP</th>
+              <th className="col-optional">Industry</th>
               <th>Score</th>
-              <th>Confidence</th>
+              <th className="col-optional">Confidence</th>
               <th>Website</th>
               <th>Booking</th>
               <th>
@@ -328,11 +329,22 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             {leads.map((lead) => (
               <tr key={lead.id}>
                 <td><Link href={`/leads/${lead.id}`}>{lead.businessName}</Link></td>
+                <td className="col-phone">
+                  {lead.phone ? (
+                    // Tappable, because the point of this column on a phone is
+                    // to ring the business without transcribing the number.
+                    <a href={`tel:${lead.phone.replace(/[^0-9+]/g, "")}`} className="field-link mono">
+                      {lead.phone}
+                    </a>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
                 <td>{lead.city}</td>
-                <td className="muted">{lead.zip}</td>
-                <td>{industryLabels.get(lead.industry) ?? lead.industry}</td>
+                <td className="muted col-optional">{lead.zip}</td>
+                <td className="col-optional">{industryLabels.get(lead.industry) ?? lead.industry}</td>
                 <td><ScorePill score={lead.prospectScore} /></td>
-                <td><ConfidenceBadge level={lead.dataConfidence} /></td>
+                <td className="col-optional"><ConfidenceBadge level={lead.dataConfidence} /></td>
                 <td className="muted">{lead.websiteStatus === "NONE" ? "No website" : "Has website"}</td>
                 <td className="muted">
                   {lead.onlineBookingStatus === "UNKNOWN"
@@ -362,7 +374,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             ))}
             {leads.length === 0 && (
               <tr>
-                <td colSpan={9} className="empty-state">
+                <td colSpan={10} className="empty-state">
                   {checked ? (
                     /* Not an error either — nobody has checked anything by
                        hand yet, which is the normal state until someone does. */

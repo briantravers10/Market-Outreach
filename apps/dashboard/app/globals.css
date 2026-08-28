@@ -1515,3 +1515,38 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
   color: var(--accent);
   border-color: var(--accent-line);
 }
+
+/* --------------------------------------------------------------------------
+   Phone numbers you can actually ring
+   --------------------------------------------------------------------------
+   A number rendered as plain text is one you have to read off the screen and
+   type into a dialler. Standing outside a salon, that is the difference
+   between a tool and a spreadsheet.
+   -------------------------------------------------------------------------- */
+.field-link {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent-line);
+}
+.field-link:hover { border-bottom-color: var(--accent); }
+
+/* Tap targets big enough to hit while walking. */
+@media (hover: none) {
+  td .field-link { display: inline-block; padding: 6px 0; }
+}
+
+/* --------------------------------------------------------------------------
+   Leads table on a phone
+   --------------------------------------------------------------------------
+   Ten columns cannot fit, and a table that scrolls sideways hides the columns
+   that decide anything. So the ones that are filters rather than decisions —
+   ZIP, industry, confidence — are dropped below the breakpoint, leaving who
+   they are, how to ring them, where they are, how good they look, and whether
+   they already book online. All of them remain in the filter bar and on the
+   lead itself.
+   -------------------------------------------------------------------------- */
+@media (max-width: 720px) {
+  .col-optional { display: none; }
+  table { font-size: 12.5px; }
+  th, td { padding-left: 8px; padding-right: 8px; }
+}

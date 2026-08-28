@@ -59,8 +59,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               value={lead.address ? `${lead.address}, ${lead.city}, ${lead.state} ${lead.zip}` : "No fixed address (mobile)"}
             />
             <Field label="Service Area" value={lead.serviceArea ?? (lead.address ? "—" : "UNKNOWN")} />
-            <Field label="Phone" value={lead.phone ?? "UNKNOWN"} />
-            <Field label="Email" value={lead.email ?? "UNKNOWN"} />
+            <Field
+              label="Phone"
+              value={lead.phone ?? "UNKNOWN"}
+              href={lead.phone ? `tel:${lead.phone.replace(/[^0-9+]/g, "")}` : null}
+            />
+            <Field
+              label="Email"
+              value={lead.email ?? "UNKNOWN"}
+              href={lead.email ? `mailto:${lead.email}` : null}
+            />
             <Field label="Website" value={lead.website ?? "UNKNOWN"} />
             <Field label="Services" value={lead.services.length ? lead.services.join(", ") : "UNKNOWN"} />
           </div>
@@ -233,11 +241,22 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value, href }: { label: string; value: string; href?: string | null }) {
   return (
     <div className="field-item">
       <div className="field-label">{label}</div>
-      <div className="field-value">{value}</div>
+      <div className="field-value">
+        {href ? (
+          // A phone number that has to be read off the screen and typed into a
+          // dialler is not a phone number you can use standing outside the
+          // business. This is the single thing this page is for on a phone.
+          <a href={href} className="field-link">
+            {value}
+          </a>
+        ) : (
+          value
+        )}
+      </div>
     </div>
   );
 }
