@@ -554,6 +554,60 @@ async function main() {
   check("each tool has a schema", apiTools.every((t) => t.input_schema?.type === "object"));
   check("each tool has a description", apiTools.every((t) => (t.description?.length ?? 0) > 20));
   const prompt = buildSystemPrompt(null);
+
+  section("What the Manager is told about its own deployment");
+
+  {
+    /**
+     * The bug this pins. The prompt used to assert, as a constant, that "all
+     * business data in this system is synthetic test data". That was true when
+     * written. By the time seventy-seven thousand real businesses with real
+     * phone numbers had been imported it was an instruction to tell the owner
+     * his live leads were fake — and nothing would have caught it, because a
+     * prompt has no types and no tests unless someone writes them.
+     */
+    const live = buildSystemPrompt(null, { dataIsReal: true });
+    check("a live deployment is told its businesses are real", live.includes("REAL"), "");
+    check("and is forbidden from calling them test data", live.includes("Never call them samples"), "");
+    check("with no leftover claim that the data is synthetic", !live.includes("synthetic"), "");
+
+    const demo = buildSystemPrompt(null, { dataIsReal: false });
+    check("the public demo is still told its data is invented", demo.includes("invented"), "");
+  }
+
+  {
+    // The same shape of claim, one step ahead of it becoming false.
+    const cannotSend = buildSystemPrompt(null, { canReachBusinesses: false });
+    check(
+      "with no provider it is told plainly that it cannot contact anyone",
+      cannotSend.includes("nothing here can contact a business"),
+      ""
+    );
+    const canSend = buildSystemPrompt(null, { canReachBusinesses: true });
+    check("once a provider exists it is told sending reaches a real business", canSend.includes("reaches a real business"), "");
+    check("and that approval is required first", canSend.includes("without explicit approval"), "");
+    check(
+      "the cautious default applies when nothing is stated",
+      buildSystemPrompt(null).includes("nothing here can contact a business"),
+      "an assistant that wrongly thinks it cannot send is harmless; the reverse is not"
+    );
+  }
+
+  {
+    const renamed = buildSystemPrompt(null, { assistantName: "Aoife" });
+    check("the assistant is addressed by whatever the owner named it", renamed.startsWith("You are Aoife"), renamed.slice(0, 40));
+    check("and falls back to Manager when unnamed", buildSystemPrompt(null).startsWith("You are Manager"), "");
+  }
+
+  section("How the Manager is told to speak");
+
+  check("it is told to lead with the answer", prompt.includes("Lead with the answer"), "");
+  check("it is banned from the customer-service opener", prompt.includes("How can I assist you"), "");
+  check("it is told to resolve references from context", prompt.toLowerCase().includes("those leads"), "");
+  check("it is told to take corrections", prompt.includes("No, I meant Florida"), "");
+  check("it is told a follow-up need not repeat the question", prompt.includes("What about yesterday"), "");
+  check("it is told to ask only when it genuinely cannot act", prompt.includes("only when you genuinely cannot act"), "");
+
   check("the system prompt forbids inventing data", /never invent/i.test(prompt));
   check("the system prompt states outreach is disabled", /outreach/i.test(prompt));
   check("the system prompt lists the real roster", /scout/i.test(prompt) && /qualifier/i.test(prompt));

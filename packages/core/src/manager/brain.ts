@@ -394,15 +394,57 @@ export interface AnthropicResponse {
 
 const DEFAULT_MODEL = "claude-sonnet-4-5";
 
-export function buildSystemPrompt(focusAgentId: AgentId | null): string {
+/**
+ * What the Manager needs to know about its own deployment.
+ *
+ * Passed in rather than assumed, because two of these were previously asserted
+ * as constants and one of them had become false. The prompt told the model
+ * "all business data in this system is synthetic test data" — true when it was
+ * written, and by the time seventy-seven thousand real businesses with real
+ * phone numbers had been imported, an instruction to tell the owner his live
+ * leads were fake.
+ */
+export interface ManagerContext {
+  /** What the owner has named the assistant. Spoken and written. */
+  assistantName?: string;
+  /** True once an email or SMS provider is configured. */
+  canReachBusinesses?: boolean;
+  /** False on the public demo snapshot, true on a deployment holding real imports. */
+  dataIsReal?: boolean;
+}
+
+export function buildSystemPrompt(focusAgentId: AgentId | null, context: ManagerContext = {}): string {
   const roster = getAgentConfigs()
     .map((a) => `- ${a.name} (${a.id}): ${a.description}${a.disabled ? " [DISABLED]" : ""}`)
     .join("\n");
 
+  const name = context.assistantName?.trim() || "Manager";
+
   return [
-    "You are the Manager of a small AI prospecting team inside an internal tool.",
-    "You speak like a competent, calm executive assistant: concise, professional, never chatty or salesy.",
-    "Your replies are often read aloud, so keep them short and free of markdown, bullets and symbols.",
+    `You are ${name}, running a small prospecting team inside the owner's own tool.`,
+    "You are talking to the owner, usually out loud. Talk like a sharp colleague who already knows the business,",
+    "not like a customer-service bot.",
+    "",
+    "How to talk:",
+    "- Lead with the answer. The number or the fact first, context after, and only if it helps.",
+    "- Two or three sentences unless more is asked for. If he wants detail he will ask, and then give it properly.",
+    "- No markdown, bullets, headings or symbols. This is read aloud.",
+    "- Never open with 'How can I assist you' or any variant. Never offer help he did not ask for.",
+    "- Do not restate his question back to him before answering it.",
+    "- Vary your phrasing. Repeating the same opener every turn is what makes an assistant feel like a machine.",
+    "- Plain words. 'Found', not 'successfully identified'. 'Nothing yet', not 'no results are currently available'.",
+    "",
+    "Holding the thread:",
+    "- The conversation so far is above. Use it. 'What about yesterday' after a question about today means the",
+    "  same question, different day — do not ask him to repeat himself.",
+    "- Resolve references from context: 'those leads', 'that report', 'the second one', 'him', 'her', 'that agent',",
+    "  'the ones in Miami'. If the reference is genuinely ambiguous, ask which one — but only then.",
+    "- Take corrections without ceremony. 'No, I meant Florida' means redo it for Florida; say what changed, briefly,",
+    "  and do not apologise at length.",
+    "- Informal, clipped and half-finished sentences are normal speech. Work out what he meant.",
+    "- He may change the subject without warning. Follow him; do not drag the old topic along.",
+    "- Ask a clarifying question only when you genuinely cannot act. A reasonable assumption stated out loud beats",
+    "  a question that stops the conversation.",
     "",
     "Your team:",
     roster,
@@ -415,8 +457,12 @@ export function buildSystemPrompt(focusAgentId: AgentId | null): string {
     "- Never invent numbers, names, leads or results. Every fact you state must come from a tool result.",
     "- If no tool fits, say what you can do instead. Do not improvise an answer about platform data.",
     "- Distinguish permanent instructions ('from now on') from temporary ones ('for today'). If it is ambiguous, choose temporary and say so.",
-    "- This system performs no outreach of any kind. If asked to contact a business, decline and explain that outreach is not enabled.",
-    "- All business data in this system is synthetic test data. Never imply otherwise.",
+    context.canReachBusinesses
+      ? "- Sending email or SMS reaches a real business. Never send without explicit approval, and say what will go to whom before asking."
+      : "- No email or SMS provider is configured, so nothing here can contact a business. If asked to, say that plainly rather than pretending to send.",
+    context.dataIsReal === false
+      ? "- This deployment is a read-only demo and every business in it is invented. Never imply the data is real."
+      : "- The businesses in this system are REAL, with real phone numbers and addresses, imported from published open data. Never call them samples, test data or examples.",
   ].join("\n");
 }
 
@@ -463,13 +509,19 @@ export class ClaudeManagerBrain implements ManagerBrain {
   constructor(
     private readonly apiKey: string,
     private readonly transport: AnthropicTransport = fetchTransport,
-    private readonly model: string = DEFAULT_MODEL
+    private readonly model: string = DEFAULT_MODEL,
+    /**
+     * What this deployment actually is. Defaults are deliberately the cautious
+     * ones: an assistant that wrongly believes it cannot send is harmless,
+     * whereas one that wrongly believes it can is not.
+     */
+    private readonly context: ManagerContext = {}
   ) {}
 
   buildRequest(request: BrainRequest) {
     return {
       max_tokens: 1024,
-      system: buildSystemPrompt(request.focusAgentId),
+      system: buildSystemPrompt(request.focusAgentId, this.context),
       tools: toolsForApi(),
       messages: [
         ...request.history.map((h) => ({
@@ -606,11 +658,14 @@ export interface BrainDescription {
  * functional for the request shapes the rule router covers, which is the point
  * of keeping competence in the tools.
  */
-export function selectBrain(env: NodeJS.ProcessEnv = process.env): BrainDescription {
+export function selectBrain(
+  env: NodeJS.ProcessEnv = process.env,
+  context: ManagerContext = {}
+): BrainDescription {
   const key = env.ANTHROPIC_API_KEY?.trim();
   if (key) {
     return {
-      brain: new ClaudeManagerBrain(key, fetchTransport, env.ANTHROPIC_MODEL?.trim() || DEFAULT_MODEL),
+      brain: new ClaudeManagerBrain(key, fetchTransport, env.ANTHROPIC_MODEL?.trim() || DEFAULT_MODEL, context),
       name: "claude",
       detail: "Claude is interpreting your requests, so phrasing can be free-form.",
       usingLlm: true,

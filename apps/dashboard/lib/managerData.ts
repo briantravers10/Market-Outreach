@@ -2,6 +2,7 @@ import "server-only";
 import {
   AiManager,
   selectBrain,
+  type ManagerContext,
   DeterministicCommandParser,
   CommsService,
   ContactResolver,
@@ -10,7 +11,7 @@ import {
   TwilioSmsProvider,
   type BrainDescription,
 } from "@market-outreach/core";
-import { getManager, getRepos } from "./data";
+import { getIntegrationStatus, getManager, getRepos } from "./data";
 import { isDemoMode } from "./demo";
 
 /**
@@ -41,12 +42,36 @@ export function getPipedriveReader(): PipedriveReader {
   return new PipedriveReader();
 }
 
-export function getAiManager(): AiManager {
+/**
+ * What this deployment actually is, for the Manager's own prompt.
+ *
+ * Assembled from the same functions the rest of the dashboard uses rather than
+ * asserted, because these facts change underneath the code. The prompt used to
+ * state as a constant that all business data was synthetic; that stopped being
+ * true the moment the first real import ran, and there was nothing to notice.
+ *
+ * Read synchronously so the assistant's own name is available wherever a brain
+ * is built. The voice settings are read separately and asynchronously by the
+ * layout; the name is duplicated here rather than awaited so that constructing
+ * a brain never becomes an async operation.
+ */
+function managerContext(assistantName?: string): ManagerContext {
+  const integrations = getIntegrationStatus();
+  return {
+    assistantName,
+    canReachBusinesses: integrations.email.ready || integrations.sms.ready,
+    // The public demo opens a read-only snapshot of invented businesses.
+    // Anything else is holding real imports.
+    dataIsReal: !isDemoMode,
+  };
+}
+
+export function getAiManager(assistantName?: string): AiManager {
   const repos = getRepos();
   const pipedrive = getPipedriveReader();
   return new AiManager({
     repos,
-    brain: selectBrain().brain,
+    brain: selectBrain(process.env, managerContext(assistantName)).brain,
     manager: getManager(),
     commandParser: new DeterministicCommandParser(),
     comms: getComms(),
@@ -68,6 +93,6 @@ export function getAiManager(): AiManager {
  * a language model or a pattern matcher — the difference changes how they
  * should phrase things.
  */
-export function getBrainDescription(): BrainDescription {
-  return selectBrain();
+export function getBrainDescription(assistantName?: string): BrainDescription {
+  return selectBrain(process.env, managerContext(assistantName));
 }

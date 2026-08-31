@@ -130,7 +130,7 @@ export {
   resetAcknowledgements,
   numbersAreGrounded,
 } from "./manager/brain";
-export type { ManagerBrain, BrainPlan, BrainRequest, BrainDescription, AnthropicTransport, AnthropicResponse, NarrationRequest } from "./manager/brain";
+export type { ManagerBrain, BrainPlan, BrainRequest, BrainDescription, AnthropicTransport, AnthropicResponse, NarrationRequest, ManagerContext } from "./manager/brain";
 
 export { MANAGER_TOOLS, findTool, requiresApproval, resolveAgentId } from "./manager/tools";
 export type { ManagerTool, ToolContext, ToolResult } from "./manager/tools";

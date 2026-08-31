@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getAiManager, getBrainDescription } from "./managerData";
-import { getRepos } from "./data";
+import { getRepos, getVoiceSettings } from "./data";
 import { isDemoMode } from "./demo";
 
 /**
@@ -46,8 +46,23 @@ function revalidateManagerViews(): void {
   }
 }
 
+/**
+ * The assistant's own name, for the prompt.
+ *
+ * Read here rather than threaded through every caller: the name is a display
+ * and prompt concern, not part of any action's contract, and a failure to read
+ * it must never stop a message being answered.
+ */
+async function assistantName(): Promise<string | undefined> {
+  try {
+    return (await getVoiceSettings()).assistantName;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function sendManagerMessage(text: string, conversationId?: string): Promise<ChatReply> {
-  const brain = getBrainDescription();
+  const brain = getBrainDescription(await assistantName());
   const trimmed = text.trim();
 
   if (!trimmed) {
@@ -62,7 +77,7 @@ export async function sendManagerMessage(text: string, conversationId?: string):
   }
 
   try {
-    const manager = getAiManager();
+    const manager = getAiManager(await assistantName());
     const turn = await manager.handle(trimmed, conversationId);
 
     // The demo database is read-only, so a consequential action could never
@@ -102,7 +117,7 @@ export async function sendManagerMessage(text: string, conversationId?: string):
 }
 
 export async function approveManagerAction(actionId: string): Promise<ChatReply> {
-  const brain = getBrainDescription();
+  const brain = getBrainDescription(await assistantName());
   if (isDemoMode) {
     return {
       conversationId: "",
@@ -114,7 +129,7 @@ export async function approveManagerAction(actionId: string): Promise<ChatReply>
     };
   }
 
-  const result = await getAiManager().approve(actionId);
+  const result = await getAiManager(await assistantName()).approve(actionId);
   revalidateManagerViews();
   if (!result) {
     return {
@@ -137,7 +152,7 @@ export async function approveManagerAction(actionId: string): Promise<ChatReply>
 }
 
 export async function rejectManagerAction(actionId: string): Promise<ChatReply> {
-  const brain = getBrainDescription();
+  const brain = getBrainDescription(await assistantName());
   if (isDemoMode) {
     return {
       conversationId: "",
