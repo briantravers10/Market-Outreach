@@ -32,7 +32,8 @@
     "test-manager": "npx tsx scripts/test-manager.ts",
     "test-queues": "npx tsx scripts/test-queues.ts",
     "test-directory-index": "npx tsx scripts/test-directory-index.ts",
-    "test-verification": "npx tsx scripts/test-verification.ts"
+    "test-verification": "npx tsx scripts/test-verification.ts",
+    "test-voice": "npx tsx scripts/test-voice.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3",

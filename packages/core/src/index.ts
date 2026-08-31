@@ -242,6 +242,33 @@ export { lookupBookingDirectories } from "./workers/directoryLookupWorker";
 export type { DirectoryLookupResult } from "./workers/directoryLookupWorker";
 export { ANALYSIS_VERSION, assessReadiness, describeHoldReason, describeHoldRemedy } from "./scoring/readiness";
 export {
+  VOICE_PROFILES,
+  DEFAULT_VOICE_PROFILE_ID,
+  findVoiceProfile,
+  resolveVoice,
+  describeAvailability,
+} from "./manager/voiceProfiles";
+export type {
+  VoiceProfile,
+  VoiceAccent,
+  VoiceGender,
+  InstalledVoice,
+  VoiceResolution,
+  VoiceMatchQuality,
+} from "./manager/voiceProfiles";
+export {
+  VOICE_SETTINGS_KEY,
+  DEFAULT_VOICE_SETTINGS,
+  MIN_RATE,
+  MAX_RATE,
+  parseVoiceSettings,
+  voiceSettingsFromForm,
+  serialiseVoiceSettings,
+  greetingFor,
+} from "./manager/voiceSettings";
+export type { VoiceSettings } from "./manager/voiceSettings";
+
+export {
   applyVerification,
   bookingStatusFor,
   isHumanVerified,
