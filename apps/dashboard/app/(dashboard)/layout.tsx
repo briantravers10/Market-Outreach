@@ -1,7 +1,7 @@
 import { Sidebar } from "../../components/Sidebar";
 import { ManagerAssistant } from "../../components/manager/ManagerAssistant";
 import { isDemoMode } from "../../lib/demo";
-import { getIntegrationStatus } from "../../lib/data";
+import { getIntegrationStatus, getVoiceSettings } from "../../lib/data";
 import { getCurrentUser } from "../../lib/authActions";
 import { getAuthConfig } from "../../lib/authConfig";
 
@@ -13,6 +13,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const user = await getCurrentUser();
   const authConfig = getAuthConfig();
   const integrations = getIntegrationStatus();
+  const voiceSettings = await getVoiceSettings();
   const canSend = integrations.email.ready || integrations.sms.ready;
 
   return (
@@ -70,7 +71,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </div>
       {/* Available on every dashboard page — the Manager is the primary interface,
           not a page you have to navigate to. */}
-      <ManagerAssistant demoMode={isDemoMode} />
+      <ManagerAssistant voiceSettings={voiceSettings} demoMode={isDemoMode} />
     </>
   );
 }

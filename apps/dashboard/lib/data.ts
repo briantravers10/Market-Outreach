@@ -1,5 +1,8 @@
 import "server-only";
 import {
+  DEFAULT_VOICE_SETTINGS,
+  VOICE_SETTINGS_KEY,
+  parseVoiceSettings,
   ResendEmailProvider,
   TwilioSmsProvider,
   ProspectingManager,
@@ -15,6 +18,7 @@ import {
   getPipedriveConfig,
   describePipedriveMode,
   buildHandoff,
+  type VoiceSettings,
 } from "@market-outreach/core";
 import { createRepositories } from "@market-outreach/db";
 
@@ -63,6 +67,23 @@ export function getCrmMode() {
  * account looked like a rehearsal. A label that asserts a state instead of
  * reading it is a lie waiting for the state to change.
  */
+/**
+ * The owner's voice and persona preferences.
+ *
+ * Read from app_settings on the server so the assistant renders with the right
+ * name and voice on the first paint. Never throws: parseVoiceSettings turns
+ * anything at all into usable settings, and a database that cannot be reached
+ * yields the defaults rather than an error on every page in the dashboard.
+ */
+export async function getVoiceSettings(): Promise<VoiceSettings> {
+  try {
+    const raw = await getRepos().settings.get(VOICE_SETTINGS_KEY);
+    return parseVoiceSettings(raw);
+  } catch {
+    return { ...DEFAULT_VOICE_SETTINGS };
+  }
+}
+
 export function getIntegrationStatus(): {
   crm: { live: boolean; tag: string; explanation: string };
   email: { ready: boolean; explanation: string };

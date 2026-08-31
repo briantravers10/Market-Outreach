@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { getAgentConfigs, getIndustries, getScoringConfig, getTerritories } from "@market-outreach/core";
-import { getCrmMode } from "../../../lib/data";
+import { getCrmMode, getVoiceSettings } from "../../../lib/data";
+import { VoiceSettingsPanel } from "../../../components/manager/VoiceSettingsPanel";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  const voiceSettings = await getVoiceSettings();
   const scoring = getScoringConfig();
   const territories = getTerritories();
   const industries = getIndustries();
@@ -17,6 +19,8 @@ export default async function SettingsPage() {
         <h1>Settings</h1>
         <p>Everything here is config-driven, not buried in agent prompts — edit the JSON files under <code>config/</code> to change behavior.</p>
       </div>
+
+      <VoiceSettingsPanel settings={voiceSettings} />
 
       <div className="panel">
         <h2>Scoring Weights <small>config/scoring-config.json</small></h2>

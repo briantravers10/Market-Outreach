@@ -1679,3 +1679,26 @@ input:disabled, textarea:disabled, select:disabled { opacity: 0.5; cursor: not-a
      the difference between scrolling past the filters and scrolling through them. */
   .filter-field { min-width: 0; flex: 1 1 calc(50% - 6px); }
 }
+
+/* --------------------------------------------------------------------------
+   Voice settings
+   -------------------------------------------------------------------------- */
+.voice-field-wide { grid-column: 1 / -1; }
+.voice-preview { display: flex; align-items: flex-end; }
+.voice-verdict {
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  margin: -4px 0 4px;
+  min-height: 18px;
+}
+.voice-rate { width: 100%; accent-color: var(--accent); margin-top: 6px; }
+.voice-check {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  padding: 8px 0;
+}
+.voice-check input { margin-top: 3px; accent-color: var(--accent); }
+.voice-check .muted { font-size: 12.5px; }

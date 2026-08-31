@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { findVoiceProfile, resolveVoice } from "@market-outreach/core/manager/voiceProfiles";
 
 /**
  * Voice input and output, using the browser's own Web Speech API.
@@ -78,7 +79,26 @@ export interface SpeechState {
   primeVoice(): void;
 }
 
-export function useSpeech(onFinalTranscript: (text: string) => void): SpeechState {
+export interface SpeechOptions {
+  /** Which of the eight voice profiles to speak in. */
+  voiceProfileId: string;
+  rate: number;
+  /**
+   * Re-open the microphone once a reply has finished being spoken.
+   *
+   * This is what turns question-and-answer into conversation: without it every
+   * turn costs a reach for the button. It only ever starts AFTER speech ends,
+   * so the assistant is never listening to itself — the microphone and the
+   * speaker are never open at the same time, which on a laptop speaker is the
+   * difference between turn-taking and a feedback loop.
+   */
+  handsFree: boolean;
+}
+
+export function useSpeech(
+  onFinalTranscript: (text: string) => void,
+  options: SpeechOptions
+): SpeechState {
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [interim, setInterim] = useState("");
@@ -93,6 +113,15 @@ export function useSpeech(onFinalTranscript: (text: string) => void): SpeechStat
   // without having to tear down and rebuild recognition on every render.
   const onFinalRef = useRef(onFinalTranscript);
   onFinalRef.current = onFinalTranscript;
+  // Read inside callbacks that must not be rebuilt when a setting changes —
+  // rebuilding recognition mid-conversation drops the microphone.
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+  /** Set while a reply is being spoken, so hands-free knows when to re-listen. */
+  const resumeAfterSpeechRef = useRef(false);
+  // speak() is defined above startListening but needs to call it when a
+  // hands-free turn ends.
+  const startListeningRef = useRef<(() => void) | null>(null);
 
   // Feature detection runs in an effect, not during render, so the server and
   // the first client render agree and hydration doesn't mismatch.
@@ -177,8 +206,19 @@ export function useSpeech(onFinalTranscript: (text: string) => void): SpeechStat
       setError("This browser doesn't support voice input. Chrome, Edge or Safari do.");
       return;
     }
-    // Talking over itself sounds broken and also feeds the assistant's own
-    // voice back into the microphone.
+    /**
+     * Barge-in: starting to speak cuts the assistant off mid-sentence.
+     *
+     * Waiting politely through a reply you have already heard enough of is the
+     * single thing that makes a voice assistant feel like software rather than
+     * a conversation. Cancelling here also stops the assistant's own voice
+     * being fed back into the microphone.
+     *
+     * The interruption is deliberate, so the hands-free resumption is cleared
+     * too — otherwise the microphone would be re-opened a second time when the
+     * cancelled utterance's end event fires.
+     */
+    resumeAfterSpeechRef.current = false;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       setSpeaking(false);
@@ -189,6 +229,8 @@ export function useSpeech(onFinalTranscript: (text: string) => void): SpeechStat
       // start() throws if it is already running; that is not an error state.
     }
   }, []);
+
+  startListeningRef.current = startListening;
 
   const stopListening = useCallback(() => {
     try {
@@ -212,25 +254,52 @@ export function useSpeech(onFinalTranscript: (text: string) => void): SpeechStat
 
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.lang = "en-GB";
-    utterance.rate = 1.02;
+
+    /**
+     * The voice the owner actually chose, resolved against what this device
+     * has. resolveVoice is the same pure function the settings screen uses, so
+     * what is previewed there is what is heard here — and when the accent
+     * cannot be honoured, both say so rather than only one of them.
+     */
+    const profile = findVoiceProfile(optionsRef.current.voiceProfileId);
+    const installed = window.speechSynthesis.getVoices();
+    const resolution = profile
+      ? resolveVoice(profile, installed.map((v) => ({ name: v.name, lang: v.lang })))
+      : null;
+    const chosen = resolution?.voice
+      ? installed.find((v) => v.name === resolution.voice?.name && v.lang === resolution.voice?.lang)
+      : undefined;
+
+    if (chosen) {
+      utterance.voice = chosen;
+      // Matching the language to the voice matters: leaving it at en-GB while
+      // speaking through an en-IE voice makes some engines re-pick a voice of
+      // their own and quietly undo the setting.
+      utterance.lang = chosen.lang;
+    } else {
+      utterance.lang = profile?.langs[0] ?? "en-GB";
+    }
+
+    utterance.rate = optionsRef.current.rate;
     utterance.pitch = 1;
 
-    // Prefer a natural-sounding installed voice. This is the seam a paid,
-    // higher-quality voice provider would replace later; the selection is
-    // deliberately by name rather than hard-coded to one, because the installed
-    // set differs per device and per OS.
-    const preferred = ["Google UK English Male", "Daniel", "Google UK English Female", "Samantha"];
-    const voices = window.speechSynthesis.getVoices();
-    const chosen =
-      voices.find((v) => preferred.includes(v.name)) ??
-      voices.find((v) => v.lang?.startsWith("en-GB")) ??
-      voices.find((v) => v.lang?.startsWith("en"));
-    if (chosen) utterance.voice = chosen;
-
     utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+    utterance.onend = () => {
+      setSpeaking(false);
+      // Hands-free: hand the turn straight back rather than making the owner
+      // reach for the button. Started only once speech has ENDED, so the
+      // microphone and the speaker are never open together.
+      if (resumeAfterSpeechRef.current && optionsRef.current.handsFree) {
+        resumeAfterSpeechRef.current = false;
+        // A beat, so the tail of the utterance is not caught by the microphone.
+        window.setTimeout(() => startListeningRef.current?.(), 250);
+      }
+    };
+    utterance.onerror = () => {
+      setSpeaking(false);
+      resumeAfterSpeechRef.current = false;
+    };
+    resumeAfterSpeechRef.current = true;
     window.speechSynthesis.speak(utterance);
   }, []);
 
@@ -264,6 +333,9 @@ export function useSpeech(onFinalTranscript: (text: string) => void): SpeechStat
 
   const stopSpeaking = useCallback(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    // Silencing it deliberately must not then hand the turn back — "stop" means
+    // stop, not "stop and start listening to me".
+    resumeAfterSpeechRef.current = false;
     window.speechSynthesis.cancel();
     setSpeaking(false);
   }, []);

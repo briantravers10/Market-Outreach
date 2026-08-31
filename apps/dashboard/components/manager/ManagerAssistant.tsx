@@ -9,6 +9,7 @@ import {
   type ChatReply,
 } from "../../lib/managerActions";
 import { useSpeech } from "./useSpeech";
+import type { VoiceSettings } from "@market-outreach/core/manager/voiceSettings";
 
 /**
  * The floating Manager assistant.
@@ -35,13 +36,26 @@ type Status = "idle" | "listening" | "thinking" | "speaking";
 let turnCounter = 0;
 const nextId = () => `turn-${(turnCounter += 1)}`;
 
-export function ManagerAssistant({ demoMode }: { demoMode: boolean }) {
+export function ManagerAssistant({
+  demoMode,
+  voiceSettings,
+}: {
+  demoMode: boolean;
+  /**
+   * Read on the server from app_settings and passed in.
+   *
+   * Passed as a prop rather than fetched here so the assistant renders with the
+   * owner's chosen name and voice on the very first paint — fetching would show
+   * "Manager" for a moment before correcting itself, on every page.
+   */
+  voiceSettings: VoiceSettings;
+}) {
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
-  const [voiceReplies, setVoiceReplies] = useState(false);
+  const [voiceReplies, setVoiceReplies] = useState(voiceSettings.speakReplies);
   const [brainNote, setBrainNote] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -105,7 +119,12 @@ export function ManagerAssistant({ demoMode }: { demoMode: boolean }) {
       setVoiceReplies(true);
       voiceRepliesRef.current = true;
       void submitRef.current(transcript, speechRef.current?.speak ?? (() => {}));
-    }, [])
+    }, []),
+    {
+      voiceProfileId: voiceSettings.voiceProfileId,
+      rate: voiceSettings.rate,
+      handsFree: voiceSettings.handsFree,
+    }
   );
   const speechRef = useRef(speech);
   speechRef.current = speech;
